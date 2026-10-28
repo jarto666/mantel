@@ -1,0 +1,24 @@
+# Mantel
+
+> Mantel is a free, open-source (GPL-3.0-or-later), controller-first game launcher for Windows handhelds. It is a console-style home screen that puts every installed game (Steam, Xbox / Game Pass / Microsoft Store, Epic Games, GOG, Ubisoft Connect and any other .exe) on one fullscreen shelf you drive with a gamepad. Games still launch through their own stores, so nothing gets reinstalled or reconfigured.
+
+Mantel is built on and for the ASUS ROG Xbox Ally X and is meant for any Windows handheld or TV PC. It ships as a 64-bit Windows installer (`Mantel_x.y.z_x64-setup.exe`) on GitHub Releases. The installer is not code-signed yet, so Windows SmartScreen may warn on first run (More info → Run anyway).
+
+Key facts:
+
+- Finds installed games on first launch, with no plugins and no per-store setup.
+- Every screen works with a gamepad, the touchscreen or a keyboard. A control center closes games, restarts or powers off the device.
+- Times every play session; with Steam or Xbox accounts connected it also brings in playtime from all devices and shows owned games that aren't installed.
+- Minimizes while a game runs and comes back when it exits.
+- Artwork comes from Steam and GOG, plus SteamGridDB with the user's own free key.
+- Privacy: no servers and no telemetry. Steam and Xbox sign-in happen on Steam's and Microsoft's own pages. All data stays on the PC in `%APPDATA%\com.playmantel.launcher\`.
+- Built with Tauri 2 (Rust) and React + TypeScript.
+- Compared with Playnite: Mantel is narrower, a single fullscreen controller-first home screen with no plugins. Compared with the Xbox full screen experience: Mantel is an independent app that treats every store the same.
+- Not affiliated with Valve, Microsoft, ASUS, Epic Games, GOG or Ubisoft.
+
+## Links
+
+- [Website](https://playmantel.com/): features, supported stores, controls and FAQ
+- [Download the latest release](https://github.com/jarto666/mantel/releases/latest): Windows x64 installer
+- [Source code](https://github.com/jarto666/mantel): GitHub repository and README
+- [Privacy statement](https://playmantel.com/privacy): what the app reads and where data is stored
