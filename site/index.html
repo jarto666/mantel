@@ -11,7 +11,7 @@
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preload" href="/assets/fonts/google-sans-flex-wdth.woff2?v=2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/assets/css/style.css?v=6">
+  <link rel="stylesheet" href="/assets/css/style.css?v=7">
   <script>(function (d) { var e = d.documentElement; var f = '900 100px "Google Sans Flex"'; if (!d.fonts || d.fonts.check(f)) return; e.classList.add("wf"); var done = function () { e.classList.remove("wf"); }; d.fonts.load(f).then(done, done); setTimeout(done, 2500); })(document);</script>
 
   <meta property="og:type" content="website">
@@ -268,46 +268,45 @@
             <div class="store-panel" id="sp-steam" role="tabpanel" aria-labelledby="st-steam">
               <h3 class="display">Steam</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Library folders and app manifests, playtime from Steam's own files</dd></div>
-                <div><dt>With your account</dt><dd>Every owned game, playtime from all devices</dd></div>
+                <div><dt>Installed games</dt><dd>Found automatically, with your playtime</dd></div>
+                <div><dt>With your account</dt><dd>Every game you own, playtime from all your devices</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-xbox" role="tabpanel" aria-labelledby="st-xbox" hidden>
               <h3 class="display">Xbox / Game Pass / Microsoft Store</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Packages that ship a <code>MicrosoftGame.config</code></dd></div>
+                <div><dt>Installed games</dt><dd>Found automatically</dd></div>
                 <div><dt>With your account</dt><dd>Play history and minutes played</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-epic" role="tabpanel" aria-labelledby="st-epic" hidden>
               <h3 class="display">Epic Games</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Launcher manifests and catalog cache</dd></div>
+                <div><dt>Installed games</dt><dd>Found automatically</dd></div>
                 <div><dt>With your account</dt><dd class="later">Coming later</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-gog" role="tabpanel" aria-labelledby="st-gog" hidden>
               <h3 class="display">GOG</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Registry; launches through Galaxy when installed</dd></div>
+                <div><dt>Installed games</dt><dd>Found automatically, launched through Galaxy if you have it</dd></div>
                 <div><dt>With your account</dt><dd class="later">Coming later</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-ubisoft" role="tabpanel" aria-labelledby="st-ubisoft" hidden>
               <h3 class="display">Ubisoft Connect</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Registry</dd></div>
+                <div><dt>Installed games</dt><dd>Found automatically</dd></div>
                 <div><dt>With your account</dt><dd class="later">Coming later</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-other" role="tabpanel" aria-labelledby="st-other" hidden>
               <h3 class="display">Anything else</h3>
               <dl>
-                <div><dt>Installed games</dt><dd>Settings → <em>Add a game manually</em>: suggested shortcuts, or any <code>.exe</code>, <code>.lnk</code> or <code>.url</code></dd></div>
+                <div><dt>Installed games</dt><dd>Add any game or shortcut yourself in Settings</dd></div>
                 <div><dt>With your account</dt><dd class="later">No account needed</dd></div>
               </dl>
             </div>
-            <p class="store-note">Games always launch through their own store.</p>
           </div>
         </div>
       </div>
@@ -315,27 +314,16 @@
 
     <section class="section" id="privacy" aria-labelledby="privacy-title">
       <div class="wrap">
-        <div class="zero reveal">
-          <div class="zero-num" aria-hidden="true">0</div>
-          <div>
-            <p class="eyebrow" style="margin-bottom:18px">Accounts and privacy</p>
-            <h2 class="display h-lg" id="privacy-title">Zero servers.<br><span class="outline">Zero telemetry.</span></h2>
-            <p class="lead" style="margin-top:20px;max-width:34em">Mantel talks only to the services you use. Signing in is optional: it adds the games you own and your playtime from other devices.</p>
-          </div>
+        <div class="section-head reveal">
+          <p class="eyebrow">Accounts and privacy</p>
+          <h2 class="display h-lg" id="privacy-title">Zero servers.<br><span class="outline">Zero telemetry.</span></h2>
         </div>
-        <div class="settings reveal">
-          <div class="settings-head"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Settings <span class="sep">›</span> Privacy</div>
-          <dl>
-            <div class="row"><dt>Servers</dt><dd><span class="val">None</span>Mantel has no servers of its own.</dd></div>
-            <div class="row"><dt>Telemetry</dt><dd><span class="val">None</span>No analytics, no usage data.</dd></div>
-            <div class="row"><dt>Steam</dt><dd>You sign in on Steam's own page inside Mantel; Mantel never sees your password, and email Steam Guard codes work. It then reads your owned games with the same short-lived token the Steam store page uses.</dd></div>
-            <div class="row"><dt>Xbox</dt><dd>You sign in on Microsoft's own page and allow Mantel to read your Xbox profile. Mantel reads your play history and minutes played from Xbox Live.</dd></div>
-            <div class="row"><dt>Artwork</dt><dd>Steam's store and image servers, GOG's public API and, if you add a key, SteamGridDB.</dd></div>
-            <div class="row"><dt>Your data</dt><dd>Stays on your PC in <code>%APPDATA%\com.playmantel.launcher\</code>. <code>user.json</code> holds settings, favorites, playtime and the account tokens; <code>cache.json</code> can be deleted at any time.</dd></div>
-            <div class="row"><dt>Sign out</dt><dd>Settings → Accounts signs you out and deletes the tokens.</dd></div>
-          </dl>
-          <div class="settings-foot"><a href="/privacy">Read the full privacy statement</a></div>
+        <div class="facts reveal">
+          <div class="fact"><div class="fact-value">0</div><div class="fact-label">Passwords seen</div></div>
+          <div class="fact"><div class="fact-value">0</div><div class="fact-label">Accounts required</div></div>
+          <div class="fact"><div class="fact-value">100<small>%</small></div><div class="fact-label">Kept on your PC</div></div>
         </div>
+        <p class="lead facts-note reveal">Steam and Xbox sign-in happen on their own pages, and only if you want your whole collection and playtime from other devices. Sign out any time in Settings. <a href="/privacy">Privacy statement</a></p>
       </div>
     </section>
 

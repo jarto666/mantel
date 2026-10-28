@@ -301,7 +301,6 @@ kbd { display: inline-grid; place-items: center; min-width: 30px; height: 30px; 
 .store-panel dt { font-size: 12px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
 .store-panel dd { margin-top: 6px; font-size: 18px; color: var(--ink); }
 .store-panel dd.later { color: var(--ink-3); }
-.store-note { margin-top: 26px; font-size: 15px; color: var(--ink-3); }
 
 /* ---------- Controls: one hint bar, as at the bottom of the app's screens -- */
 
@@ -316,21 +315,16 @@ kbd { display: inline-grid; place-items: center; min-width: 30px; height: 30px; 
 .hint-strip .kb { margin-top: 16px; font-size: 14px; color: var(--ink-3); }
 .hint-strip kbd { min-width: 24px; height: 24px; padding: 0 7px; font-size: 12px; }
 
-/* ---------- Privacy: the app's Settings screen ---------------------------- */
+/* ---------- Privacy: three numbers, like the stats row in the app ----------- */
 
-.zero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(20px, 4vw, 60px); align-items: end; }
-.zero-num { font-size: clamp(150px, 22vw, 320px); font-stretch: 40%; font-weight: 900; line-height: 0.74; color: transparent; background: linear-gradient(180deg, #fff, color-mix(in oklab, var(--accent) 80%, #000)); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 40px var(--glow)); }
-.settings { margin-top: clamp(36px, 5vw, 64px); border-radius: 28px; overflow: hidden; background: rgba(255, 255, 255, 0.035); box-shadow: inset 0 0 0 1px var(--stroke); }
-.settings-head { display: flex; align-items: center; gap: 12px; padding: 18px 28px; font-size: 14px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); box-shadow: inset 0 -1px 0 var(--stroke); }
-.settings-head svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.row { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(0, 2fr); gap: 8px 28px; padding: 20px 28px; align-items: baseline; transition: background 0.3s; }
-.row + .row { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
-.row:hover { background: rgba(255, 255, 255, 0.04); }
-.row dt { font-size: 18px; font-weight: 600; }
-.row dd { color: var(--ink-2); }
-.row dd .val { display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; padding: 3px 12px; border-radius: 99px; background: rgba(95, 224, 138, 0.14); color: #a8f3bf; font-size: 14px; font-weight: 650; }
-.row dd .val::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
-.settings-foot { padding: 18px 28px 22px; box-shadow: inset 0 1px 0 var(--stroke); font-size: 15px; color: var(--ink-3); }
+.facts { display: flex; flex-wrap: wrap; row-gap: 28px; }
+.fact { padding-right: clamp(24px, 4vw, 64px); }
+.fact + .fact { padding-left: clamp(24px, 4vw, 64px); box-shadow: inset 1px 0 0 var(--stroke); }
+.fact-value { font-size: clamp(72px, 10vw, 150px); font-weight: 300; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.fact-value small { margin-left: 0.04em; font-size: 0.45em; font-weight: 400; color: var(--ink-2); letter-spacing: 0; }
+.fact-label { margin-top: 12px; font-size: 13px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+.facts-note { margin-top: clamp(28px, 4vw, 44px); max-width: 38em; }
+.facts-note a { color: #fff; font-weight: 600; white-space: nowrap; }
 
 /* ---------- FAQ: menu rows ------------------------------------------------- */
 
@@ -443,12 +437,15 @@ kbd { display: inline-grid; place-items: center; min-width: 30px; height: 30px; 
   .step-where { display: block; margin-top: 12px; font-size: 12px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
   .stores { grid-template-columns: 1fr; }
   .store-card { position: relative; top: 0; }
-  .zero { grid-template-columns: 1fr; align-items: start; }
-  .zero-num { display: none; }
 }
 
 @media (max-width: 720px) {
   :root { --top: 64px; }
+  .facts { row-gap: 0; }
+  .fact, .fact + .fact { display: flex; align-items: center; gap: 18px; flex: 1 1 100%; padding: 14px 0; box-shadow: inset 0 -1px 0 var(--stroke); }
+  .fact:last-child { box-shadow: none; }
+  .fact-value { min-width: 2.2em; font-size: 64px; }
+  .fact-label { margin-top: 0; }
   body { font-size: 16px; }
   .topbar .wrap { gap: 12px; }
   .brand { font-size: 19px; }
@@ -461,8 +458,6 @@ kbd { display: inline-grid; place-items: center; min-width: 30px; height: 30px; 
   .menu button { padding: 8px 16px 8px 14px; font-size: 27px; gap: 12px; }
   .screens { order: 0; }
   .title { margin-bottom: 6px; }
-  .row { grid-template-columns: 1fr; padding: 18px 20px; }
-  .settings-head, .settings-foot { padding-left: 20px; padding-right: 20px; }
   .faq summary { padding: 16px 16px; font-size: 18px; }
   .faq summary .glyph { display: none; }
   .faq .answer { padding: 0 18px 20px; }
