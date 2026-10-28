@@ -213,44 +213,21 @@
     if (opened.size >= 3) trophy("manual", "Read the manual", "silver");
   }));
 
-  // ---------- Controls: buttons and keys light up the pad and their row ----------
+  // ---------- Controls: a pressed button lights its hint ----------
 
-  const padParts = $$(".pad-art g[data-pad]");
-  const padRows = $$(".binds [data-pad]");
-  const keyRows = $$(".kbd-row [data-key]");
+  const hints = $$(".hints [data-pad]");
   const timers = new Map();
-  let presses = 0;
-
-  function flash(el, ms = 420) {
-    el.classList.add("is-lit");
-    clearTimeout(timers.get(el));
-    timers.set(el, setTimeout(() => el.classList.remove("is-lit"), ms));
-  }
   function lightPad(index) {
-    const has = (el) => el.dataset.pad.split(" ").includes(String(index));
-    const hit = [...padParts.filter(has), ...padRows.filter(has)];
-    hit.forEach((el) => flash(el));
-    if (hit.length) countPress();
+    hints.filter((li) => li.dataset.pad.split(" ").includes(String(index))).forEach((li) => {
+      li.classList.add("is-lit");
+      clearTimeout(timers.get(li));
+      timers.set(li, setTimeout(() => li.classList.remove("is-lit"), 420));
+    });
   }
-  function countPress() {
-    const r = $("#controls").getBoundingClientRect();
-    if (r.top < window.innerHeight && r.bottom > 0 && ++presses >= 12) trophy("masher", "Button masher", "bronze");
-  }
-  padRows.forEach((row) => {
-    const parts = () => padParts.filter((g) => g.dataset.pad.split(" ").some((n) => row.dataset.pad.split(" ").includes(n)));
-    row.addEventListener("mouseenter", () => parts().forEach((g) => g.classList.add("is-lit")));
-    row.addEventListener("mouseleave", () => parts().forEach((g) => g.classList.remove("is-lit")));
-  });
 
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    const row = keyRows.find((li) => li.dataset.key.split(" ").includes(key));
-    if (row) {
-      flash(row);
-      countPress();
-    }
-    if (key === "q" || key === "e") jump(key === "e" ? 1 : -1);
+    if (e.key === "q" || e.key === "e") jump(e.key === "e" ? 1 : -1);
   });
 
   // ---------- Gamepad: spatial focus like the app, A selects, B backs out ----------

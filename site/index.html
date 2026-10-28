@@ -11,7 +11,7 @@
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preload" href="/assets/fonts/google-sans-flex-wdth.woff2?v=2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/assets/css/style.css?v=2">
+  <link rel="stylesheet" href="/assets/css/style.css?v=3">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Mantel">
@@ -84,7 +84,6 @@
         <span class="glyph bumper" aria-hidden="true">LB</span>
         <a href="#features">Features</a>
         <a href="#stores">Stores</a>
-        <a href="#controls">Controls</a>
         <a href="#privacy">Privacy</a>
         <a href="#faq">FAQ</a>
         <span class="glyph bumper" aria-hidden="true">RB</span>
@@ -243,6 +242,21 @@
             </span>
           </button>
         </div>
+
+        <div class="hint-strip reveal">
+          <p class="eyebrow">Controls <span class="sep">·</span> the same on every screen</p>
+          <ul class="hints">
+            <li data-pad="0"><span class="glyph face a">A</span>Play</li>
+            <li data-pad="1"><span class="glyph face b">B</span>Back</li>
+            <li data-pad="3"><span class="glyph face y">Y</span>Details</li>
+            <li data-pad="2"><span class="glyph face x">X</span>Favorite</li>
+            <li data-pad="4 5"><span class="glyph bumper">LB</span><span class="glyph bumper">RB</span>Games ↔ Library ↔ Settings</li>
+            <li data-pad="6 7"><span class="glyph trigger">LT</span><span class="glyph trigger">RT</span>Library filters</li>
+            <li data-pad="8"><span class="glyph round" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="11" height="9" rx="1.5"/><rect x="9" y="10" width="11" height="9" rx="1.5"/></svg></span>Search</li>
+            <li data-pad="9"><span class="glyph round" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span>Control center: close game, restart, power off, desktop</li>
+          </ul>
+          <p class="kb">On a keyboard: arrows, Enter, Esc, <kbd>I</kbd> details, <kbd>F</kbd> favorite, <kbd>Q</kbd> / <kbd>E</kbd> tabs, <kbd>/</kbd> search, <kbd>M</kbd> menu.</p>
+        </div>
       </div>
     </section>
 
@@ -309,61 +323,6 @@
             <p class="store-note">Games always launch through their own store.</p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section class="section" id="controls" aria-labelledby="controls-title">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="eyebrow">Controls</p>
-          <h2 class="display h-lg" id="controls-title">Made for<br><span class="outline">the pad.</span></h2>
-          <p class="lead">The same buttons on every screen, with hints along the bottom. Press anything on your controller or keyboard to try it here.</p>
-        </div>
-        <div class="pad-wrap reveal">
-          <ul class="binds left">
-            <li data-pad="4 5"><span class="gl"><span class="glyph bumper">LB</span><span class="glyph bumper">RB</span></span>Games ↔ Library ↔ Settings</li>
-            <li data-pad="6 7"><span class="gl"><span class="glyph trigger">LT</span><span class="glyph trigger">RT</span></span>Library filters</li>
-            <li data-pad="8"><span class="gl"><span class="glyph round" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="11" height="9" rx="1.5"/><rect x="9" y="10" width="11" height="9" rx="1.5"/></svg></span></span>Search</li>
-            <li data-pad="9"><span class="gl"><span class="glyph round" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span></span>Control center: close game, restart, power off, desktop</li>
-          </ul>
-          <div class="pad-center">
-            <div class="pad-glow" aria-hidden="true"></div>
-            <svg class="pad-art" viewBox="0 0 800 500" role="img" aria-label="A controller with A, B, X, Y, bumpers, triggers, View and Menu buttons">
-              <defs><linearGradient id="padBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2e3b"/><stop offset="1" stop-color="#0e1017"/></linearGradient></defs>
-              <g data-pad="6"><path class="part" d="M150 102 C150 72 175 58 205 58 H245 C268 58 282 72 284 94 L286 110 H150 Z"/><text class="lbl" x="218" y="86">LT</text></g>
-              <g data-pad="7"><path class="part" d="M650 102 C650 72 625 58 595 58 H555 C532 58 518 72 516 94 L514 110 H650 Z"/><text class="lbl" x="582" y="86">RT</text></g>
-              <g data-pad="4"><path class="part" d="M112 138 C120 118 146 110 176 110 H300 C318 110 326 118 326 130 V142 H112 Z"/><text class="lbl" x="222" y="127">LB</text></g>
-              <g data-pad="5"><path class="part" d="M688 138 C680 118 654 110 624 110 H500 C482 110 474 118 474 130 V142 H688 Z"/><text class="lbl" x="578" y="127">RB</text></g>
-              <path class="body" d="M250 136 H550 C640 136 690 156 715 216 C745 286 775 386 760 436 C748 476 700 486 672 456 C640 421 610 366 560 356 H240 C190 366 160 421 128 456 C100 486 52 476 40 436 C25 386 55 286 85 216 C110 156 160 136 250 136 Z"/>
-              <g data-pad="10"><circle class="part" cx="215" cy="232" r="42"/><circle class="part" cx="215" cy="232" r="27"/></g>
-              <g data-pad="11"><circle class="part" cx="500" cy="310" r="42"/><circle class="part" cx="500" cy="310" r="27"/></g>
-              <g data-pad="12 13 14 15"><path class="part" d="M289 277 H311 V299 H333 V321 H311 V343 H289 V321 H267 V299 H289 Z"/></g>
-              <g data-pad="8"><circle class="part" cx="352" cy="214" r="16"/><g class="icon" transform="translate(344.8 206.8) scale(.6)"><rect x="4" y="5" width="11" height="9" rx="1.5"/><rect x="9" y="10" width="11" height="9" rx="1.5"/></g></g>
-              <g data-pad="9"><circle class="part" cx="448" cy="214" r="16"/><g class="icon" transform="translate(440.8 206.8) scale(.6)"><path d="M5 7h14M5 12h14M5 17h14"/></g></g>
-              <g data-pad="16"><circle class="part" cx="400" cy="176" r="20"/><path class="icon" style="fill:rgba(255,255,255,.75);stroke:none" d="M400 163 C401.6 172 404 174.4 413 176 C404 177.6 401.6 180 400 189 C398.4 180 396 177.6 387 176 C396 174.4 398.4 172 400 163 Z"/></g>
-              <g data-pad="3"><circle class="part" cx="590" cy="194" r="21"/><text class="lbl y" x="590" y="194">Y</text></g>
-              <g data-pad="2"><circle class="part" cx="552" cy="232" r="21"/><text class="lbl x" x="552" y="232">X</text></g>
-              <g data-pad="1"><circle class="part" cx="628" cy="232" r="21"/><text class="lbl b" x="628" y="232">B</text></g>
-              <g data-pad="0"><circle class="part" cx="590" cy="270" r="21"/><text class="lbl a" x="590" y="270">A</text></g>
-            </svg>
-          </div>
-          <ul class="binds right">
-            <li data-pad="0"><span class="gl"><span class="glyph face a">A</span></span>Play</li>
-            <li data-pad="1"><span class="gl"><span class="glyph face b">B</span></span>Back</li>
-            <li data-pad="2"><span class="gl"><span class="glyph face x">X</span></span>Favorite</li>
-            <li data-pad="3"><span class="gl"><span class="glyph face y">Y</span></span>Game details</li>
-          </ul>
-        </div>
-        <p class="kbd-row reveal">
-          <span data-key="ArrowUp ArrowDown ArrowLeft ArrowRight"><kbd>←</kbd><kbd>→</kbd> Move</span>
-          <span data-key="Enter"><kbd>Enter</kbd> Play</span>
-          <span data-key="Escape"><kbd>Esc</kbd> Back</span>
-          <span data-key="i"><kbd>I</kbd> Details</span>
-          <span data-key="f"><kbd>F</kbd> Favorite</span>
-          <span data-key="q e"><kbd>Q</kbd><kbd>E</kbd> Tabs</span>
-          <span data-key="/"><kbd>/</kbd> Search</span>
-          <span data-key="m"><kbd>M</kbd> Menu</span>
-        </p>
       </div>
     </section>
 
@@ -492,6 +451,6 @@
     <span class="hint"><span class="glyph trigger">LT</span><span class="glyph trigger">RT</span>Screens</span>
   </div>
 
-  <script src="/assets/js/main.js?v=2" defer></script>
+  <script src="/assets/js/main.js?v=3" defer></script>
 </body>
 </html>
