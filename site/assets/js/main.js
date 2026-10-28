@@ -1,5 +1,6 @@
-// playmantel.com: the page behaves like the app. Screens and covers take focus, a
-// controller drives everything, and a few trophies drop for the curious.
+// playmantel.com: the page behaves like the app. The screens switch like its tabs, the
+// feature tour zooms into the real UI, a controller drives everything, and a few trophies
+// drop for the curious.
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -48,42 +49,30 @@
     setScreen(screen + (e.key === "ArrowRight" ? 1 : -1), true);
   });
 
-  // ---------- Features: a shelf of covers; focus one and the stage above shows it ----------
+  // ---------- Features: the pinned screen zooms to whatever step is in the middle ----------
 
-  const shelfSection = $(".shelf-section");
-  const covers = $$(".cover");
-  const features = $$(".feature");
-  const seen = new Set([0]);
-  let feature = 0;
+  const steps = $$(".step");
+  const tourFrame = $(".tour-frame");
+  const tourImgs = $$(".tour-frame img");
+  const tourWhere = $(".tour-where");
+  const seen = new Set();
 
-  function setFeature(i, { focus = false, scroll = false } = {}) {
-    i = Math.max(0, Math.min(covers.length - 1, i));
-    if (i !== feature) {
-      feature = i;
-      covers.forEach((c, k) => {
-        c.classList.toggle("is-active", k === i);
-        c.setAttribute("aria-selected", k === i);
-        c.tabIndex = k === i ? 0 : -1;
-      });
-      features.forEach((f, k) => (f.hidden = k !== i));
-      shelfSection.style.setProperty("--tint", covers[i].style.getPropertyValue("--tint"));
-      seen.add(i);
-      if (seen.size === covers.length) trophy("shopper", "Window shopper", "silver");
-    }
-    if (scroll) covers[i].scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-    if (focus) covers[i].focus({ preventScroll: true });
+  function setStep(i) {
+    const step = steps[i];
+    steps.forEach((s) => s.classList.toggle("is-active", s === step));
+    for (const v of ["--z", "--tx", "--ty"]) tourFrame.style.setProperty(v, step.style.getPropertyValue(v));
+    tourImgs.forEach((img) => img.classList.toggle("is-active", img.dataset.img === step.dataset.img));
+    tourWhere.textContent = $(".step-where", step).textContent;
+    seen.add(i);
+    if (seen.size === steps.length) trophy("shopper", "Window shopper", "silver");
   }
-  covers.forEach((c, i) => {
-    c.addEventListener("click", () => setFeature(i));
-    c.addEventListener("focus", () => setFeature(i, { scroll: true }));
-    if (finePointer) c.addEventListener("mouseenter", () => setFeature(i));
-  });
-  $(".shelf").addEventListener("keydown", (e) => {
-    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -99, End: 99 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    setFeature(feature + step, { focus: true, scroll: true });
-  });
+  if ("IntersectionObserver" in window) {
+    const middle = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && setStep(steps.indexOf(e.target))),
+      { rootMargin: "-48% 0px -48% 0px" },
+    );
+    steps.forEach((s) => middle.observe(s));
+  }
 
   // ---------- Stores: a game menu, the card on the right follows the selection ----------
 
