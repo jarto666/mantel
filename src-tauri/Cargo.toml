@@ -1,0 +1,50 @@
+[package]
+name = "mantel"
+version = "0.1.0"
+description = "Console-style game launcher"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/jarto666/mantel"
+edition = "2021"
+
+[lib]
+name = "mantel_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+futures = "0.3"
+sysinfo = "0.37"
+base64 = "0.22"
+roxmltree = "0.20"
+tauri-plugin-clipboard-manager = "2"
+tokio = { version = "1", features = ["sync", "time"] }
+percent-encoding = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows-sys = { version = "0.60", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_System_Power",
+  "Win32_System_Registry",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
