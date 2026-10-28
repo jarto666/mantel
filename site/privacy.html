@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Privacy statement · Mantel</title>
+  <meta name="description" content="Mantel has no servers and sends no telemetry. What the app reads from Steam, Xbox Live and artwork services, where your data is stored, and how to sign out.">
+  <link rel="canonical" href="https://playmantel.com/privacy">
+  <meta name="theme-color" content="#05060a">
+  <link rel="icon" href="/assets/img/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/assets/fonts/google-sans-flex-wdth.woff2?v=2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/css/style.css?v=7">
+  <script>(function (d) { var e = d.documentElement; var f = '900 100px "Google Sans Flex"'; if (!d.fonts || d.fonts.check(f)) return; e.classList.add("wf"); var done = function () { e.classList.remove("wf"); }; d.fonts.load(f).then(done, done); setTimeout(done, 2500); })(document);</script>
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Mantel">
+  <meta property="og:url" content="https://playmantel.com/privacy">
+  <meta property="og:title" content="Mantel privacy statement">
+  <meta property="og:description" content="No servers, no telemetry. What Mantel reads, where it is stored and how to sign out.">
+  <meta property="og:image" content="https://playmantel.com/assets/img/og-2.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="topbar is-scrolled" id="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Mantel home"><img src="/assets/img/icon.svg" alt="" width="30" height="30">Mantel</a>
+      <div class="topbar-end">
+        <a class="btn btn-primary btn-sm" href="https://github.com/jarto666/mantel/releases/latest"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Download</span></a>
+      </div>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="wrap">
+      <h1 class="display">Privacy statement</h1>
+      <p class="updated">Last updated 28 October 2026</p>
+
+      <p class="tldr"><strong>Mantel has no servers and sends no telemetry.</strong> The app talks only to the services you use, everything it keeps stays on your PC, and nobody behind Mantel ever receives your data.</p>
+
+      <p>This statement covers the Mantel app for Windows and this website, playmantel.com. Mantel is open source, so you can check everything below in <a href="https://github.com/jarto666/mantel">its code</a>.</p>
+
+      <h2>What the app reads on your PC</h2>
+      <p>To build your library, Mantel reads what your stores have already installed: Steam's library folders and app manifests (including the playtime Steam keeps in its own files), Xbox / Microsoft Store packages that ship a <code>MicrosoftGame.config</code>, the Epic Games launcher's manifests and catalog cache, and GOG and Ubisoft Connect entries in the Windows registry. It also keeps the shortcuts and programs you add by hand. Mantel times your play sessions itself.</p>
+
+      <h2>Accounts</h2>
+      <p>Signing in is optional. Mantel works with installed games without any account.</p>
+      <h3>Steam</h3>
+      <p>You sign in on Steam's own page inside Mantel. Mantel never sees your password, and email Steam Guard codes work. Mantel then reads your owned games and their playtime with the same short-lived token the Steam store page uses.</p>
+      <h3>Xbox</h3>
+      <p>You sign in on Microsoft's own page and allow Mantel to read your Xbox profile (the <code>XboxLive.signin</code> and <code>XboxLive.offline_access</code> permissions). Mantel never sees your password. It reads your play history and minutes played from Xbox Live.</p>
+
+      <h2>Services the app talks to</h2>
+      <ul>
+        <li><strong>Steam</strong>: the Steam store (game details and search) and the Steam Web API (your owned games, only when you're signed in), plus Steam's image servers for artwork.</li>
+        <li><strong>Microsoft and Xbox Live</strong>: Microsoft's sign-in service and Xbox Live, only when you're signed in to Xbox.</li>
+        <li><strong>GOG</strong>: GOG's public API, for artwork and game details.</li>
+        <li><strong>SteamGridDB</strong>: only if you add your own SteamGridDB key, for artwork the stores don't have.</li>
+        <li><strong>GitHub</strong>: to check for a new version of Mantel, shortly after it starts and then every few hours, and to download an update when you choose to install it.</li>
+      </ul>
+      <p>These requests ask for game information and artwork. As with any internet request, the service sees your IP address; its own privacy policy applies to that. Mantel sends nothing to anyone else.</p>
+
+      <h2>Where your data is stored</h2>
+      <p>Everything stays on your PC in <code>%APPDATA%\com.playmantel.launcher\</code>:</p>
+      <ul>
+        <li><code>user.json</code> holds your settings, favorites, playtime and the account tokens.</li>
+        <li><code>cache.json</code> holds the last library scan and what Mantel looked up online. It can be deleted at any time; Mantel rebuilds it.</li>
+      </ul>
+      <p>Like a browser, Mantel's built-in web view keeps its own cache and cookies in <code>%LOCALAPPDATA%\com.playmantel.launcher\</code>. That includes artwork it has already shown and, while you're signed in, your Steam session.</p>
+
+      <h2>Signing out and deleting your data</h2>
+      <ul>
+        <li><strong>Sign out:</strong> Settings → Accounts signs you out and deletes the tokens. Signing out of Steam also empties the web view's cookies.</li>
+        <li><strong>Remove Mantel's access to your Microsoft account:</strong> you can also do this from your Microsoft account, under <a href="https://account.live.com/consent/Manage">apps and services you've given access</a>.</li>
+        <li><strong>Delete everything:</strong> uninstall Mantel and delete the <code>%APPDATA%\com.playmantel.launcher\</code> and <code>%LOCALAPPDATA%\com.playmantel.launcher\</code> folders.</li>
+      </ul>
+
+      <h2>This website</h2>
+      <p>playmantel.com is a static page with no cookies, no analytics and no trackers. Its font is served from this site, not from a font service. The site is hosted on Vercel, and its domain's DNS runs on Cloudflare; like any web host, they process standard request data such as your IP address to deliver the page. Download links go to GitHub, where GitHub's privacy statement applies.</p>
+
+      <h2>Children</h2>
+      <p>Mantel doesn't collect personal data from anyone, including children.</p>
+
+      <h2>Changes and contact</h2>
+      <p>If any of this changes, this page will be updated along with the date at the top. Questions are welcome as an <a href="https://github.com/jarto666/mantel/issues">issue on GitHub</a>.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/img/icon.svg" alt="" width="26" height="26">Mantel</a>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="/">Home</a>
+        <a href="https://github.com/jarto666/mantel">GitHub</a>
+        <a href="https://github.com/jarto666/mantel/releases">Releases</a>
+        <a href="https://github.com/jarto666/mantel/blob/main/LICENSE">License</a>
+      </nav>
+      <small>Mantel is free software under the GPL-3.0-or-later. It is not affiliated with Valve, Microsoft, ASUS, Epic Games, GOG or Ubisoft.</small>
+    </div>
+  </footer>
+</body>
+</html>
