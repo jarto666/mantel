@@ -27,9 +27,9 @@ export interface Api {
   runningGame(): Promise<Running | null>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
-  powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "quit"): Promise<void>;
+  powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "home-app-settings" | "quit"): Promise<void>;
   /** Windows' full screen experience (Xbox mode): whether it's on and whether we can toggle it. */
-  fullScreenMode(): Promise<{ active: boolean; canSwitch: boolean }>;
+  fullScreenMode(): Promise<FullScreenMode>;
   getAutostart(): Promise<boolean>;
   setAutostart(on: boolean): Promise<void>;
   on(event: GameEvent, cb: (payload: unknown) => void): () => void;
@@ -50,6 +50,16 @@ export interface Api {
 }
 
 export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout";
+
+export interface FullScreenMode {
+  supported: boolean;
+  active: boolean;
+  canSwitch: boolean;
+  /** Windows lists Mantel among home apps (installed with Developer Mode on). */
+  offered: boolean;
+  /** The user picked Mantel as the home app. */
+  home: boolean;
+}
 
 let pendingUpdate: import("@tauri-apps/plugin-updater").Update | null = null;
 

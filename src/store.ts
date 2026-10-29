@@ -100,11 +100,27 @@ export async function boot() {
   setSoundEnabled(settings.sounds);
   set({ settings, games: cached, loaded: true, running });
   api.appVersion().then((version) => set({ version }));
+  // Installing can't make Mantel the home app, only offer it, and Windows doesn't say so.
+  api
+    .fullScreenMode()
+    .then((m) => m.offered && !m.home && firstTime("mantel.homeAppHint") && toast("Mantel can be the home app of Xbox mode: see Settings", "good"))
+    .catch(() => {});
   await rescan(true);
   // Release builds only: a dev build would "update" itself into the installed release.
   if (import.meta.env.PROD) {
     setTimeout(checkForUpdate, 20_000);
     setInterval(checkForUpdate, 6 * 3600_000);
+  }
+}
+
+/** True the first time `key` is asked for on this PC; false when storage is unavailable. */
+function firstTime(key: string): boolean {
+  try {
+    if (localStorage.getItem(key)) return false;
+    localStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
   }
 }
 

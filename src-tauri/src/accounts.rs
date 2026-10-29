@@ -293,15 +293,25 @@ pub async fn xbox_sign_in(app: &AppHandle) -> Result<String, String> {
     if let Some(args) = app.config().app.windows.first().and_then(|w| w.additional_browser_args.clone()) {
         builder = builder.additional_browser_args(&args);
     }
+    // Host and path only: the query carries the code.
+    let page = |u: &Url| format!("{}{}", u.host_str().unwrap_or_default(), u.path());
+    crate::log::info("xbox sign-in: opened");
     let w = builder
         .title("Sign in to Xbox")
         .inner_size(980.0, 760.0)
         .center()
         .always_on_top(true)
+        .on_page_load(move |_, p| {
+            if p.event() == PageLoadEvent::Finished {
+                crate::log::info(&format!("xbox sign-in: showing {}", page(p.url())));
+            }
+        })
         .on_navigation(move |u| {
             if !u.as_str().starts_with(LIVE_REDIRECT) {
+                crate::log::info(&format!("xbox sign-in: going to {}", page(u)));
                 return true;
             }
+            crate::log::info("xbox sign-in: Microsoft answered");
             let get = |k: &str| u.query_pairs().find(|(key, _)| key == k).map(|(_, v)| v.to_string());
             let _ = tx_nav.send(match (get("code"), get("error_description").or_else(|| get("error"))) {
                 (Some(code), _) => Ok(code),
@@ -315,6 +325,7 @@ pub async fn xbox_sign_in(app: &AppHandle) -> Result<String, String> {
     let tx_close = Arc::new(tx);
     w.on_window_event(move |e| {
         if matches!(e, WindowEvent::Destroyed) {
+            crate::log::info("xbox sign-in: window closed");
             let _ = tx_close.send(Err("Sign-in was closed before it finished".into()));
         }
     });
@@ -494,23 +505,39 @@ pub async fn xbox_titles(app: &AppHandle) -> Result<Vec<XboxTitle>, String> {
         .collect())
 }
 
-/// Minutes played per title id. Missing for some accounts; then playtime stays local.
+/// Minutes played per title id. Xbox Live answers slower the more titles one request names
+/// (246 took 17 s, past the client's timeout), so they go in batches, all at once.
 async fn xbox_minutes(http: &reqwest::Client, auth: &str, xuid: &str, ids: &[&str]) -> std::collections::HashMap<String, u64> {
+    let batches = ids.chunks(50).map(|chunk| xbox_minutes_batch(http, auth, xuid, chunk));
+    let mut minutes = std::collections::HashMap::new();
+    for batch in futures::future::join_all(batches).await {
+        match batch {
+            Ok(found) => minutes.extend(found),
+            Err(e) => crate::log::warn(&format!("xbox playtime: {e}")),
+        }
+    }
+    minutes
+}
+
+async fn xbox_minutes_batch(http: &reqwest::Client, auth: &str, xuid: &str, ids: &[&str]) -> Result<Vec<(String, u64)>, String> {
     let body = serde_json::json!({
         "arrangebyfield": "xuid",
         "xuids": [xuid],
         "stats": ids.iter().map(|id| serde_json::json!({ "name": "MinutesPlayed", "titleid": id })).collect::<Vec<_>>(),
     });
-    let res = http
+    let v: Value = http
         .post("https://userstats.xboxlive.com/batch")
         .header("Authorization", auth)
         .header("x-xbl-contract-version", "2")
         .json(&body)
         .send()
-        .await;
-    let Ok(res) = res else { return Default::default() };
-    let v: Value = res.json().await.unwrap_or_default();
-    v.pointer("/statlistscollection/0/stats")
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(v.pointer("/statlistscollection/0/stats")
         .and_then(Value::as_array)
         .map(|stats| {
             stats
@@ -522,7 +549,7 @@ async fn xbox_minutes(http: &reqwest::Client, auth: &str, xuid: &str, ids: &[&st
                 })
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_default())
 }
 
 /// Installed games gain account playtime; the rest open their page in the Xbox app to

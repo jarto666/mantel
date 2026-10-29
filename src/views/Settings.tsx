@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, type FullScreenMode } from "../api";
 import { SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { AddGame } from "../components/AddGame";
@@ -61,12 +61,18 @@ export function Settings({ active }: { active: boolean }) {
   const [autostart, setAutostart] = useState(false);
   const [flow, setFlow] = useState<Flow>(null);
   const [accounts, setAccounts] = useState<AccountsStatus | null>(null);
+  const [mode, setMode] = useState<FullScreenMode | null>(null);
   const list = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.getAutostart().then(setAutostart).catch(() => {});
     api.accountsStatus().then(setAccounts).catch(() => {});
   }, []);
+
+  // Again on every visit: the home app is picked in Windows' own Settings.
+  useEffect(() => {
+    if (active) api.fullScreenMode().then(setMode).catch(() => {});
+  }, [active]);
 
   useScrollFocus(list, index, { align: "center" });
 
@@ -153,6 +159,26 @@ export function Settings({ active }: { active: boolean }) {
       value: settings.steamgriddbKey ? "Connected" : "Connect",
       run: () => setFlow("sgdb"),
     },
+    ...(mode?.supported
+      ? ([
+          { kind: "group", label: "Xbox mode" },
+          {
+            kind: "button",
+            id: "home-app",
+            label: "Home app",
+            sub: mode.home
+              ? "Xbox mode starts in Mantel, and Home in Game Bar comes back to it"
+              : mode.offered
+                ? "Pick Mantel under Home app in Windows Settings to start Xbox mode in Mantel"
+                : "Turn on Developer Mode in Windows, then reinstall Mantel, to start Xbox mode in Mantel",
+            value: mode.home ? "Mantel" : mode.offered ? "Choose" : "Unavailable",
+            run: () =>
+              mode.offered
+                ? void api.powerAction("home-app-settings").catch((e) => toast(String(e), "warn"))
+                : toast("Windows offers Mantel as the home app only in Developer Mode for now", "warn"),
+          },
+        ] as Row[])
+      : []),
     { kind: "group", label: "Behavior" },
     {
       kind: "toggle",

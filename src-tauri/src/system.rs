@@ -47,6 +47,7 @@ pub fn action(app: &AppHandle, action: &str) -> Result<(), String> {
             Ok(())
         }
         // Windows then brings its home app, us, to the front.
+        "home-app-settings" => crate::launcher::open_external(crate::fse::SETTINGS_PAGE),
         "fullscreen" => crate::fse::switch(true).then_some(()).ok_or_else(|| "Windows didn't switch to full screen mode".into()),
         "quit" => {
             app.exit(0);

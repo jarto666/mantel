@@ -190,7 +190,7 @@ export const mockApi: Api = {
     console.info("[mock] power action", action);
   },
   async fullScreenMode() {
-    return { active: false, canSwitch: false };
+    return { supported: false, active: false, canSwitch: false, offered: false, home: false };
   },
   async getAutostart() {
     return autostart;
