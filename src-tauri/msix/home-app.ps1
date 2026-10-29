@@ -18,8 +18,10 @@ try {
     Say 'unregistered'
     return
   }
-  $unlock = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue
-  if ($unlock.AllowDevelopmentWithoutDevLicense -ne 1) {
+  # The 64-bit view: under the 32-bit installer HKLM:\SOFTWARE is the WOW6432Node copy.
+  $hklm = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', 'Registry64')
+  $unlock = $hklm.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock')
+  if (-not $unlock -or $unlock.GetValue('AllowDevelopmentWithoutDevLicense') -ne 1) {
     Say 'Developer Mode is off, so Mantel is not offered as the home app'
     return
   }

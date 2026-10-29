@@ -440,7 +440,7 @@ pub fn run() {
         .setup(move |app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            log::init(&dir);
+            log::init(&dir, &app.package_info().version.to_string());
             log::info(&format!("full screen experience: {}, package identity: {}", fse::active(), fse::packaged()));
             if moved.data {
                 log::info(&format!("moved data from Nova (start with Windows: {})", moved.autostart));

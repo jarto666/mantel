@@ -9,14 +9,15 @@ static FILE: OnceLock<PathBuf> = OnceLock::new();
 static LOCK: Mutex<()> = Mutex::new(());
 const MAX_BYTES: u64 = 2 * 1024 * 1024;
 
-pub fn init(dir: &std::path::Path) {
+/// `version` is the app's (package.json), not the crate's.
+pub fn init(dir: &std::path::Path, version: &str) {
     let path = dir.join("mantel.log");
     // Keep one previous log around instead of growing forever.
     if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_BYTES) {
         let _ = fs::rename(&path, dir.join("mantel.old.log"));
     }
     let _ = FILE.set(path);
-    info(&format!("--- Mantel {} started ---", env!("CARGO_PKG_VERSION")));
+    info(&format!("--- Mantel {version} started ---"));
 }
 
 pub fn write(level: &str, msg: &str) {
