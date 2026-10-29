@@ -14,7 +14,8 @@ try {
   # Also drops a registration of another copy, so the home app is the one just installed.
   Get-AppxPackage $name | Where-Object { $Remove -or $_.InstallLocation -ne $PSScriptRoot } | Remove-AppxPackage
   if ($Remove) {
-    Remove-Item $public -Force -ErrorAction SilentlyContinue
+    # Registering adds a hidden bookkeeping folder that would keep the uninstaller from removing ours.
+    Remove-Item $public, (Join-Path $PSScriptRoot 'microsoft.system.package.metadata') -Recurse -Force -ErrorAction SilentlyContinue
     Say 'unregistered'
     return
   }
