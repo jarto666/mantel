@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Layer, useInput } from "../input";
 import { closeRunning, gameById, rescan, useStore } from "../store";
@@ -19,6 +19,7 @@ const ICONS: Record<string, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></>,
   desktop: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
+  fullscreen: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
   restart: <path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5" />,
   shutdown: <path d="M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0" />,
   quit: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,
@@ -31,6 +32,12 @@ export function QuickMenu() {
   const now = useClock();
   const [index, setIndex] = useState(0);
   const [armed, setArmed] = useState<string | null>(null);
+  // Checked on every open: Game Bar can switch the mode while the menu is closed.
+  const [canEnterFullScreen, setCanEnterFullScreen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    api.fullScreenMode().then((m) => setCanEnterFullScreen(m.canSwitch && !m.active), () => setCanEnterFullScreen(false));
+  }, [open]);
   const close = () => {
     setArmed(null);
     setIndex(0);
@@ -43,6 +50,7 @@ export function QuickMenu() {
     { id: "search", label: "Search", run: () => useStore.setState({ overlay: "search" }) },
     { id: "rescan", label: "Refresh library", run: () => rescan() },
     { id: "settings", label: "Settings", run: () => useStore.setState({ view: "settings", detailsId: null }) },
+    ...(canEnterFullScreen ? [{ id: "fullscreen", label: "Full screen mode", run: () => api.powerAction("fullscreen") }] : []),
     { id: "desktop", label: "Desktop", run: () => api.powerAction("desktop") },
     { id: "restart", label: "Restart", confirm: true, run: () => api.powerAction("restart") },
     { id: "shutdown", label: "Power off", confirm: true, danger: true, run: () => api.powerAction("shutdown") },

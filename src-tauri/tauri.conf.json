@@ -44,12 +44,21 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "msix/AppxManifest.xml": "AppxManifest.xml",
+      "msix/CustomCapability.SCCD": "CustomCapability.SCCD",
+      "msix/home-app.ps1": "home-app.ps1",
+      "icons/Square150x150Logo.png": "Assets/Square150x150Logo.png",
+      "icons/Square44x44Logo.png": "Assets/Square44x44Logo.png",
+      "icons/StoreLogo.png": "Assets/StoreLogo.png"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       },
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "msix/hooks.nsh"
       }
     },
     "createUpdaterArtifacts": true

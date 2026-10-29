@@ -37,11 +37,17 @@ pub fn action(app: &AppHandle, action: &str) -> Result<(), String> {
         "shutdown" => shutdown(&["/s", "/t", "0"]),
         "restart" => shutdown(&["/r", "/t", "0"]),
         "desktop" => {
+            // In the full screen experience there is no desktop under us until Windows switches to it.
+            if crate::fse::active() && !crate::fse::switch(false) {
+                crate::log::warn("couldn't switch Windows from the full screen experience to the desktop");
+            }
             if let Some(w) = app.get_webview_window("main") {
                 w.minimize().map_err(|e| e.to_string())?;
             }
             Ok(())
         }
+        // Windows then brings its home app, us, to the front.
+        "fullscreen" => crate::fse::switch(true).then_some(()).ok_or_else(|| "Windows didn't switch to full screen mode".into()),
         "quit" => {
             app.exit(0);
             Ok(())

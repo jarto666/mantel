@@ -27,7 +27,9 @@ export interface Api {
   runningGame(): Promise<Running | null>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
-  powerAction(action: "shutdown" | "restart" | "desktop" | "quit"): Promise<void>;
+  powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "quit"): Promise<void>;
+  /** Windows' full screen experience (Xbox mode): whether it's on and whether we can toggle it. */
+  fullScreenMode(): Promise<{ active: boolean; canSwitch: boolean }>;
   getAutostart(): Promise<boolean>;
   setAutostart(on: boolean): Promise<void>;
   on(event: GameEvent, cb: (payload: unknown) => void): () => void;
@@ -70,6 +72,7 @@ const tauriApi: Api = {
   openGameFolder: (id) => call("open_game_folder", { id }),
   powerStatus: () => call("power_status"),
   powerAction: (action) => call("power_action", { action }),
+  fullScreenMode: () => call("full_screen_mode"),
   async getAutostart() {
     const { isEnabled } = await import("@tauri-apps/plugin-autostart");
     return isEnabled();

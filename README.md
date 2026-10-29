@@ -39,6 +39,15 @@ Settings, one button to install.
 The installer isn't code-signed yet, so Windows may show "Windows protected your PC":
 choose *More info → Run anyway*.
 
+### As the home app of Xbox mode
+
+Windows' full screen experience (Xbox mode) boots into a *home app* instead of the desktop.
+With Developer Mode on (Settings → System → Advanced → For developers) before you install,
+Mantel shows up there: Settings → Gaming → Full screen experience → Home app. The handheld
+then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡)
+switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer
+Mantel there yet.
+
 ## Where games come from
 
 | Store | Installed games | With your account |

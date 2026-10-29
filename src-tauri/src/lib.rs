@@ -1,5 +1,6 @@
 mod accounts;
 mod art;
+mod fse;
 mod launcher;
 mod library;
 mod log;
@@ -409,6 +410,11 @@ fn power_status() -> system::Power {
 }
 
 #[tauri::command]
+fn full_screen_mode() -> fse::Mode {
+    fse::mode()
+}
+
+#[tauri::command]
 fn power_action(app: AppHandle, action: String) -> Result<(), String> {
     system::action(&app, &action)
 }
@@ -435,6 +441,7 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             log::init(&dir);
+            log::info(&format!("full screen experience: {}, package identity: {}", fse::active(), fse::packaged()));
             if moved.data {
                 log::info(&format!("moved data from Nova (start with Windows: {})", moved.autostart));
             }
@@ -470,6 +477,7 @@ pub fn run() {
             open_game_folder,
             power_status,
             power_action,
+            full_screen_mode,
             client_log,
             accounts_status,
             steam_sign_in,

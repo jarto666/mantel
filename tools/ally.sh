@@ -8,6 +8,9 @@
 #   tools/ally.sh start       (re)start the deployed Mantel on the Ally's screen
 #   tools/ally.sh tunnel      forward localhost:9222 to the Ally's WebView DevTools
 #   tools/ally.sh logs        tail Mantel's log on the Ally
+#   tools/ally.sh home        register C:\Mantel as a package, so Settings > Gaming > Full
+#                             screen experience offers it as the home app "Mantel Dev" (needs
+#                             the Ally in Developer Mode); `home off` unregisters it
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,6 +30,24 @@ run_on_screen() {
     \$p = New-ScheduledTaskPrincipal -UserId \$env:USERNAME -LogonType Interactive
     Register-ScheduledTask -TaskName MantelRun -Action \$a -Settings \$s -Principal \$p -Force | Out-Null
     Start-ScheduledTask -TaskName MantelRun"
+}
+
+# Runs PowerShell in the desktop session, waits and prints the output: registering a package
+# from the SSH logon fails with "access denied".
+run_in_session() {
+  local enc
+  enc=$(printf '& { %s } *> "$env:TEMP\\mantel-task.log"' "$1" | iconv -t UTF-16LE | base64)
+  ssh "$HOST" "
+    \$log = \"\$env:TEMP\\mantel-task.log\"
+    Remove-Item \$log -ErrorAction SilentlyContinue
+    \$a = New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -WindowStyle Hidden -EncodedCommand $enc'
+    \$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    \$p = New-ScheduledTaskPrincipal -UserId \$env:USERNAME -LogonType Interactive
+    Register-ScheduledTask -TaskName MantelSession -Action \$a -Settings \$s -Principal \$p -Force | Out-Null
+    Start-ScheduledTask -TaskName MantelSession
+    for (\$i = 0; \$i -lt 120 -and (-not (Test-Path \$log) -or (Get-ScheduledTask -TaskName MantelSession).State -eq 'Running'); \$i++) { Start-Sleep -Milliseconds 500 }
+    Unregister-ScheduledTask -TaskName MantelSession -Confirm:\$false
+    Get-Content \$log"
 }
 
 case "${1:-}" in
@@ -70,8 +91,28 @@ EOF
   logs)
     ssh "$HOST" 'Get-Content -Tail 80 -Wait "$env:APPDATA\com.playmantel.launcher\mantel.log"'
     ;;
+  home)
+    if [[ "${2:-}" == off ]]; then
+      run_in_session 'Get-AppxPackage PlayMantel.MantelDev | Remove-AppxPackage'
+      echo "Unregistered; Mantel.exe stays in C:\\Mantel."
+      exit
+    fi
+    pkg=$(mktemp -d)
+    version=$(node -p 'require("./package.json").version').0
+    # Its own identity, so it sits next to an installed Mantel instead of replacing it.
+    sed -e "s/\$(Version)/$version/" -e 's/"PlayMantel.Mantel"/"PlayMantel.MantelDev"/' \
+      -e 's/DisplayName="Mantel"/DisplayName="Mantel Dev"/g' -e 's/<DisplayName>Mantel</<DisplayName>Mantel Dev</' \
+      src-tauri/msix/AppxManifest.xml > "$pkg/AppxManifest.xml"
+    cp src-tauri/msix/CustomCapability.SCCD "$pkg/"
+    mkdir "$pkg/Assets" "$pkg/Public"
+    cp src-tauri/icons/{Square150x150Logo,Square44x44Logo,StoreLogo}.png "$pkg/Assets/"
+    scp -qr "$pkg"/* "$HOST:C:/Mantel/"
+    rm -rf "$pkg"
+    # The deployed exe stays where it is: the package is registered in place, unsigned.
+    run_in_session 'Add-AppxPackage -Register C:\Mantel\AppxManifest.xml; Get-AppxPackage PlayMantel.MantelDev | Format-List PackageFullName, InstallLocation, Status'
+    ;;
   *)
-    sed -n '2,10p' "$0"
+    sed -n '2,13p' "$0"
     exit 1
     ;;
 esac
