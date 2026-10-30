@@ -8,6 +8,7 @@ import { Search } from "./components/Search";
 import { Toasts } from "./components/Toasts";
 import { TAB_ORDER, timeText, TopBar, useClock } from "./components/TopBar";
 import { isTauri } from "./api";
+import { usePageHidden } from "./hooks";
 import { idleFor, Layer, setBackgroundInput, setWakeHandler, startInput, useInput } from "./input";
 import { warmUpSound } from "./sound";
 import { boot, gameById, toast, useStore, wireEvents } from "./store";
@@ -15,17 +16,6 @@ import { Details } from "./views/Details";
 import { Home } from "./views/Home";
 import { Library } from "./views/Library";
 import { Settings } from "./views/Settings";
-
-/** Pauses CSS motion while a game is in front, so Mantel costs nothing in the background. */
-function useIdle() {
-  const [idle, setIdle] = useState(false);
-  useEffect(() => {
-    const update = () => setIdle(document.hidden);
-    document.addEventListener("visibilitychange", update);
-    return () => document.removeEventListener("visibilitychange", update);
-  }, []);
-  return idle;
-}
 
 const AMBIENT_AFTER = 30_000;
 
@@ -87,7 +77,8 @@ export function App() {
   const detailsId = useStore((s) => s.detailsId);
   const overlay = useStore((s) => s.overlay);
   const accent = useStore((s) => s.accent);
-  const idle = useIdle();
+  // Pauses CSS motion while a game is in front, so Mantel costs nothing in the background.
+  const idle = usePageHidden();
   const launching = useStore((s) => s.launching);
   const ambient = useAmbient(view === "home" && !detailsId && !overlay && !launching);
 

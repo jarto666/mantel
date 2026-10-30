@@ -1,6 +1,6 @@
 // Stand-in backend for developing the UI in a regular browser.
 import type { Api, GameEvent } from "./api";
-import type { Art, Game, Running, Settings, Source } from "./types";
+import type { Achievements, Art, Game, Quick, Running, Settings, Source } from "./types";
 
 const cdn = (id: number): Art => {
   const base = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}`;
@@ -46,6 +46,18 @@ const seeds: Seed[] = [
   ["custom", "Minecraft", null, 0, null],
 ];
 
+/** Steam-style counts for some games, Xbox gamerscore (one without a total) for others. */
+function achievementsFor(source: Source, i: number, minutes: number): Achievements | null {
+  if (!minutes || source === "custom" || source === "epic") return null;
+  if (source === "xbox") {
+    const gamerscore = 120 + ((i * 290) % 880);
+    return { unlocked: 4 + (i % 30), total: i % 2 ? 0 : 50, percent: Math.round(gamerscore / 10), gamerscore, gamerscoreTotal: 1000 };
+  }
+  const total = 20 + ((i * 13) % 60);
+  const unlocked = Math.min(total, Math.round((minutes / 9000) * total) + (i % 5));
+  return { unlocked, total, percent: Math.round((100 * unlocked) / total) };
+}
+
 let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   id: `${source}:${appid ?? i}`,
   source,
@@ -61,6 +73,7 @@ let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   hidden: false,
   sizeBytes: (20 + ((i * 37) % 120)) * 1024 ** 3,
   installed: i !== 14 && i !== 16,
+  achievements: achievementsFor(source, i, minutes),
 }));
 
 let settings: Settings = {
@@ -68,8 +81,22 @@ let settings: Settings = {
   steamgriddbKey: "",
   sounds: true,
   minimizeOnLaunch: true,
+  trailers: true,
 };
 
+// Real Steam trailers (DASH), so the player can be tried in the browser too.
+const VIDEO = "https://video.akamai.steamstatic.com/store_trailers";
+const trailers: Record<number, string> = {
+  1091500: `${VIDEO}/1091500/319068602/a0e7ceceecf759bf446feac0658b6fe58a970b94/1792676918/dash_h264.mpd`,
+  1145350: `${VIDEO}/1145350/1067641820/dfba9c6a8b09f5bd9b323d6e699ac685065b93d3/1758924611/dash_h264.mpd`,
+  1086940: `${VIDEO}/1086940/637951/59ca25b847b0e471638d1e2474acf71b068d57f0/1750615003/dash_h264.mpd`,
+  1551360: `${VIDEO}/1551360/442268/66eddb8cdf196bf7c8d9bb8e8895bd7f60133cc1/1750700745/dash_h264.mpd`,
+  1903340: `${VIDEO}/1903340/876247/5c4709c3a98d932003a6b85bd5e4bfcd6a777e7a/1748581603/dash_h264.mpd`,
+};
+
+const SAMPLE_ACHIEVEMENTS = ["First Steps", "Night Owl", "Collector", "Untouchable", "Speed Demon", "Completionist", "Explorer", "Sharpshooter"];
+
+let quick: Quick = { volume: 45, muted: false, brightness: 80, wifi: { connected: true, name: "Home Wi-Fi", signal: 72 } };
 let running: Running | null = null;
 let steamKey = "";
 let xboxTag: string | null = null;
@@ -86,6 +113,9 @@ export const mockApi: Api = {
   async resolveArt() {
     return false;
   },
+  async measureSizes() {
+    return false;
+  },
   async getDetails(id) {
     const g = games.find((x) => x.id === id);
     if (!g?.steamAppId) return null;
@@ -98,7 +128,26 @@ export const mockApi: Api = {
       releaseDate: "2024",
       metacritic: 80 + (g.name.length % 15),
       screenshots: [...g.art.hero.slice(0, 1), ...g.art.icon],
+      trailer: trailers[g.steamAppId] ?? null,
     };
+  },
+  async getAchievements(id) {
+    const g = games.find((x) => x.id === id);
+    const a = g?.achievements;
+    if (!g || !a) throw "Achievements come from Steam and Xbox accounts";
+    await wait(500);
+    const total = a.total || 40;
+    const unlocked = a.total ? a.unlocked : Math.round((total * a.percent) / 100);
+    return Array.from({ length: total }, (_, i) => ({
+      name: `${SAMPLE_ACHIEVEMENTS[i % SAMPLE_ACHIEVEMENTS.length]}${i >= SAMPLE_ACHIEVEMENTS.length ? ` ${Math.floor(i / SAMPLE_ACHIEVEMENTS.length) + 1}` : ""}`,
+      description: "Demo achievement: in the app this comes from your Steam or Xbox account.",
+      icon: null,
+      unlocked: i < unlocked,
+      unlockedAt: i < unlocked ? now - i * DAY : null,
+      rarity: Math.round(((i * 37) % 90) * 10 + 7) / 10,
+      gamerscore: g.source === "xbox" ? 10 + (i % 4) * 5 : null,
+      secret: i >= unlocked && i % 7 === 3,
+    }));
   },
   async setFlag(id, flag, value) {
     games = games.map((g) => (g.id === id ? { ...g, [flag]: value } : g));
@@ -185,6 +234,18 @@ export const mockApi: Api = {
       return { hasBattery: true, percent: Math.round(b.level * 100), charging: b.charging };
     }
     return { hasBattery: true, percent: 76, charging: false };
+  },
+  async quickStatus() {
+    return structuredClone(quick);
+  },
+  async setVolume(level) {
+    quick = { ...quick, volume: level, muted: level > 0 ? false : quick.muted };
+  },
+  async setMuted(muted) {
+    quick = { ...quick, muted };
+  },
+  async setBrightness(level) {
+    quick = { ...quick, brightness: level };
   },
   async powerAction(action) {
     console.info("[mock] power action", action);

@@ -7,6 +7,29 @@ export interface Art {
   icon: string[];
 }
 
+export interface Achievements {
+  unlocked: number;
+  /** 0 when the store doesn't say: Xbox leaves it out for many newer titles. */
+  total: number;
+  percent: number;
+  /** Xbox only. */
+  gamerscore?: number | null;
+  gamerscoreTotal?: number | null;
+}
+
+export interface Achievement {
+  name: string;
+  description: string;
+  icon?: string | null;
+  unlocked: boolean;
+  unlockedAt?: number | null;
+  /** Share of players who have it, in percent. */
+  rarity?: number | null;
+  gamerscore?: number | null;
+  /** Locked and meant to stay a surprise. */
+  secret: boolean;
+}
+
 export interface Game {
   id: string;
   source: Source;
@@ -23,6 +46,7 @@ export interface Game {
   sizeBytes?: number | null;
   /** False for games an account owns but this device hasn't installed. */
   installed: boolean;
+  achievements?: Achievements | null;
 }
 
 export interface PickEntry {
@@ -54,6 +78,7 @@ export interface Settings {
   steamgriddbKey: string;
   sounds: boolean;
   minimizeOnLaunch: boolean;
+  trailers: boolean;
 }
 
 export interface Details {
@@ -65,12 +90,22 @@ export interface Details {
   metacritic?: number | null;
   screenshots: string[];
   background?: string | null;
+  /** DASH manifest of the main trailer. */
+  trailer?: string | null;
 }
 
 export interface Running {
   id: string;
   startedAt: number;
   detected: boolean;
+}
+
+/** Control center state; whatever the device lacks is left out. */
+export interface Quick {
+  volume?: number | null;
+  muted: boolean;
+  brightness?: number | null;
+  wifi?: { connected: boolean; name?: string | null; signal?: number | null } | null;
 }
 
 export interface Power {

@@ -39,6 +39,46 @@ impl Art {
     }
 }
 
+/// Achievement progress on the player's store account.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Achievements {
+    pub unlocked: u32,
+    /// 0 when the store doesn't say: Xbox leaves it out for many newer titles.
+    pub total: u32,
+    pub percent: u8,
+    /// Xbox only.
+    pub gamerscore: Option<u32>,
+    pub gamerscore_total: Option<u32>,
+}
+
+impl Achievements {
+    /// Takes a count learned elsewhere; the percentage then follows the count.
+    pub fn count(&mut self, unlocked: u32, total: u32) {
+        self.unlocked = unlocked;
+        self.total = total;
+        if total > 0 {
+            self.percent = (100.0 * f64::from(unlocked) / f64::from(total)).round().min(100.0) as u8;
+        }
+    }
+}
+
+/// One achievement for the game page's list.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Achievement {
+    pub name: String,
+    pub description: String,
+    pub icon: Option<String>,
+    pub unlocked: bool,
+    pub unlocked_at: Option<i64>,
+    /// Share of players who have it, in percent.
+    pub rarity: Option<f32>,
+    pub gamerscore: Option<u32>,
+    /// Locked and meant to stay a surprise.
+    pub secret: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Launch {
@@ -80,6 +120,8 @@ pub struct Game {
     /// False for games an account owns but this machine doesn't have; launching installs.
     #[serde(default = "installed_default")]
     pub installed: bool,
+    #[serde(default)]
+    pub achievements: Option<Achievements>,
 }
 
 fn installed_default() -> bool {
@@ -106,6 +148,7 @@ impl Game {
             hidden: false,
             size_bytes: None,
             installed: true,
+            achievements: None,
         }
     }
 }

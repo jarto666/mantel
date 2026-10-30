@@ -1,4 +1,15 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
+
+/** True while the window is minimized or covered, e.g. by a game. */
+export function usePageHidden() {
+  const [hidden, setHidden] = useState(document.hidden);
+  useEffect(() => {
+    const update = () => setHidden(document.hidden);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+  return hidden;
+}
 
 /**
  * Keeps the `.is-focused` descendant of the scroll container `ref` in view whenever

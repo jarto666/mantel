@@ -117,6 +117,53 @@ fn resolve_paths(g: &mut Game) {
     }
 }
 
+/// Bytes in the files under `dir`, or None when it's unreadable or far too big a tree to be
+/// one game. Links and junctions aren't followed.
+pub fn dir_size(dir: &Path) -> Option<u64> {
+    const MAX_ENTRIES: usize = 400_000;
+    let mut total = 0;
+    let mut entries = 0;
+    let mut todo = vec![dir.to_path_buf()];
+    while let Some(d) = todo.pop() {
+        let Ok(list) = std::fs::read_dir(&d) else {
+            if d == dir {
+                return None;
+            }
+            continue;
+        };
+        for entry in list.flatten() {
+            entries += 1;
+            if entries > MAX_ENTRIES {
+                return None;
+            }
+            let Ok(meta) = entry.metadata() else { continue };
+            if meta.is_dir() {
+                todo.push(entry.path());
+            } else if meta.is_file() {
+                total += meta.len();
+            }
+        }
+    }
+    Some(total)
+}
+
+/// The folder a custom game's files live in. Its exe often sits a few levels down, as in
+/// Unreal's `<Game>\<Project>\Binaries\Win64`. None for drive roots and system folders.
+pub fn game_root(exe_dir: &str) -> Option<PathBuf> {
+    const BIN: &[&str] = &["win64", "win32", "x64", "x86", "bin", "binaries"];
+    const SYSTEM: &[&str] = &["windows", "program files", "program files (x86)", "programdata", "users"];
+    let mut dir = PathBuf::from(exe_dir);
+    while dir.file_name().is_some_and(|n| BIN.contains(&n.to_string_lossy().to_lowercase().as_str())) {
+        dir.pop();
+    }
+    if dir.parent().is_some_and(|up| up.join("Engine").is_dir()) {
+        dir.pop();
+    }
+    let top_level = dir.components().count() <= 3;
+    let system = dir.file_name().is_some_and(|n| SYSTEM.contains(&n.to_string_lossy().to_lowercase().as_str()));
+    (!(top_level && system) && dir.components().count() >= 3).then_some(dir)
+}
+
 pub fn sort_key(name: &str) -> String {
     let lower = name.to_lowercase();
     lower.strip_prefix("the ").map(String::from).unwrap_or(lower)
@@ -137,6 +184,25 @@ pub fn apply_meta(games: &mut [Game], user: &UserData, art: &HashMap<String, Res
             g.art = g.art.behind(&resolved.art);
             g.steam_app_id = g.steam_app_id.or(resolved.steam_app_id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_game_roots() {
+        let dir = std::env::temp_dir().join("mantel-root-test");
+        std::fs::create_dir_all(dir.join("Engine")).unwrap();
+        std::fs::create_dir_all(dir.join("Proj/Binaries/Win64")).unwrap();
+        let exe_dir = dir.join("Proj/Binaries/Win64");
+        assert_eq!(game_root(&exe_dir.to_string_lossy()), Some(dir.clone()));
+        assert_eq!(dir_size(&dir), Some(0));
+        std::fs::write(dir.join("Proj/data.pak"), [0u8; 10]).unwrap();
+        assert_eq!(dir_size(&dir), Some(10));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(game_root("/"), None);
     }
 }
 

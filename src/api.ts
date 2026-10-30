@@ -1,4 +1,4 @@
-import type { AccountsStatus, Details, Game, Listing, Power, Running, Settings, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, Details, Game, Listing, Power, Quick, Running, Settings, Suggestion } from "./types";
 import { mockApi } from "./mock";
 
 /** True inside the Tauri shell; false in a plain browser, where the mock library stands in. */
@@ -12,7 +12,11 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export interface Api {
   getLibrary(rescan: boolean): Promise<Game[]>;
   resolveArt(): Promise<boolean>;
+  /** Sizes install folders whose store reports none; true when any changed. */
+  measureSizes(): Promise<boolean>;
   getDetails(id: string): Promise<Details | null>;
+  /** The game's achievements from the Steam or Xbox account it came from. */
+  getAchievements(id: string): Promise<Achievement[]>;
   setFlag(id: string, flag: "favorite" | "hidden", value: boolean): Promise<void>;
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;
@@ -27,6 +31,10 @@ export interface Api {
   runningGame(): Promise<Running | null>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
+  quickStatus(): Promise<Quick>;
+  setVolume(level: number): Promise<void>;
+  setMuted(muted: boolean): Promise<void>;
+  setBrightness(level: number): Promise<void>;
   powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "home-app-settings" | "quit"): Promise<void>;
   /** Windows' full screen experience (Xbox mode): whether it's on and whether we can toggle it. */
   fullScreenMode(): Promise<FullScreenMode>;
@@ -66,7 +74,9 @@ let pendingUpdate: import("@tauri-apps/plugin-updater").Update | null = null;
 const tauriApi: Api = {
   getLibrary: (rescan) => call("get_library", { rescan }),
   resolveArt: () => call("resolve_art"),
+  measureSizes: () => call("measure_sizes"),
   getDetails: (id) => call("get_details", { id }),
+  getAchievements: (id) => call("get_achievements", { id }),
   setFlag: (id, flag, value) => call("set_flag", { id, flag, value }),
   getSettings: () => call("get_settings"),
   saveSettings: (settings) => call("save_settings", { settings }),
@@ -81,6 +91,10 @@ const tauriApi: Api = {
   runningGame: () => call("running_game"),
   openGameFolder: (id) => call("open_game_folder", { id }),
   powerStatus: () => call("power_status"),
+  quickStatus: () => call("quick_status"),
+  setVolume: (level) => call("set_volume", { level }),
+  setMuted: (muted) => call("set_muted", { muted }),
+  setBrightness: (level) => call("set_brightness", { level }),
   powerAction: (action) => call("power_action", { action }),
   fullScreenMode: () => call("full_screen_mode"),
   async getAutostart() {

@@ -18,6 +18,14 @@ type Row =
 
 type Icon = Source | "ea" | "battlenet" | "art";
 type Flow = "steam" | "xbox" | "sgdb" | "add" | null;
+type Category = "library" | "accounts" | "interface" | "system";
+
+const CATEGORIES: [Category, string, React.ReactNode][] = [
+  ["library", "Library", <><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></>],
+  ["accounts", "Accounts", <><circle cx="12" cy="8.5" r="3.8" /><path d="M4.5 20c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5" /></>],
+  ["interface", "Interface", <><rect x="3" y="4.5" width="18" height="12.5" rx="2.2" /><path d="M9 20.5h6M12 17v3.5" /></>],
+  ["system", "System", <><rect x="6" y="6" width="12" height="12" rx="2.2" /><path d="M9.5 2.8v3.2M14.5 2.8v3.2M9.5 18v3.2M14.5 18v3.2M2.8 9.5H6M2.8 14.5H6M18 9.5h3.2M18 14.5h3.2" /></>],
+];
 
 const MORE_STORES: [string, string, Icon][] = [
   ["epic", "Epic Games", "epic"],
@@ -57,7 +65,9 @@ export function Settings({ active }: { active: boolean }) {
   const scanning = useStore((s) => s.scanning);
   const version = useStore((s) => s.version);
   const update = useStore((s) => s.update);
-  const [index, setIndex] = useState(1);
+  const [category, setCategory] = useState<Category>("library");
+  const [zone, setZone] = useState<"categories" | "rows">("categories");
+  const [index, setIndex] = useState(0);
   const [autostart, setAutostart] = useState(false);
   const [flow, setFlow] = useState<Flow>(null);
   const [accounts, setAccounts] = useState<AccountsStatus | null>(null);
@@ -74,28 +84,18 @@ export function Settings({ active }: { active: boolean }) {
     if (active) api.fullScreenMode().then(setMode).catch(() => {});
   }, [active]);
 
-  useScrollFocus(list, index, { align: "center" });
+  useEffect(() => {
+    list.current?.scrollTo({ top: 0 });
+  }, [category]);
+  // Scrolls only when the focused row nears an edge: the lists are short, rows stay put.
+  useScrollFocus(list, `${category}${zone}${index}`);
 
   if (!settings) return null;
   const steam = accounts?.steam;
   const patch = (p: Partial<S>) => saveSettings(p);
   const hidden = games.filter((g) => g.hidden);
 
-  const rows: Row[] = [
-    ...(update
-      ? ([
-          { kind: "group", label: "Update" },
-          {
-            kind: "button",
-            id: "update",
-            label: `Update to Mantel ${update}`,
-            sub: "Installs in under a minute and restarts Mantel",
-            value: "Install",
-            run: () => void installUpdate(),
-          },
-        ] as Row[])
-      : []),
-    { kind: "group", label: "Library" },
+  const library: Row[] = [
     {
       kind: "button",
       id: "rescan",
@@ -110,6 +110,7 @@ export function Settings({ active }: { active: boolean }) {
       sub: "Any .exe, shortcut or .url: games outside a store, emulators, Battle.net, EA app",
       run: () => setFlow("add"),
     },
+    { kind: "group", label: "Stores on this PC" },
     ...SOURCES.map(
       ([id, label]): Row => ({
         kind: "toggle",
@@ -123,7 +124,17 @@ export function Settings({ active }: { active: boolean }) {
         },
       }),
     ),
-    { kind: "group", label: "Accounts" },
+    ...(hidden.length
+      ? [
+          { kind: "group", label: `Hidden games · ${hidden.length}` } as Row,
+          ...hidden.map(
+            (g): Row => ({ kind: "button", id: `hidden-${g.id}`, label: g.name, value: "Unhide", run: () => setHidden(g, false) }),
+          ),
+        ]
+      : []),
+  ];
+
+  const accountRows: Row[] = [
     {
       kind: "button",
       id: "acc-steam",
@@ -146,9 +157,6 @@ export function Settings({ active }: { active: boolean }) {
       value: accounts?.xboxGamertag ? "Connected" : "Sign in",
       run: () => setFlow("xbox"),
     },
-    ...MORE_STORES.map(
-      ([id, label, icon]): Row => ({ kind: "button", id: `acc-${id}`, icon, label, value: "Coming soon", soon: true, run: () => toast(`${label} accounts are coming later`) }),
-    ),
     { kind: "group", label: "Artwork" },
     {
       kind: "button",
@@ -158,6 +166,62 @@ export function Settings({ active }: { active: boolean }) {
       sub: "Covers, backgrounds and logos for games Steam doesn't know: Epic exclusives, emulators, your own",
       value: settings.steamgriddbKey ? "Connected" : "Connect",
       run: () => setFlow("sgdb"),
+    },
+    { kind: "group", label: "More stores" },
+    ...MORE_STORES.map(
+      ([id, label, icon]): Row => ({ kind: "button", id: `acc-${id}`, icon, label, value: "Coming soon", soon: true, run: () => toast(`${label} accounts are coming later`) }),
+    ),
+  ];
+
+  const interfaceRows: Row[] = [
+    {
+      kind: "toggle",
+      id: "trailers",
+      label: "Trailers",
+      sub: "Play a muted trailer behind the game you stop on",
+      value: settings.trailers,
+      set: (v) => patch({ trailers: v }),
+    },
+    {
+      kind: "toggle",
+      id: "sounds",
+      label: "Interface sounds",
+      value: settings.sounds,
+      set: (v) => patch({ sounds: v }),
+    },
+  ];
+
+  const system: Row[] = [
+    ...(update
+      ? ([
+          {
+            kind: "button",
+            id: "update",
+            label: `Update to Mantel ${update}`,
+            sub: "Installs in under a minute and restarts Mantel",
+            value: "Install",
+            run: () => void installUpdate(),
+          },
+        ] as Row[])
+      : []),
+    {
+      kind: "toggle",
+      id: "autostart",
+      label: "Start with Windows",
+      sub: "Boot straight into Mantel, like a console",
+      value: autostart,
+      set: (v) => {
+        setAutostart(v);
+        api.setAutostart(v).catch((e) => toast(String(e), "warn"));
+      },
+    },
+    {
+      kind: "toggle",
+      id: "minimize",
+      label: "Minimize while playing",
+      sub: "Mantel steps aside during a game and comes back when it closes",
+      value: settings.minimizeOnLaunch,
+      set: (v) => patch({ minimizeOnLaunch: v }),
     },
     ...(mode?.supported
       ? ([
@@ -179,55 +243,18 @@ export function Settings({ active }: { active: boolean }) {
           },
         ] as Row[])
       : []),
-    { kind: "group", label: "Behavior" },
-    {
-      kind: "toggle",
-      id: "minimize",
-      label: "Minimize while playing",
-      sub: "Mantel steps aside during a game and comes back when it closes",
-      value: settings.minimizeOnLaunch,
-      set: (v) => patch({ minimizeOnLaunch: v }),
-    },
-    {
-      kind: "toggle",
-      id: "autostart",
-      label: "Start with Windows",
-      sub: "Boot straight into Mantel, like a console",
-      value: autostart,
-      set: (v) => {
-        setAutostart(v);
-        api.setAutostart(v).catch((e) => toast(String(e), "warn"));
-      },
-    },
-    {
-      kind: "toggle",
-      id: "sounds",
-      label: "Interface sounds",
-      value: settings.sounds,
-      set: (v) => patch({ sounds: v }),
-    },
-    ...(hidden.length
-      ? [
-          { kind: "group", label: `Hidden games · ${hidden.length}` } as Row,
-          ...hidden.map(
-            (g): Row => ({ kind: "button", id: `hidden-${g.id}`, label: g.name, value: "Unhide", run: () => setHidden(g, false) }),
-          ),
-        ]
-      : []),
-    { kind: "group", label: "Controls" },
-    {
-      kind: "button",
-      id: "help",
-      label: "A play · Y details · X favorite",
-      sub: "LB/RB switch tabs · LT/RT filters · ⧉ search · ≡ control center and power",
-      run: () => {},
-    },
   ];
 
+  const rows = { library, accounts: accountRows, interface: interfaceRows, system }[category];
   const focusable = rows.map((r, n) => (r.kind === "group" ? -1 : n)).filter((n) => n >= 0);
   const i = focusable.includes(index) ? index : focusable[0];
   const pos = focusable.indexOf(i);
+  const catPos = CATEGORIES.findIndex(([id]) => id === category);
 
+  const pick = (c: Category) => {
+    setCategory(c);
+    setIndex(0);
+  };
   const activate = (row: Row) => {
     if (row.kind === "toggle") {
       row.set(!row.value);
@@ -239,41 +266,75 @@ export function Settings({ active }: { active: boolean }) {
   };
 
   return (
-    <SettingsInput active={active && !flow} onMove={(d) => {
-      const next = focusable[pos + d];
-      if (next === undefined) return "edge";
-      setIndex(next);
-    }} onActivate={() => activate(rows[i])}>
-      <main className="settings">
+    <SettingsInput
+      active={active && !flow}
+      zone={zone}
+      onMove={(d) => {
+        if (zone === "categories") {
+          const next = CATEGORIES[catPos + d];
+          if (!next) return "edge";
+          pick(next[0]);
+          return;
+        }
+        const next = focusable[pos + d];
+        if (next === undefined) return "edge";
+        setIndex(next);
+      }}
+      onEnter={() => setZone("rows")}
+      onLeave={() => setZone("categories")}
+      onActivate={() => activate(rows[i])}
+    >
+      <main className={`settings zone-${zone}`}>
         <h1 className="page-title">Settings</h1>
-        <div className="settings-list" ref={list}>
-          {rows.map((row, n) =>
-            row.kind === "group" ? (
-              <div className="settings-group" key={`g${n}`}>{row.label}</div>
-            ) : (
-              <div
-                key={row.id}
-                className={`setting ${n === i ? "is-focused" : ""} ${row.kind === "button" && row.soon ? "is-soon" : ""}`}
+        <div className="settings-body">
+          <nav className="settings-cats">
+            {CATEGORIES.map(([id, label, icon]) => (
+              <button
+                key={id}
+                className={`settings-cat ${id === category ? "is-current" : ""} ${id === category && zone === "categories" ? "is-focused" : ""}`}
                 onClick={() => {
-                  setIndex(n);
-                  activate(row);
+                  pick(id);
+                  setZone("categories");
                 }}
               >
-                {row.kind === "toggle" && row.icon && <SourceIcon source={row.icon} />}
-                {row.kind === "button" && row.icon && <RowIcon icon={row.icon} />}
-                <div className="setting-text">
-                  <div className="setting-label">{row.label}</div>
-                  {row.sub && <div className="setting-sub">{row.sub}</div>}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  {icon}
+                </svg>
+                {label}
+                {id === "system" && update && <span className="settings-badge" />}
+              </button>
+            ))}
+          </nav>
+          <div className="settings-list" ref={list}>
+            {rows.map((row, n) =>
+              row.kind === "group" ? (
+                <div className="settings-group" key={`g${n}`}>{row.label}</div>
+              ) : (
+                <div
+                  key={row.id}
+                  className={`setting ${zone === "rows" && n === i ? "is-focused" : ""} ${row.kind === "button" && row.soon ? "is-soon" : ""}`}
+                  onClick={() => {
+                    setZone("rows");
+                    setIndex(n);
+                    activate(row);
+                  }}
+                >
+                  {row.kind === "toggle" && row.icon && <SourceIcon source={row.icon} />}
+                  {row.kind === "button" && row.icon && <RowIcon icon={row.icon} />}
+                  <div className="setting-text">
+                    <div className="setting-label">{row.label}</div>
+                    {row.sub && <div className="setting-sub">{row.sub}</div>}
+                  </div>
+                  {row.kind === "toggle" ? (
+                    <span className={`switch ${row.value ? "on" : ""}`}><span /></span>
+                  ) : (
+                    row.value && <span className="setting-value">{row.value}</span>
+                  )}
                 </div>
-                {row.kind === "toggle" ? (
-                  <span className={`switch ${row.value ? "on" : ""}`}><span /></span>
-                ) : (
-                  row.value && <span className="setting-value">{row.value}</span>
-                )}
-              </div>
-            ),
-          )}
-          <div className="settings-foot">Mantel {version} · playmantel.com</div>
+              ),
+            )}
+            {category === "system" && <div className="settings-foot">Mantel {version} · playmantel.com</div>}
+          </div>
         </div>
         {flow === "add" && <AddGame onClose={() => setFlow(null)} />}
         {flow === "steam" && (
@@ -343,12 +404,18 @@ export function Settings({ active }: { active: boolean }) {
 /** Separate component so hooks run unconditionally regardless of the early return above. */
 function SettingsInput({
   active,
+  zone,
   onMove,
+  onEnter,
+  onLeave,
   onActivate,
   children,
 }: {
   active: boolean;
+  zone: "categories" | "rows";
   onMove: (d: number) => "edge" | void;
+  onEnter: () => void;
+  onLeave: () => void;
   onActivate: () => void;
   children: React.ReactNode;
 }) {
@@ -356,16 +423,28 @@ function SettingsInput({
     (a) => {
       if (a === "up") return onMove(-1);
       if (a === "down") return onMove(1);
+      if (zone === "categories") {
+        if (a === "a" || a === "right") return onEnter();
+        if (a === "left") return "edge";
+        return false;
+      }
       if (a === "a") {
         onActivate();
         return "silent";
       }
-      if (a === "left" || a === "right") return "edge";
+      if (a === "left" || a === "b") return onLeave();
+      if (a === "right") return "edge";
       return false;
     },
     Layer.view,
     active,
   );
-  useHints([["a", "Select"], ["dpad", "Move"], ["menu", "Control center"]], Layer.view, active);
+  useHints(
+    zone === "categories"
+      ? [["a", "Open"], ["dpad", "Move"], ["menu", "Control center"]]
+      : [["a", "Select"], ["b", "Back"], ["menu", "Control center"]],
+    Layer.view,
+    active,
+  );
   return <>{children}</>;
 }

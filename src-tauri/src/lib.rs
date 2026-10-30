@@ -15,16 +15,21 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
 
 use model::{now, Game};
-use store::{AppState, CustomGame, Settings};
+use store::{AppState, CustomGame, MeasuredSize, Settings};
 
 /// Unresolved art is retried after a week; the game may have reached Steam since.
 const ART_RETRY_SECS: i64 = 7 * 24 * 3600;
+/// Measured folder sizes are taken again after a week: games update.
+const SIZE_RETRY_SECS: i64 = 7 * 24 * 3600;
 
 fn snapshot(state: &AppState) -> Vec<Game> {
     let cache = state.cache.lock().unwrap();
     let user = state.user.lock().unwrap();
     let mut games = cache.library.clone();
     library::apply_meta(&mut games, &user, &cache.art);
+    for g in games.iter_mut().filter(|g| g.size_bytes.is_none()) {
+        g.size_bytes = g.install_dir.as_ref().and_then(|d| cache.sizes.get(d)).and_then(|s| s.bytes);
+    }
     games
 }
 
@@ -46,8 +51,11 @@ fn rescan(app: &AppHandle) {
 
     if settings.sources.steam && steam_signed_in {
         let owned = match tauri::async_runtime::block_on(accounts::steam_owned(app)) {
-            Ok(list) => {
+            Ok(mut list) => {
                 log::info(&format!("steam account: {} owned games", list.len()));
+                if let Err(e) = tauri::async_runtime::block_on(accounts::steam_achievements(app, &mut list)) {
+                    log::warn(&e);
+                }
                 state.cache.lock().unwrap().owned_steam = list.clone();
                 list
             }
@@ -63,8 +71,11 @@ fn rescan(app: &AppHandle) {
     let xbox_signed_in = !state.user.lock().unwrap().accounts.xbox_refresh.is_empty();
     if settings.sources.xbox && xbox_signed_in {
         let titles = match tauri::async_runtime::block_on(accounts::xbox_titles(app)) {
-            Ok(list) => {
+            Ok(mut list) => {
                 log::info(&format!("xbox account: {} PC games in history", list.len()));
+                let installed: Vec<String> = scan.games.iter().filter(|g| g.source == "xbox").map(|g| g.source_id.clone()).collect();
+                let known = state.cache.lock().unwrap().owned_xbox.clone();
+                tauri::async_runtime::block_on(accounts::xbox_counts(app, &mut list, &known, &installed));
                 state.cache.lock().unwrap().owned_xbox = list.clone();
                 list
             }
@@ -135,11 +146,62 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Measures the install folders of games whose store reports no size: Xbox, GOG, Ubisoft and
+/// games added by hand. Returns whether anything changed.
+#[tauri::command]
+async fn measure_sizes(state: State<'_, AppState>) -> Result<bool, String> {
+    let todo: Vec<(String, std::path::PathBuf)> = {
+        let cache = state.cache.lock().unwrap();
+        let t = now();
+        cache
+            .library
+            .iter()
+            .filter(|g| g.installed && g.size_bytes.is_none())
+            .filter_map(|g| {
+                let dir = g.install_dir.clone()?;
+                if cache.sizes.get(&dir).is_some_and(|s| t - s.at < SIZE_RETRY_SECS) {
+                    return None;
+                }
+                let root = if g.source == "custom" { library::game_root(&dir)? } else { dir.clone().into() };
+                Some((dir, root))
+            })
+            .collect()
+    };
+    if todo.is_empty() {
+        return Ok(false);
+    }
+    let measured = tauri::async_runtime::spawn_blocking(move || {
+        todo.into_iter().map(|(dir, root)| (dir, MeasuredSize { bytes: library::dir_size(&root), at: now() })).collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut cache = state.cache.lock().unwrap();
+    cache.sizes.extend(measured);
+    state.save_cache(&cache);
+    Ok(true)
+}
+
 #[tauri::command]
 async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Value>, String> {
     let appid = snapshot(&state).into_iter().find(|g| g.id == id).and_then(|g| g.steam_app_id);
     let Some(appid) = appid else { return Ok(None) };
-    if let Some(hit) = state.cache.lock().unwrap().details.get(&appid) {
+    let cached = state.cache.lock().unwrap().details.get(&appid).cloned();
+    // Details cached before trailers existed lack the key and are fetched again. Steam now and
+    // then answers without the trailers, so a missing one is checked again once per run.
+    static RECHECKED: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+    let fresh = |d: &&Value| match d.get("trailer") {
+        None => false,
+        Some(Value::Null) => {
+            let mut rechecked = RECHECKED.lock().unwrap();
+            let seen = rechecked.contains(&appid);
+            if !seen {
+                rechecked.push(appid);
+            }
+            seen
+        }
+        Some(_) => true,
+    };
+    if let Some(hit) = cached.as_ref().filter(fresh) {
         return Ok(Some(hit.clone()));
     }
     let details = art::steam_details(appid).await;
@@ -148,7 +210,38 @@ async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Va
         cache.details.insert(appid, d.clone());
         state.save_cache(&cache);
     }
-    Ok(details)
+    Ok(details.or(cached))
+}
+
+/// The game's achievements with the player's progress, from the store account it came from.
+/// Xbox titles that report no count get it from the list.
+#[tauri::command]
+async fn get_achievements(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Vec<model::Achievement>, String> {
+    let game = snapshot(&state).into_iter().find(|g| g.id == id).ok_or("Game not found")?;
+    match game.source.as_str() {
+        "steam" => accounts::steam_achievement_list(&app, game.source_id.parse().map_err(|_| "Unknown Steam app")?).await,
+        "xbox" => {
+            let title = state.cache.lock().unwrap().owned_xbox.iter().find(|t| t.pfn.eq_ignore_ascii_case(&game.source_id)).map(|t| t.title_id.clone());
+            let title = title.filter(|t| !t.is_empty()).ok_or("Xbox Live has no achievements for this game")?;
+            let list = accounts::xbox_achievement_list(&app, &title).await?;
+            let mut cache = state.cache.lock().unwrap();
+            let (unlocked, total) = (list.iter().filter(|a| a.unlocked).count() as u32, list.len() as u32);
+            let fill = |a: &mut Option<model::Achievements>| {
+                if let Some(a) = a.as_mut() {
+                    a.count(unlocked, total);
+                }
+            };
+            if let Some(t) = cache.owned_xbox.iter_mut().find(|t| t.title_id == title) {
+                fill(&mut t.achievements);
+            }
+            if let Some(g) = cache.library.iter_mut().find(|g| g.id == id) {
+                fill(&mut g.achievements);
+            }
+            state.save_cache(&cache);
+            Ok(list)
+        }
+        _ => Err("Achievements come from Steam and Xbox accounts".into()),
+    }
 }
 
 #[tauri::command]
@@ -410,6 +503,26 @@ fn power_status() -> system::Power {
 }
 
 #[tauri::command]
+async fn quick_status() -> system::Quick {
+    tauri::async_runtime::spawn_blocking(system::quick).await.unwrap_or_default()
+}
+
+#[tauri::command]
+async fn set_volume(level: u8) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_volume(level)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_muted(muted: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_muted(muted)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_brightness(level: u8) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_brightness(level)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn full_screen_mode() -> fse::Mode {
     fse::mode()
 }
@@ -461,7 +574,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_library,
             resolve_art,
+            measure_sizes,
             get_details,
+            get_achievements,
             set_flag,
             get_settings,
             save_settings,
@@ -477,6 +592,10 @@ pub fn run() {
             open_game_folder,
             power_status,
             power_action,
+            quick_status,
+            set_volume,
+            set_muted,
+            set_brightness,
             full_screen_mode,
             client_log,
             accounts_status,

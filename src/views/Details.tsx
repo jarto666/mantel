@@ -4,12 +4,14 @@ import { api, toSrc } from "../api";
 import { SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
+import { AchievementsStat, Stat } from "../components/Stat";
+import { AchievementList, TROPHY } from "../components/AchievementList";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
 import { gameById, launch, rescan, setHidden, sourceLabel, toast, toggleFavorite, useStore } from "../store";
 import { TextPrompt } from "../components/TextPrompt";
-import type { Details as Info, Game } from "../types";
+import type { Achievement, Details as Info, Game } from "../types";
 import { hours, lastPlayed, placeholderHue, size, SOURCE_NAME } from "../util";
 
 interface Action {
@@ -20,7 +22,7 @@ interface Action {
   run: () => void;
 }
 
-function actionsFor(game: Game, running: boolean): Action[] {
+function actionsFor(game: Game, running: boolean, showAchievements: () => void): Action[] {
   const close = () => useStore.setState({ detailsId: null });
   const list: Action[] = [
     {
@@ -40,6 +42,9 @@ function actionsFor(game: Game, running: boolean): Action[] {
       run: () => toggleFavorite(game),
     },
   ];
+  if (game.achievements) {
+    list.push({ id: "achievements", label: "Achievements", icon: TROPHY, run: showAchievements });
+  }
   if (game.installDir) {
     list.push({
       id: "folder",
@@ -79,18 +84,6 @@ function actionsFor(game: Game, running: boolean): Action[] {
   return list;
 }
 
-function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">
-        {value}
-        {unit && <span className="stat-unit">{unit}</span>}
-      </div>
-      <div className="stat-label">{label}</div>
-    </div>
-  );
-}
-
 export function Details() {
   const detailsId = useStore((s) => s.detailsId);
   const games = useStore((s) => s.games);
@@ -104,6 +97,9 @@ export function Details() {
   const [ai, setAi] = useState(0);
   const [si, setSi] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
+  const [achievements, setAchievements] = useState(false);
+  const [achList, setAchList] = useState<Achievement[] | null>(null);
+  const [achError, setAchError] = useState<string | null>(null);
   const shots = useRef<HTMLDivElement>(null);
   useScrollFocus(shots, `${zone}${si}`, { axis: "x" });
 
@@ -113,15 +109,38 @@ export function Details() {
     setAi(0);
     setSi(0);
     setViewer(null);
+    setAchievements(false);
+    setAchList(null);
+    setAchError(null);
     if (!detailsId) return;
     let live = true;
     api.getDetails(detailsId).then((d) => live && setInfo(d)).catch(() => {});
+    // Loaded up front: the list opens at once, and Xbox titles whose count Xbox Live left
+    // out get it before the player looks at the stat.
+    if (gameById(detailsId)?.achievements) {
+      api
+        .getAchievements(detailsId)
+        .then((list) => {
+          if (!live) return;
+          setAchList(list);
+          const unlocked = list.filter((a) => a.unlocked).length;
+          if (list.length)
+            useStore.setState((s) => ({
+              games: s.games.map((g) =>
+                g.id === detailsId && g.achievements && !g.achievements.total
+                  ? { ...g, achievements: { ...g.achievements, unlocked, total: list.length, percent: Math.round((100 * unlocked) / list.length) } }
+                  : g,
+              ),
+            }));
+        })
+        .catch((e) => live && setAchError(String(e)));
+    }
     return () => {
       live = false;
     };
   }, [detailsId]);
 
-  const actions = game ? actionsFor(game, running?.id === game.id) : [];
+  const actions = game ? actionsFor(game, running?.id === game.id, () => setAchievements(true)) : [];
   const screenshots = info?.screenshots ?? [];
   const close = () => useStore.setState({ detailsId: null });
 
@@ -201,6 +220,7 @@ export function Details() {
         <motion.div className="hero-stats" {...enter(0.16)}>
           <Stat value={t ? hours(t) : "—"} unit={t ? (t >= 60 ? "h" : "min") : undefined} label="Played" />
           <Stat value={lastPlayed(game.lastPlayed)} label="Last played" />
+          {game.achievements && <AchievementsStat a={game.achievements} />}
           {info?.metacritic ? <Stat value={String(info.metacritic)} label="Metacritic" /> : null}
           <Stat value={size(game.sizeBytes)} label="On disk" />
         </motion.div>
@@ -296,6 +316,8 @@ export function Details() {
           }}
         />
       )}
+
+      <AnimatePresence>{achievements && <AchievementList game={game} list={achList} error={achError} onClose={() => setAchievements(false)} />}</AnimatePresence>
 
       <AnimatePresence>
         {viewer !== null && screenshots[viewer] && (

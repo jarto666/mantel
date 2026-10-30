@@ -34,7 +34,7 @@ function usePower() {
   return power;
 }
 
-function Battery({ power }: { power: Power }) {
+export function Battery({ power }: { power: Power }) {
   const pct = power.percent ?? 0;
   const low = pct <= 20 && !power.charging;
   return (

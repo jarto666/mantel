@@ -4,6 +4,7 @@ import { Cover } from "../components/Cover";
 import { Glyph, SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
+import { AchievementsStat, Stat } from "../components/Stat";
 import { Layer, useInput } from "../input";
 import { ease, spring, useRem, useSettled } from "../motion";
 import { launch, rescan, setFocus, sourceLabel, toggleFavorite, useStore } from "../store";
@@ -39,18 +40,6 @@ const item: Variants = {
   exit: { opacity: 0, x: -16, transition: { duration: 0.16 } },
 };
 
-function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">
-        {value}
-        {unit && <span className="stat-unit">{unit}</span>}
-      </div>
-      <div className="stat-label">{label}</div>
-    </div>
-  );
-}
-
 function Hero({ game, running, zone, btn, onPress }: { game: Game; running: boolean; zone: string; btn: number; onPress: (b: Button) => void }) {
   const t = game.playtimeMinutes;
   const buttons: Button[] = ["play", "details", "fav"];
@@ -67,6 +56,7 @@ function Hero({ game, running, zone, btn, onPress }: { game: Game; running: bool
       <motion.div className="hero-stats" variants={item}>
         <Stat value={t ? hours(t) : "—"} unit={t ? (t >= 60 ? "h" : "min") : undefined} label="Played" />
         <Stat value={lastPlayed(game.lastPlayed)} label="Last played" />
+        {game.achievements && <AchievementsStat a={game.achievements} />}
         <Stat value={size(game.sizeBytes)} label="On disk" />
       </motion.div>
       <motion.div className="hero-actions" variants={item}>

@@ -147,6 +147,7 @@ export async function rescan(quiet = false) {
     if (!quiet) toast(`Library updated: ${games.length} games`, "good");
     else if (games.length > before && before > 0) toast(`${games.length - before} new ${games.length - before === 1 ? "game" : "games"} found`, "good");
     if (await api.resolveArt()) set({ games: await api.getLibrary(false) });
+    if (await api.measureSizes()) set({ games: await api.getLibrary(false) });
   } catch (e) {
     toast(`Scan failed: ${e}`, "warn");
   } finally {
