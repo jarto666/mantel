@@ -579,14 +579,15 @@ img { display: block; }
 .settings-cat { position: relative; display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.4rem; border-radius: 1.1rem; font-size: 1.3rem; font-weight: 600; color: var(--ink-3); text-align: left; transition: background 0.3s, color 0.25s, box-shadow 0.3s, transform 0.45s var(--bounce); }
 .settings-cat svg { flex: none; width: 1.5rem; height: 1.5rem; }
 .settings-cat.is-current { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
-.settings-cat.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); transform: scale(1.03); }
+.settings-cat.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); }
 .settings-badge { width: 0.6rem; height: 0.6rem; margin-left: auto; border-radius: 50%; background: var(--accent); }
 .settings-list { width: 56rem; padding: 0.6rem 1rem 16rem; transition: opacity 0.3s; overflow-y: auto; scrollbar-width: none; mask-image: linear-gradient(180deg, transparent 0, #000 1.5rem, #000 calc(100% - 11rem), transparent calc(100% - 5rem)); }
 .settings-list::-webkit-scrollbar { display: none; }
 .settings.zone-categories .settings-list { opacity: 0.62; }
 .settings-group { margin: 2.4rem 0 0.8rem 1.5rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
 .setting { position: relative; display: flex; align-items: center; gap: 1.2rem; padding: 1.2rem 1.5rem; border-radius: 1.1rem; cursor: pointer; transition: background 0.3s, box-shadow 0.3s, transform 0.45s var(--bounce); }
-.setting.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); transform: scale(1.015); }
+/* Rows in lists don't grow or glow on focus: neighbours would shift or catch the light. */
+.setting.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); }
 .setting .source-icon { width: 1.45rem; height: 1.45rem; color: var(--ink-2); }
 .setting-text { flex: 1; min-width: 0; }
 .setting-label { font-size: 1.22rem; font-weight: 600; }
@@ -625,7 +626,7 @@ img { display: block; }
 .keyflow-step { display: flex; align-items: center; gap: 1rem; height: 4.2rem; padding: 0 1.6rem; border-radius: 1.1rem; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px var(--stroke); font-size: 1.22rem; font-weight: 560; text-align: left; transition: transform 0.45s var(--bounce), background 0.25s, color 0.25s, box-shadow 0.3s; }
 .keyflow-step svg { flex: none; width: 1.5rem; height: 1.5rem; }
 .keyflow-step .spinner { margin-left: auto; border-top-color: currentColor; }
-.keyflow-step.is-focused { transform: scale(1.02); background: #fff; color: #07080c; box-shadow: 0 1rem 2.6rem -1rem var(--glow); }
+.keyflow-step.is-focused { background: #fff; color: #07080c; }
 .keyflow-step.danger.is-focused { background: var(--bad); color: #fff; }
 .keyflow-error { margin-top: 1.2rem; padding: 0.9rem 1.2rem; border-radius: 0.8rem; background: rgba(255, 91, 87, 0.14); color: #ffb3b0; font-size: 1.05rem; line-height: 1.4; }
 
@@ -643,7 +644,7 @@ img { display: block; }
 .addgame-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
 .addgame-name { font-size: 1.2rem; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .addgame-sub { font-size: 0.95rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.addgame-row.is-focused { transform: scale(1.015); background: #fff; color: #07080c; box-shadow: 0 1rem 2.6rem -1rem var(--glow); }
+.addgame-row.is-focused { background: #fff; color: #07080c; }
 .addgame-row.is-focused svg, .addgame-row.is-focused .addgame-sub { color: rgba(7, 8, 12, 0.55); }
 .addgame-row.is-added:not(.is-focused) { opacity: 0.55; }
 .addgame-badge { flex: none; padding: 0.3rem 0.8rem; border-radius: 999px; background: rgba(95, 224, 138, 0.16); color: var(--good); font-size: 0.9rem; font-weight: 600; }
