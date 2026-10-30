@@ -574,8 +574,16 @@ img { display: block; }
 /* ---------- Settings ----------------------------------------------------- */
 
 .settings { position: absolute; inset: 0; padding: 8.2rem 0 0 var(--pad-x); display: flex; flex-direction: column; }
-.settings-list { width: 56rem; margin: 1.6rem 0 0 -1rem; padding: 0.6rem 1rem 16rem; overflow-y: auto; scrollbar-width: none; mask-image: linear-gradient(180deg, transparent 0, #000 1.5rem, #000 calc(100% - 11rem), transparent calc(100% - 5rem)); }
+.settings-body { flex: 1; min-height: 0; display: flex; gap: 2.6rem; margin-top: 1.6rem; }
+.settings-cats { flex: none; width: 18rem; display: flex; flex-direction: column; gap: 0.4rem; margin-left: -1rem; padding-top: 0.6rem; }
+.settings-cat { position: relative; display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.4rem; border-radius: 1.1rem; font-size: 1.3rem; font-weight: 600; color: var(--ink-3); text-align: left; transition: background 0.3s, color 0.25s, box-shadow 0.3s, transform 0.45s var(--bounce); }
+.settings-cat svg { flex: none; width: 1.5rem; height: 1.5rem; }
+.settings-cat.is-current { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
+.settings-cat.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); transform: scale(1.03); }
+.settings-badge { width: 0.6rem; height: 0.6rem; margin-left: auto; border-radius: 50%; background: var(--accent); }
+.settings-list { width: 56rem; padding: 0.6rem 1rem 16rem; transition: opacity 0.3s; overflow-y: auto; scrollbar-width: none; mask-image: linear-gradient(180deg, transparent 0, #000 1.5rem, #000 calc(100% - 11rem), transparent calc(100% - 5rem)); }
 .settings-list::-webkit-scrollbar { display: none; }
+.settings.zone-categories .settings-list { opacity: 0.62; }
 .settings-group { margin: 2.4rem 0 0.8rem 1.5rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
 .setting { position: relative; display: flex; align-items: center; gap: 1.2rem; padding: 1.2rem 1.5rem; border-radius: 1.1rem; cursor: pointer; transition: background 0.3s, box-shadow 0.3s, transform 0.45s var(--bounce); }
 .setting.is-focused { background: var(--glass); backdrop-filter: blur(20px); box-shadow: var(--focus); transform: scale(1.015); }
