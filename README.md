@@ -19,11 +19,16 @@ TV PC.
 - **Works on first launch.** Mantel finds installed games on its own: no plugins, no
   per-store setup.
 - **Controller first.** Every screen works with the gamepad, the touchscreen or a keyboard.
-  The control center (≡) closes games, restarts or powers off the device.
+  The control center (≡) sets volume and brightness, shows Wi-Fi and battery, closes
+  games, restarts or powers off the device.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts
   connected, brings in playtime from Steam and Xbox across all your devices.
 - **Your whole collection.** Sign in to Steam or Xbox to also see the games you own but
   haven't installed. Picking one opens its install page in Steam or the Xbox app.
+- **Achievements.** With an account connected, every Steam and Xbox game shows its
+  progress, and its page lists each achievement with rarity and gamerscore.
+- **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it.
+  Settings → Interface turns that off.
 - **Steps aside while you play.** Mantel minimizes when a game starts and comes back when
   it exits.
 - **Art for everything.** Covers, backgrounds and logos come from Steam and GOG; a free
@@ -52,8 +57,8 @@ Mantel there yet.
 
 | Store | Installed games | With your account |
 | --- | --- | --- |
-| Steam | Library folders and app manifests, playtime from Steam's own files | Every owned game, playtime from all devices |
-| Xbox / Game Pass / Microsoft Store | Packages that ship a `MicrosoftGame.config` | Play history and minutes played |
+| Steam | Library folders and app manifests, playtime from Steam's own files | Every owned game, playtime from all devices, achievements |
+| Xbox / Game Pass / Microsoft Store | Packages that ship a `MicrosoftGame.config` | Play history, minutes played, achievements |
 | Epic Games | Launcher manifests and catalog cache | Coming later |
 | GOG | Registry; launches through Galaxy when installed | Coming later |
 | Ubisoft Connect | Registry | Coming later |
@@ -64,16 +69,16 @@ Mantel there yet.
 Mantel has no servers and sends no telemetry. It talks only to the services you use:
 
 - **Steam.** You sign in on Steam's own page inside Mantel; Mantel never sees your
-  password, and email Steam Guard codes work. Mantel then reads your owned games with the
-  same short-lived token the Steam store page uses.
+  password, and email Steam Guard codes work. Mantel then reads your owned games and achievements
+  with the same short-lived token the Steam store page uses.
 - **Xbox.** You sign in on Microsoft's own page and allow Mantel to read your Xbox profile.
-  Mantel reads your play history and minutes played from Xbox Live.
-- **Artwork.** Steam's store and image servers, GOG's public API and, if you add a key,
-  SteamGridDB.
+  Mantel reads your play history, minutes played and achievements from Xbox Live.
+- **Artwork and trailers.** Steam's store, image and video servers, GOG's public API and,
+  if you add a key, SteamGridDB.
 
 Everything stays on your PC in `%APPDATA%\com.playmantel.launcher\`: `user.json` holds
-settings, favorites, playtime and the account tokens; `cache.json` can be deleted at any
-time. Settings → Accounts signs you out and deletes the tokens.
+settings, favorites, playtime and the account tokens, which are encrypted for your Windows
+user (DPAPI); `cache.json` can be deleted at any time. Settings → Accounts signs you out and deletes the tokens.
 
 ## Controls
 
@@ -86,7 +91,7 @@ time. Settings → Accounts signs you out and deletes the tokens.
 | LB / RB | Games ↔ Library ↔ Settings |
 | LT / RT | Library filters |
 | View (⧉) | Search |
-| Menu (≡) | Control center: close game, restart, power off, desktop |
+| Menu (≡) | Control center: volume, brightness, close game, restart, power off, desktop |
 
 On a keyboard: arrows, Enter, Esc, `i` details, `f` favorite, `q` / `e` tabs, `/` search,
 `m` menu.
