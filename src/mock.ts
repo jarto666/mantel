@@ -81,6 +81,17 @@ let settings: Settings = {
   steamgriddbKey: "",
   sounds: true,
   minimizeOnLaunch: true,
+  trailers: true,
+};
+
+// Real Steam trailers (DASH), so the player can be tried in the browser too.
+const VIDEO = "https://video.akamai.steamstatic.com/store_trailers";
+const trailers: Record<number, string> = {
+  1091500: `${VIDEO}/1091500/319068602/a0e7ceceecf759bf446feac0658b6fe58a970b94/1792676918/dash_h264.mpd`,
+  1145350: `${VIDEO}/1145350/1067641820/dfba9c6a8b09f5bd9b323d6e699ac685065b93d3/1758924611/dash_h264.mpd`,
+  1086940: `${VIDEO}/1086940/637951/59ca25b847b0e471638d1e2474acf71b068d57f0/1750615003/dash_h264.mpd`,
+  1551360: `${VIDEO}/1551360/442268/66eddb8cdf196bf7c8d9bb8e8895bd7f60133cc1/1750700745/dash_h264.mpd`,
+  1903340: `${VIDEO}/1903340/876247/5c4709c3a98d932003a6b85bd5e4bfcd6a777e7a/1748581603/dash_h264.mpd`,
 };
 
 let running: Running | null = null;
@@ -111,6 +122,7 @@ export const mockApi: Api = {
       releaseDate: "2024",
       metacritic: 80 + (g.name.length % 15),
       screenshots: [...g.art.hero.slice(0, 1), ...g.art.icon],
+      trailer: trailers[g.steamAppId] ?? null,
     };
   },
   async setFlag(id, flag, value) {

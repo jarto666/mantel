@@ -31,6 +31,8 @@ pub struct Settings {
     pub steamgriddb_key: String,
     pub sounds: bool,
     pub minimize_on_launch: bool,
+    /// Muted trailers behind the focused game on Home.
+    pub trailers: bool,
 }
 
 impl Default for Settings {
@@ -40,6 +42,7 @@ impl Default for Settings {
             steamgriddb_key: String::new(),
             sounds: true,
             minimize_on_launch: true,
+            trailers: true,
         }
     }
 }

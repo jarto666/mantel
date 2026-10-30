@@ -65,6 +65,7 @@ export interface Settings {
   steamgriddbKey: string;
   sounds: boolean;
   minimizeOnLaunch: boolean;
+  trailers: boolean;
 }
 
 export interface Details {
@@ -76,6 +77,8 @@ export interface Details {
   metacritic?: number | null;
   screenshots: string[];
   background?: string | null;
+  /** DASH manifest of the main trailer. */
+  trailer?: string | null;
 }
 
 export interface Running {

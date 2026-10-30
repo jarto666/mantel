@@ -139,7 +139,14 @@ async fn steamgriddb(http: &reqwest::Client, key: &str, name: &str) -> Option<Ar
     Some(Art { cover: urls(grids), hero: urls(heroes), logo: urls(logos), icon: Vec::new() })
 }
 
-/// Description, genres and screenshots from the Steam store.
+/// The game's main trailer as a DASH manifest: Steam serves trailers only as DASH or HLS.
+fn trailer(d: &Value) -> Option<String> {
+    let movies = d.get("movies")?.as_array()?;
+    let pick = movies.iter().find(|m| m.get("highlight").and_then(Value::as_bool) == Some(true)).or(movies.first())?;
+    pick.get("dash_h264")?.as_str().map(String::from)
+}
+
+/// Description, genres, screenshots and the trailer from the Steam store.
 pub async fn steam_details(appid: u32) -> Option<Value> {
     let req = client()
         .get("https://store.steampowered.com/api/appdetails")
@@ -161,5 +168,6 @@ pub async fn steam_details(appid: u32) -> Option<Value> {
         "metacritic": d.get("metacritic").and_then(|m| m.get("score")),
         "screenshots": list("screenshots", "path_full").into_iter().take(10).collect::<Vec<_>>(),
         "background": d.get("background_raw"),
+        "trailer": trailer(d),
     }))
 }

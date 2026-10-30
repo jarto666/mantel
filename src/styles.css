@@ -68,6 +68,18 @@ img { display: block; }
   animation: drift 42s ease-in-out infinite alternate;
 }
 .bg-layer.soft .bg-image { inset: -12%; filter: blur(3rem) saturate(1.35) brightness(0.72); }
+.bg-trailer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 66% 22%;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.bg-trailer.is-shown { opacity: 1; transition-duration: 1.4s; }
 @keyframes drift {
   from { transform: scale(1) translate3d(0, 0, 0); }
   to { transform: scale(1.07) translate3d(-1.4%, 0.9%, 0); }

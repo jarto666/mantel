@@ -201,6 +201,14 @@ export function Settings({ active }: { active: boolean }) {
     },
     {
       kind: "toggle",
+      id: "trailers",
+      label: "Trailers",
+      sub: "Play a muted trailer behind the game you stop on",
+      value: settings.trailers,
+      set: (v) => patch({ trailers: v }),
+    },
+    {
+      kind: "toggle",
       id: "sounds",
       label: "Interface sounds",
       value: settings.sounds,

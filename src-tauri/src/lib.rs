@@ -142,7 +142,23 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
 async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Value>, String> {
     let appid = snapshot(&state).into_iter().find(|g| g.id == id).and_then(|g| g.steam_app_id);
     let Some(appid) = appid else { return Ok(None) };
-    if let Some(hit) = state.cache.lock().unwrap().details.get(&appid) {
+    let cached = state.cache.lock().unwrap().details.get(&appid).cloned();
+    // Details cached before trailers existed lack the key and are fetched again. Steam now and
+    // then answers without the trailers, so a missing one is checked again once per run.
+    static RECHECKED: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+    let fresh = |d: &&Value| match d.get("trailer") {
+        None => false,
+        Some(Value::Null) => {
+            let mut rechecked = RECHECKED.lock().unwrap();
+            let seen = rechecked.contains(&appid);
+            if !seen {
+                rechecked.push(appid);
+            }
+            seen
+        }
+        Some(_) => true,
+    };
+    if let Some(hit) = cached.as_ref().filter(fresh) {
         return Ok(Some(hit.clone()));
     }
     let details = art::steam_details(appid).await;
@@ -151,7 +167,7 @@ async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Va
         cache.details.insert(appid, d.clone());
         state.save_cache(&cache);
     }
-    Ok(details)
+    Ok(details.or(cached))
 }
 
 #[tauri::command]
