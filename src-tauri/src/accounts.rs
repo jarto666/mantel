@@ -346,6 +346,7 @@ const LIVE_TOKEN: &str = "https://login.live.com/oauth20_token.srf";
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct XboxSession {
+    #[serde(with = "crate::store::secret")]
     pub token: String,
     pub uhs: String,
     pub xuid: String,
