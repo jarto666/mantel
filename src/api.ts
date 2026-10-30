@@ -12,6 +12,8 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export interface Api {
   getLibrary(rescan: boolean): Promise<Game[]>;
   resolveArt(): Promise<boolean>;
+  /** Sizes install folders whose store reports none; true when any changed. */
+  measureSizes(): Promise<boolean>;
   getDetails(id: string): Promise<Details | null>;
   setFlag(id: string, flag: "favorite" | "hidden", value: boolean): Promise<void>;
   getSettings(): Promise<Settings>;
@@ -66,6 +68,7 @@ let pendingUpdate: import("@tauri-apps/plugin-updater").Update | null = null;
 const tauriApi: Api = {
   getLibrary: (rescan) => call("get_library", { rescan }),
   resolveArt: () => call("resolve_art"),
+  measureSizes: () => call("measure_sizes"),
   getDetails: (id) => call("get_details", { id }),
   setFlag: (id, flag, value) => call("set_flag", { id, flag, value }),
   getSettings: () => call("get_settings"),

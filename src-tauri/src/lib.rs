@@ -15,16 +15,21 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
 
 use model::{now, Game};
-use store::{AppState, CustomGame, Settings};
+use store::{AppState, CustomGame, MeasuredSize, Settings};
 
 /// Unresolved art is retried after a week; the game may have reached Steam since.
 const ART_RETRY_SECS: i64 = 7 * 24 * 3600;
+/// Measured folder sizes are taken again after a week: games update.
+const SIZE_RETRY_SECS: i64 = 7 * 24 * 3600;
 
 fn snapshot(state: &AppState) -> Vec<Game> {
     let cache = state.cache.lock().unwrap();
     let user = state.user.lock().unwrap();
     let mut games = cache.library.clone();
     library::apply_meta(&mut games, &user, &cache.art);
+    for g in games.iter_mut().filter(|g| g.size_bytes.is_none()) {
+        g.size_bytes = g.install_dir.as_ref().and_then(|d| cache.sizes.get(d)).and_then(|s| s.bytes);
+    }
     games
 }
 
@@ -134,6 +139,41 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
     let found = art::resolve(todo, key).await;
     let mut cache = state.cache.lock().unwrap();
     cache.art.extend(found);
+    state.save_cache(&cache);
+    Ok(true)
+}
+
+/// Measures the install folders of games whose store reports no size: Xbox, GOG, Ubisoft and
+/// games added by hand. Returns whether anything changed.
+#[tauri::command]
+async fn measure_sizes(state: State<'_, AppState>) -> Result<bool, String> {
+    let todo: Vec<(String, std::path::PathBuf)> = {
+        let cache = state.cache.lock().unwrap();
+        let t = now();
+        cache
+            .library
+            .iter()
+            .filter(|g| g.installed && g.size_bytes.is_none())
+            .filter_map(|g| {
+                let dir = g.install_dir.clone()?;
+                if cache.sizes.get(&dir).is_some_and(|s| t - s.at < SIZE_RETRY_SECS) {
+                    return None;
+                }
+                let root = if g.source == "custom" { library::game_root(&dir)? } else { dir.clone().into() };
+                Some((dir, root))
+            })
+            .collect()
+    };
+    if todo.is_empty() {
+        return Ok(false);
+    }
+    let measured = tauri::async_runtime::spawn_blocking(move || {
+        todo.into_iter().map(|(dir, root)| (dir, MeasuredSize { bytes: library::dir_size(&root), at: now() })).collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut cache = state.cache.lock().unwrap();
+    cache.sizes.extend(measured);
     state.save_cache(&cache);
     Ok(true)
 }
@@ -480,6 +520,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_library,
             resolve_art,
+            measure_sizes,
             get_details,
             set_flag,
             get_settings,

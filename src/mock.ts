@@ -110,6 +110,9 @@ export const mockApi: Api = {
   async resolveArt() {
     return false;
   },
+  async measureSizes() {
+    return false;
+  },
   async getDetails(id) {
     const g = games.find((x) => x.id === id);
     if (!g?.steamAppId) return null;

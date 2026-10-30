@@ -104,6 +104,13 @@ pub struct ResolvedArt {
     pub at: i64,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MeasuredSize {
+    pub bytes: Option<u64>,
+    pub at: i64,
+}
+
 /// Rebuildable data: the last scan and lookups against online services.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -115,6 +122,8 @@ pub struct Cache {
     /// Last good answer from each store account, used when it can't be reached.
     pub owned_steam: Vec<crate::accounts::OwnedSteam>,
     pub owned_xbox: Vec<crate::accounts::XboxTitle>,
+    /// Install folder sizes for stores that don't report one, by install folder.
+    pub sizes: HashMap<String, MeasuredSize>,
 }
 
 pub struct AppState {
