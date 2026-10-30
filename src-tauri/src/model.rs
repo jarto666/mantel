@@ -39,6 +39,19 @@ impl Art {
     }
 }
 
+/// Achievement progress on the player's store account.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Achievements {
+    pub unlocked: u32,
+    /// 0 when the store doesn't say: Xbox leaves it out for many newer titles.
+    pub total: u32,
+    pub percent: u8,
+    /// Xbox only.
+    pub gamerscore: Option<u32>,
+    pub gamerscore_total: Option<u32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Launch {
@@ -80,6 +93,8 @@ pub struct Game {
     /// False for games an account owns but this machine doesn't have; launching installs.
     #[serde(default = "installed_default")]
     pub installed: bool,
+    #[serde(default)]
+    pub achievements: Option<Achievements>,
 }
 
 fn installed_default() -> bool {
@@ -106,6 +121,7 @@ impl Game {
             hidden: false,
             size_bytes: None,
             installed: true,
+            achievements: None,
         }
     }
 }

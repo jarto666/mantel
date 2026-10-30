@@ -452,6 +452,10 @@ img { display: block; }
 .stat-value { font-size: 2.5rem; font-weight: 380; letter-spacing: -0.03em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stat-unit { margin-left: 0.3rem; font-size: 1.5rem; font-weight: 500; color: var(--ink-2); letter-spacing: 0; }
 .stat-label { margin-top: 0.6rem; font-size: 0.95rem; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+/* Hangs below the label, so the row keeps its height with or without it. */
+.stat-achievements { position: relative; }
+.stat-meter { position: absolute; left: 2.8rem; right: 2.8rem; bottom: -0.85rem; height: 0.2rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.stat-meter span { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
 
 .hero-actions { display: flex; gap: 0.9rem; }
 

@@ -1,6 +1,6 @@
 // Stand-in backend for developing the UI in a regular browser.
 import type { Api, GameEvent } from "./api";
-import type { Art, Game, Running, Settings, Source } from "./types";
+import type { Achievements, Art, Game, Running, Settings, Source } from "./types";
 
 const cdn = (id: number): Art => {
   const base = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}`;
@@ -46,6 +46,18 @@ const seeds: Seed[] = [
   ["custom", "Minecraft", null, 0, null],
 ];
 
+/** Steam-style counts for some games, Xbox gamerscore (one without a total) for others. */
+function achievementsFor(source: Source, i: number, minutes: number): Achievements | null {
+  if (!minutes || source === "custom" || source === "epic") return null;
+  if (source === "xbox") {
+    const gamerscore = 120 + ((i * 290) % 880);
+    return { unlocked: 4 + (i % 30), total: i % 2 ? 0 : 50, percent: Math.round(gamerscore / 10), gamerscore, gamerscoreTotal: 1000 };
+  }
+  const total = 20 + ((i * 13) % 60);
+  const unlocked = Math.min(total, Math.round((minutes / 9000) * total) + (i % 5));
+  return { unlocked, total, percent: Math.round((100 * unlocked) / total) };
+}
+
 let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   id: `${source}:${appid ?? i}`,
   source,
@@ -61,6 +73,7 @@ let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   hidden: false,
   sizeBytes: (20 + ((i * 37) % 120)) * 1024 ** 3,
   installed: i !== 14 && i !== 16,
+  achievements: achievementsFor(source, i, minutes),
 }));
 
 let settings: Settings = {

@@ -4,6 +4,7 @@ import { api, toSrc } from "../api";
 import { SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
+import { AchievementsStat, Stat } from "../components/Stat";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
@@ -77,18 +78,6 @@ function actionsFor(game: Game, running: boolean): Action[] {
     });
   }
   return list;
-}
-
-function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">
-        {value}
-        {unit && <span className="stat-unit">{unit}</span>}
-      </div>
-      <div className="stat-label">{label}</div>
-    </div>
-  );
 }
 
 export function Details() {
@@ -201,6 +190,7 @@ export function Details() {
         <motion.div className="hero-stats" {...enter(0.16)}>
           <Stat value={t ? hours(t) : "—"} unit={t ? (t >= 60 ? "h" : "min") : undefined} label="Played" />
           <Stat value={lastPlayed(game.lastPlayed)} label="Last played" />
+          {game.achievements && <AchievementsStat a={game.achievements} />}
           {info?.metacritic ? <Stat value={String(info.metacritic)} label="Metacritic" /> : null}
           <Stat value={size(game.sizeBytes)} label="On disk" />
         </motion.div>

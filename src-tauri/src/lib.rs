@@ -46,8 +46,11 @@ fn rescan(app: &AppHandle) {
 
     if settings.sources.steam && steam_signed_in {
         let owned = match tauri::async_runtime::block_on(accounts::steam_owned(app)) {
-            Ok(list) => {
+            Ok(mut list) => {
                 log::info(&format!("steam account: {} owned games", list.len()));
+                if let Err(e) = tauri::async_runtime::block_on(accounts::steam_achievements(app, &mut list)) {
+                    log::warn(&e);
+                }
                 state.cache.lock().unwrap().owned_steam = list.clone();
                 list
             }

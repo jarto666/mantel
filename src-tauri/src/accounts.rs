@@ -19,7 +19,7 @@ use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBui
 use tokio::sync::mpsc;
 
 use crate::library::steam_cdn_art;
-use crate::model::{now, Game, Launch};
+use crate::model::{now, Achievements, Game, Launch};
 use crate::store::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +29,8 @@ pub struct OwnedSteam {
     pub name: String,
     pub minutes: u64,
     pub last_played: i64,
+    #[serde(default)]
+    pub achievements: Option<Achievements>,
 }
 
 const STORE: &str = "https://store.steampowered.com";
@@ -203,9 +205,58 @@ pub async fn steam_owned(app: &AppHandle) -> Result<Vec<OwnedSteam>, String> {
                 name: g.get("name")?.as_str()?.to_string(),
                 minutes: g.get("playtime_forever").and_then(Value::as_u64).unwrap_or(0),
                 last_played: g.get("rtime_last_played").and_then(Value::as_i64).unwrap_or(0),
+                achievements: None,
             })
         })
         .collect())
+}
+
+/// Fills in achievement progress for the games the player has started. Games without
+/// achievements come back with a total of 0 and stay empty.
+pub async fn steam_achievements(app: &AppHandle, owned: &mut [OwnedSteam]) -> Result<(), String> {
+    let token = live_token(app).await?;
+    let (steam_id, _) = parse_token(&token).ok_or("Unreadable Steam token")?;
+    let ids: Vec<u32> = owned.iter().filter(|o| o.minutes > 0).map(|o| o.appid).collect();
+    let http = client();
+    let batches = ids.chunks(100).map(|chunk| {
+        let mut form = vec![("access_token".to_string(), token.clone()), ("steamid".into(), steam_id.to_string())];
+        form.extend(chunk.iter().enumerate().map(|(i, id)| (format!("appids[{i}]"), id.to_string())));
+        // POST only: a GET gets 405 with this token.
+        let req = http.post("https://api.steampowered.com/IPlayerService/GetAchievementsProgress/v1/").form(&form);
+        async move {
+            let v: Value = req.send().await.and_then(reqwest::Response::error_for_status).map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+            Ok::<_, String>(v.pointer("/response/achievement_progress").and_then(Value::as_array).cloned().unwrap_or_default())
+        }
+    });
+    let mut progress = std::collections::HashMap::new();
+    let mut failed = None;
+    for batch in futures::future::join_all(batches).await {
+        match batch {
+            Ok(list) => progress.extend(list.iter().filter_map(|p| Some((p.get("appid")?.as_u64()? as u32, steam_progress(p)?)))),
+            Err(e) => failed = Some(e),
+        }
+    }
+    if progress.is_empty() {
+        if let Some(e) = failed {
+            return Err(format!("Steam achievements: {e}"));
+        }
+    }
+    for o in owned.iter_mut() {
+        o.achievements = progress.get(&o.appid).cloned();
+    }
+    Ok(())
+}
+
+fn steam_progress(p: &Value) -> Option<Achievements> {
+    let total = p.get("total")?.as_u64()? as u32;
+    let unlocked = p.get("unlocked").and_then(Value::as_u64).unwrap_or(0) as u32;
+    (total > 0).then(|| Achievements {
+        unlocked,
+        total,
+        percent: (100.0 * unlocked as f64 / total as f64).round() as u8,
+        gamerscore: None,
+        gamerscore_total: None,
+    })
 }
 
 /// Forgets the account here and empties the WebView's cookie jar.
@@ -256,6 +307,8 @@ pub struct XboxTitle {
     /// Store id like 9PCR3Z2MSM4T; the Xbox app opens its game page by it.
     #[serde(default)]
     pub product_id: Option<String>,
+    #[serde(default)]
+    pub achievements: Option<Achievements>,
 }
 
 const LIVE_AUTHORIZE: &str = "https://login.live.com/oauth20_authorize.srf";
@@ -460,7 +513,7 @@ pub async fn xbox_titles(app: &AppHandle) -> Result<Vec<XboxTitle>, String> {
     let auth = format!("XBL3.0 x={};{}", session.uhs, session.token);
     let http = client();
     let history: Value = http
-        .get(format!("https://titlehub.xboxlive.com/users/xuid({})/titles/titlehistory/decoration/detail,image", session.xuid))
+        .get(format!("https://titlehub.xboxlive.com/users/xuid({})/titles/titlehistory/decoration/detail,image,achievement", session.xuid))
         .header("Authorization", &auth)
         .header("x-xbl-contract-version", "2")
         .header("Accept-Language", "en-US")
@@ -500,9 +553,30 @@ pub async fn xbox_titles(app: &AppHandle) -> Result<Vec<XboxTitle>, String> {
                     .and_then(Value::as_array)
                     .and_then(|a| a.iter().find_map(|x| x.get("ProductId")?.as_str().filter(|p| !p.is_empty())))
                     .map(String::from),
+                achievements: t.get("achievement").and_then(xbox_achievements),
             })
         })
         .collect())
+}
+
+/// Titlehub's `achievement` decoration. Newer titles often report no achievement total,
+/// only gamerscore, so the percentage comes from Xbox Live itself.
+fn xbox_achievements(a: &Value) -> Option<Achievements> {
+    let n = |k: &str| a.get(k).and_then(Value::as_u64).unwrap_or(0) as u32;
+    let (unlocked, total, score, score_total) = (n("currentAchievements"), n("totalAchievements"), n("currentGamerscore"), n("totalGamerscore"));
+    if total == 0 && score_total == 0 {
+        return None;
+    }
+    let percent = a.get("progressPercentage").and_then(Value::as_f64).unwrap_or_else(|| {
+        if score_total > 0 { 100.0 * score as f64 / score_total as f64 } else { 100.0 * unlocked as f64 / total as f64 }
+    });
+    Some(Achievements {
+        unlocked,
+        total,
+        percent: percent.round().clamp(0.0, 100.0) as u8,
+        gamerscore: (score_total > 0).then_some(score),
+        gamerscore_total: (score_total > 0).then_some(score_total),
+    })
 }
 
 /// Minutes played per title id. Xbox Live answers slower the more titles one request names
@@ -560,6 +634,7 @@ pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
         if let Some(g) = games.iter_mut().find(|g| g.source == "xbox" && g.source_id.eq_ignore_ascii_case(&t.pfn)) {
             g.playtime_minutes = g.playtime_minutes.max(t.minutes);
             g.last_played = g.last_played.max(last);
+            g.achievements = t.achievements.clone();
             continue;
         }
         let uri = match &t.product_id {
@@ -571,6 +646,7 @@ pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
         g.playtime_minutes = t.minutes;
         g.last_played = last;
         g.art.cover.extend(t.image.clone());
+        g.achievements = t.achievements.clone();
         games.push(g);
     }
 }
@@ -601,6 +677,7 @@ pub fn merge_steam(games: &mut Vec<Game>, owned: &[OwnedSteam]) {
         if let Some(g) = games.iter_mut().find(|g| g.id == id) {
             g.playtime_minutes = g.playtime_minutes.max(o.minutes);
             g.last_played = g.last_played.max(last);
+            g.achievements = o.achievements.clone();
             continue;
         }
         let mut g = Game::new("steam", o.appid.to_string(), o.name.clone(), Launch::Uri { uri: format!("steam://install/{}", o.appid) });
@@ -609,6 +686,7 @@ pub fn merge_steam(games: &mut Vec<Game>, owned: &[OwnedSteam]) {
         g.art = steam_cdn_art(o.appid);
         g.playtime_minutes = o.minutes;
         g.last_played = last;
+        g.achievements = o.achievements.clone();
         games.push(g);
     }
 }
@@ -621,6 +699,23 @@ mod tests {
     fn parses_xbox_dates() {
         assert_eq!(parse_iso("1970-01-02T00:00:00Z"), Some(86400));
         assert_eq!(parse_iso("2026-10-28T12:34:56.1234567Z"), Some(1793190896));
+    }
+
+    #[test]
+    fn reads_xbox_achievements() {
+        let a = |v: Value| xbox_achievements(&v);
+        let full = a(serde_json::json!({"currentAchievements": 12, "totalAchievements": 50, "currentGamerscore": 230, "totalGamerscore": 1000, "progressPercentage": 23}));
+        assert_eq!(full, Some(Achievements { unlocked: 12, total: 50, percent: 23, gamerscore: Some(230), gamerscore_total: Some(1000) }));
+        let no_total = a(serde_json::json!({"currentAchievements": 3, "totalAchievements": 0, "currentGamerscore": 45, "totalGamerscore": 1000}));
+        assert_eq!(no_total.map(|x| (x.total, x.percent)), Some((0, 5)));
+        assert_eq!(a(serde_json::json!({"currentAchievements": 0, "totalAchievements": 0, "currentGamerscore": 0, "totalGamerscore": 0})), None);
+    }
+
+    #[test]
+    fn reads_steam_progress() {
+        let p = steam_progress(&serde_json::json!({"appid": 730, "unlocked": 1, "total": 3, "percentage": 33.3}));
+        assert_eq!(p.map(|a| (a.unlocked, a.total, a.percent)), Some((1, 3, 33)));
+        assert_eq!(steam_progress(&serde_json::json!({"appid": 1, "unlocked": 0, "total": 0})), None);
     }
 
     #[test]

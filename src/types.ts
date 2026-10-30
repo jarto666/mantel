@@ -7,6 +7,16 @@ export interface Art {
   icon: string[];
 }
 
+export interface Achievements {
+  unlocked: number;
+  /** 0 when the store doesn't say: Xbox leaves it out for many newer titles. */
+  total: number;
+  percent: number;
+  /** Xbox only. */
+  gamerscore?: number | null;
+  gamerscoreTotal?: number | null;
+}
+
 export interface Game {
   id: string;
   source: Source;
@@ -23,6 +33,7 @@ export interface Game {
   sizeBytes?: number | null;
   /** False for games an account owns but this device hasn't installed. */
   installed: boolean;
+  achievements?: Achievements | null;
 }
 
 export interface PickEntry {
