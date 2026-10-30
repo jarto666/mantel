@@ -701,7 +701,28 @@ img { display: block; }
 .cc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; font-size: 1.15rem; font-weight: 550; }
 .cc-now { display: flex; align-items: center; gap: 0.8rem; }
 .cc-dim { color: var(--ink-3); font-weight: 450; }
+.cc-status { display: flex; align-items: center; gap: 2.2rem; }
+.cc-chip { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--ink-2); font-weight: 500; }
+.cc-chip > svg { width: 1.4rem; height: 1.4rem; }
+.cc-chip .off { opacity: 0.28; }
 .cc-time { display: flex; gap: 1.2rem; color: var(--ink-3); font-weight: 450; }
+.cc-sliders { display: flex; flex-direction: column; gap: 0.4rem; width: 48rem; margin: -0.8rem 0 1.8rem -1.2rem; }
+.cc-slider { display: flex; align-items: center; gap: 1.1rem; padding: 0.3rem 1.3rem; border-radius: 1.1rem; cursor: pointer; transition: background 0.3s, box-shadow 0.3s; }
+.cc-slider.is-focused { background: var(--glass); box-shadow: var(--focus); }
+.cc-slider-icon { display: grid; color: var(--ink-2); }
+.cc-slider-icon svg { width: 1.6rem; height: 1.6rem; }
+.cc-slider-label { width: 8.6rem; font-size: 1.12rem; font-weight: 550; color: var(--ink-2); }
+.cc-slider.is-focused :is(.cc-slider-icon, .cc-slider-label) { color: var(--ink); }
+/* Tall and see-through, so a thumb on the touchscreen finds it; the bar inside is what shows. */
+.cc-track { flex: 1; height: 2.8rem; display: flex; align-items: center; touch-action: none; }
+.cc-bar { position: relative; flex: 1; height: 0.38rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.16); }
+.cc-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: var(--ink-2); transition: width 0.12s linear; }
+.cc-fill::after { content: ""; position: absolute; right: -0.6rem; top: 50%; width: 1.2rem; height: 1.2rem; margin-top: -0.6rem; border-radius: 50%; background: #fff; opacity: 0; transition: opacity 0.2s; }
+.cc-slider.is-focused .cc-fill { background: #fff; }
+.cc-slider.is-focused .cc-fill::after { opacity: 1; }
+.cc-slider.is-muted .cc-fill { background: var(--ink-3); }
+.cc-slider-value { width: 4.2rem; text-align: right; font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cc-slider.is-muted .cc-slider-value { color: var(--ink-3); font-weight: 500; }
 .cc-time span { color: var(--ink); font-weight: 550; }
 .cc-row { display: flex; gap: 1.4rem; }
 .cc-item { display: flex; flex-direction: column; align-items: center; gap: 0.95rem; width: 9rem; }

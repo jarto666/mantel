@@ -1,4 +1,4 @@
-import type { AccountsStatus, Achievement, Details, Game, Listing, Power, Running, Settings, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, Details, Game, Listing, Power, Quick, Running, Settings, Suggestion } from "./types";
 import { mockApi } from "./mock";
 
 /** True inside the Tauri shell; false in a plain browser, where the mock library stands in. */
@@ -31,6 +31,10 @@ export interface Api {
   runningGame(): Promise<Running | null>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
+  quickStatus(): Promise<Quick>;
+  setVolume(level: number): Promise<void>;
+  setMuted(muted: boolean): Promise<void>;
+  setBrightness(level: number): Promise<void>;
   powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "home-app-settings" | "quit"): Promise<void>;
   /** Windows' full screen experience (Xbox mode): whether it's on and whether we can toggle it. */
   fullScreenMode(): Promise<FullScreenMode>;
@@ -87,6 +91,10 @@ const tauriApi: Api = {
   runningGame: () => call("running_game"),
   openGameFolder: (id) => call("open_game_folder", { id }),
   powerStatus: () => call("power_status"),
+  quickStatus: () => call("quick_status"),
+  setVolume: (level) => call("set_volume", { level }),
+  setMuted: (muted) => call("set_muted", { muted }),
+  setBrightness: (level) => call("set_brightness", { level }),
   powerAction: (action) => call("power_action", { action }),
   fullScreenMode: () => call("full_screen_mode"),
   async getAutostart() {

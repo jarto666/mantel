@@ -33,8 +33,21 @@ tauri-plugin-process = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+# COM interfaces for the control center: Core Audio volume and WMI brightness.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Ole",
+  "Win32_System_Rpc",
+  "Win32_System_Variant",
+  "Win32_System_Wmi",
+] }
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",
+  "Win32_NetworkManagement_WiFi",
   "Win32_Storage_Packaging_Appx",
   "Win32_System_Com",
   "Win32_System_LibraryLoader",

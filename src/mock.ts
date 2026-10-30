@@ -1,6 +1,6 @@
 // Stand-in backend for developing the UI in a regular browser.
 import type { Api, GameEvent } from "./api";
-import type { Achievements, Art, Game, Running, Settings, Source } from "./types";
+import type { Achievements, Art, Game, Quick, Running, Settings, Source } from "./types";
 
 const cdn = (id: number): Art => {
   const base = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}`;
@@ -96,6 +96,7 @@ const trailers: Record<number, string> = {
 
 const SAMPLE_ACHIEVEMENTS = ["First Steps", "Night Owl", "Collector", "Untouchable", "Speed Demon", "Completionist", "Explorer", "Sharpshooter"];
 
+let quick: Quick = { volume: 45, muted: false, brightness: 80, wifi: { connected: true, name: "Home Wi-Fi", signal: 72 } };
 let running: Running | null = null;
 let steamKey = "";
 let xboxTag: string | null = null;
@@ -233,6 +234,18 @@ export const mockApi: Api = {
       return { hasBattery: true, percent: Math.round(b.level * 100), charging: b.charging };
     }
     return { hasBattery: true, percent: 76, charging: false };
+  },
+  async quickStatus() {
+    return structuredClone(quick);
+  },
+  async setVolume(level) {
+    quick = { ...quick, volume: level, muted: level > 0 ? false : quick.muted };
+  },
+  async setMuted(muted) {
+    quick = { ...quick, muted };
+  },
+  async setBrightness(level) {
+    quick = { ...quick, brightness: level };
   },
   async powerAction(action) {
     console.info("[mock] power action", action);

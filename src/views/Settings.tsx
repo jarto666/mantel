@@ -24,7 +24,7 @@ const CATEGORIES: [Category, string, React.ReactNode][] = [
   ["library", "Library", <><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></>],
   ["accounts", "Accounts", <><circle cx="12" cy="8.5" r="3.8" /><path d="M4.5 20c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5" /></>],
   ["interface", "Interface", <><rect x="3" y="4.5" width="18" height="12.5" rx="2.2" /><path d="M9 20.5h6M12 17v3.5" /></>],
-  ["system", "System", <><circle cx="12" cy="12" r="3" /><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1" /></>],
+  ["system", "System", <><rect x="6" y="6" width="12" height="12" rx="2.2" /><path d="M9.5 2.8v3.2M14.5 2.8v3.2M9.5 18v3.2M14.5 18v3.2M2.8 9.5H6M2.8 14.5H6M18 9.5h3.2M18 14.5h3.2" /></>],
 ];
 
 const MORE_STORES: [string, string, Icon][] = [

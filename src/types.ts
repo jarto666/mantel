@@ -100,6 +100,14 @@ export interface Running {
   detected: boolean;
 }
 
+/** Control center state; whatever the device lacks is left out. */
+export interface Quick {
+  volume?: number | null;
+  muted: boolean;
+  brightness?: number | null;
+  wifi?: { connected: boolean; name?: string | null; signal?: number | null } | null;
+}
+
 export interface Power {
   hasBattery: boolean;
   percent?: number | null;

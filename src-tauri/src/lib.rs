@@ -500,6 +500,26 @@ fn power_status() -> system::Power {
 }
 
 #[tauri::command]
+async fn quick_status() -> system::Quick {
+    tauri::async_runtime::spawn_blocking(system::quick).await.unwrap_or_default()
+}
+
+#[tauri::command]
+async fn set_volume(level: u8) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_volume(level)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_muted(muted: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_muted(muted)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn set_brightness(level: u8) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || system::set_brightness(level)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn full_screen_mode() -> fse::Mode {
     fse::mode()
 }
@@ -569,6 +589,10 @@ pub fn run() {
             open_game_folder,
             power_status,
             power_action,
+            quick_status,
+            set_volume,
+            set_muted,
+            set_brightness,
             full_screen_mode,
             client_log,
             accounts_status,
