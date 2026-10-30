@@ -1,9 +1,7 @@
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
-import { useStore } from "../store";
 import type { Achievement, Game } from "../types";
 import { useHints } from "./Hints";
 
@@ -22,34 +20,14 @@ function Badge({ a }: { a: Achievement }) {
   );
 }
 
-/** Every achievement of a game with the player's progress, over the game page. */
-export function AchievementList({ game, onClose }: { game: Game; onClose: () => void }) {
-  const [list, setList] = useState<Achievement[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Every achievement of a game with the player's progress, over the game page. The page loads
+ * the list as it opens, so it's usually here before this is.
+ */
+export function AchievementList({ game, list, error, onClose }: { game: Game; list: Achievement[] | null; error: string | null; onClose: () => void }) {
   const [index, setIndex] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   useScrollFocus(box, index);
-
-  useEffect(() => {
-    let live = true;
-    api
-      .getAchievements(game.id)
-      .then((found) => {
-        if (!live) return;
-        setList(found);
-        // Most Xbox titles report no total until their list has been seen once.
-        const a = game.achievements;
-        if (a && !a.total && found.length) {
-          useStore.setState((s) => ({
-            games: s.games.map((g) => (g.id === game.id ? { ...g, achievements: { ...a, total: found.length } } : g)),
-          }));
-        }
-      })
-      .catch((e) => live && setError(String(e)));
-    return () => {
-      live = false;
-    };
-  }, [game.id]);
 
   const count = list?.length ?? 0;
   useInput(

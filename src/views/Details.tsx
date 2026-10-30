@@ -11,7 +11,7 @@ import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
 import { gameById, launch, rescan, setHidden, sourceLabel, toast, toggleFavorite, useStore } from "../store";
 import { TextPrompt } from "../components/TextPrompt";
-import type { Details as Info, Game } from "../types";
+import type { Achievement, Details as Info, Game } from "../types";
 import { hours, lastPlayed, placeholderHue, size, SOURCE_NAME } from "../util";
 
 interface Action {
@@ -98,6 +98,8 @@ export function Details() {
   const [si, setSi] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
   const [achievements, setAchievements] = useState(false);
+  const [achList, setAchList] = useState<Achievement[] | null>(null);
+  const [achError, setAchError] = useState<string | null>(null);
   const shots = useRef<HTMLDivElement>(null);
   useScrollFocus(shots, `${zone}${si}`, { axis: "x" });
 
@@ -108,9 +110,31 @@ export function Details() {
     setSi(0);
     setViewer(null);
     setAchievements(false);
+    setAchList(null);
+    setAchError(null);
     if (!detailsId) return;
     let live = true;
     api.getDetails(detailsId).then((d) => live && setInfo(d)).catch(() => {});
+    // Loaded up front: the list opens at once, and Xbox titles whose count Xbox Live left
+    // out get it before the player looks at the stat.
+    if (gameById(detailsId)?.achievements) {
+      api
+        .getAchievements(detailsId)
+        .then((list) => {
+          if (!live) return;
+          setAchList(list);
+          const unlocked = list.filter((a) => a.unlocked).length;
+          if (list.length)
+            useStore.setState((s) => ({
+              games: s.games.map((g) =>
+                g.id === detailsId && g.achievements && !g.achievements.total
+                  ? { ...g, achievements: { ...g.achievements, unlocked, total: list.length, percent: Math.round((100 * unlocked) / list.length) } }
+                  : g,
+              ),
+            }));
+        })
+        .catch((e) => live && setAchError(String(e)));
+    }
     return () => {
       live = false;
     };
@@ -293,7 +317,7 @@ export function Details() {
         />
       )}
 
-      <AnimatePresence>{achievements && <AchievementList game={game} onClose={() => setAchievements(false)} />}</AnimatePresence>
+      <AnimatePresence>{achievements && <AchievementList game={game} list={achList} error={achError} onClose={() => setAchievements(false)} />}</AnimatePresence>
 
       <AnimatePresence>
         {viewer !== null && screenshots[viewer] && (

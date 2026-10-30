@@ -52,6 +52,17 @@ pub struct Achievements {
     pub gamerscore_total: Option<u32>,
 }
 
+impl Achievements {
+    /// Takes a count learned elsewhere; the percentage then follows the count.
+    pub fn count(&mut self, unlocked: u32, total: u32) {
+        self.unlocked = unlocked;
+        self.total = total;
+        if total > 0 {
+            self.percent = (100.0 * f64::from(unlocked) / f64::from(total)).round().min(100.0) as u8;
+        }
+    }
+}
+
 /// One achievement for the game page's list.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

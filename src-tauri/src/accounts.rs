@@ -641,6 +641,35 @@ fn xbox_achievements(a: &Value) -> Option<Achievements> {
     })
 }
 
+/// Titlehub leaves the achievement count out for most newer titles. Counts learned before
+/// carry over, and installed games, the ones Home shows, get theirs from their list.
+pub async fn xbox_counts(app: &AppHandle, titles: &mut [XboxTitle], known: &[XboxTitle], installed: &[String]) {
+    for t in titles.iter_mut() {
+        let Some(a) = t.achievements.as_mut().filter(|a| a.total == 0) else { continue };
+        let total = known.iter().find(|k| k.title_id == t.title_id).and_then(|k| k.achievements.as_ref()).map(|k| k.total);
+        if let Some(total) = total.filter(|&n| n > 0) {
+            a.count(a.unlocked, total);
+        }
+    }
+    let todo: Vec<String> = titles
+        .iter()
+        .filter(|t| installed.iter().any(|pfn| pfn.eq_ignore_ascii_case(&t.pfn)) && t.achievements.as_ref().is_some_and(|a| a.total == 0))
+        .map(|t| t.title_id.clone())
+        .collect();
+    let lists = futures::future::join_all(todo.iter().map(|id| xbox_achievement_list(app, id))).await;
+    for (id, list) in todo.iter().zip(lists) {
+        match list {
+            Ok(list) if !list.is_empty() => {
+                if let Some(a) = titles.iter_mut().find(|t| &t.title_id == id).and_then(|t| t.achievements.as_mut()) {
+                    a.count(list.iter().filter(|x| x.unlocked).count() as u32, list.len() as u32);
+                }
+            }
+            Ok(_) => {}
+            Err(e) => crate::log::warn(&format!("xbox achievements for {id}: {e}")),
+        }
+    }
+}
+
 /// Every achievement of an Xbox title with the player's progress, unlocked ones first.
 pub async fn xbox_achievement_list(app: &AppHandle, title_id: &str) -> Result<Vec<Achievement>, String> {
     let session = xbox_session(app).await?;

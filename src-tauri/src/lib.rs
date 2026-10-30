@@ -71,8 +71,11 @@ fn rescan(app: &AppHandle) {
     let xbox_signed_in = !state.user.lock().unwrap().accounts.xbox_refresh.is_empty();
     if settings.sources.xbox && xbox_signed_in {
         let titles = match tauri::async_runtime::block_on(accounts::xbox_titles(app)) {
-            Ok(list) => {
+            Ok(mut list) => {
                 log::info(&format!("xbox account: {} PC games in history", list.len()));
+                let installed: Vec<String> = scan.games.iter().filter(|g| g.source == "xbox").map(|g| g.source_id.clone()).collect();
+                let known = state.cache.lock().unwrap().owned_xbox.clone();
+                tauri::async_runtime::block_on(accounts::xbox_counts(app, &mut list, &known, &installed));
                 state.cache.lock().unwrap().owned_xbox = list.clone();
                 list
             }
@@ -211,7 +214,7 @@ async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Va
 }
 
 /// The game's achievements with the player's progress, from the store account it came from.
-/// Xbox titles that report no total get it filled in from the list.
+/// Xbox titles that report no count get it from the list.
 #[tauri::command]
 async fn get_achievements(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Vec<model::Achievement>, String> {
     let game = snapshot(&state).into_iter().find(|g| g.id == id).ok_or("Game not found")?;
@@ -222,10 +225,10 @@ async fn get_achievements(app: AppHandle, state: State<'_, AppState>, id: String
             let title = title.filter(|t| !t.is_empty()).ok_or("Xbox Live has no achievements for this game")?;
             let list = accounts::xbox_achievement_list(&app, &title).await?;
             let mut cache = state.cache.lock().unwrap();
-            let total = list.len() as u32;
+            let (unlocked, total) = (list.iter().filter(|a| a.unlocked).count() as u32, list.len() as u32);
             let fill = |a: &mut Option<model::Achievements>| {
-                if let Some(a) = a.as_mut().filter(|a| a.total == 0) {
-                    a.total = total;
+                if let Some(a) = a.as_mut() {
+                    a.count(unlocked, total);
                 }
             };
             if let Some(t) = cache.owned_xbox.iter_mut().find(|t| t.title_id == title) {
