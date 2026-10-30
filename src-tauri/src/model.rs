@@ -52,6 +52,22 @@ pub struct Achievements {
     pub gamerscore_total: Option<u32>,
 }
 
+/// One achievement for the game page's list.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Achievement {
+    pub name: String,
+    pub description: String,
+    pub icon: Option<String>,
+    pub unlocked: bool,
+    pub unlocked_at: Option<i64>,
+    /// Share of players who have it, in percent.
+    pub rarity: Option<f32>,
+    pub gamerscore: Option<u32>,
+    /// Locked and meant to stay a surprise.
+    pub secret: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Launch {

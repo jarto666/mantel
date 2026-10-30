@@ -17,6 +17,19 @@ export interface Achievements {
   gamerscoreTotal?: number | null;
 }
 
+export interface Achievement {
+  name: string;
+  description: string;
+  icon?: string | null;
+  unlocked: boolean;
+  unlockedAt?: number | null;
+  /** Share of players who have it, in percent. */
+  rarity?: number | null;
+  gamerscore?: number | null;
+  /** Locked and meant to stay a surprise. */
+  secret: boolean;
+}
+
 export interface Game {
   id: string;
   source: Source;

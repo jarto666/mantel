@@ -210,6 +210,37 @@ async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Va
     Ok(details.or(cached))
 }
 
+/// The game's achievements with the player's progress, from the store account it came from.
+/// Xbox titles that report no total get it filled in from the list.
+#[tauri::command]
+async fn get_achievements(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Vec<model::Achievement>, String> {
+    let game = snapshot(&state).into_iter().find(|g| g.id == id).ok_or("Game not found")?;
+    match game.source.as_str() {
+        "steam" => accounts::steam_achievement_list(&app, game.source_id.parse().map_err(|_| "Unknown Steam app")?).await,
+        "xbox" => {
+            let title = state.cache.lock().unwrap().owned_xbox.iter().find(|t| t.pfn.eq_ignore_ascii_case(&game.source_id)).map(|t| t.title_id.clone());
+            let title = title.filter(|t| !t.is_empty()).ok_or("Xbox Live has no achievements for this game")?;
+            let list = accounts::xbox_achievement_list(&app, &title).await?;
+            let mut cache = state.cache.lock().unwrap();
+            let total = list.len() as u32;
+            let fill = |a: &mut Option<model::Achievements>| {
+                if let Some(a) = a.as_mut().filter(|a| a.total == 0) {
+                    a.total = total;
+                }
+            };
+            if let Some(t) = cache.owned_xbox.iter_mut().find(|t| t.title_id == title) {
+                fill(&mut t.achievements);
+            }
+            if let Some(g) = cache.library.iter_mut().find(|g| g.id == id) {
+                fill(&mut g.achievements);
+            }
+            state.save_cache(&cache);
+            Ok(list)
+        }
+        _ => Err("Achievements come from Steam and Xbox accounts".into()),
+    }
+}
+
 #[tauri::command]
 fn set_flag(state: State<'_, AppState>, id: String, flag: String, value: bool) -> Result<(), String> {
     let mut user = state.user.lock().unwrap();
@@ -522,6 +553,7 @@ pub fn run() {
             resolve_art,
             measure_sizes,
             get_details,
+            get_achievements,
             set_flag,
             get_settings,
             save_settings,

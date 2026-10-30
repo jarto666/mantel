@@ -1,4 +1,4 @@
-import type { AccountsStatus, Details, Game, Listing, Power, Running, Settings, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, Details, Game, Listing, Power, Running, Settings, Suggestion } from "./types";
 import { mockApi } from "./mock";
 
 /** True inside the Tauri shell; false in a plain browser, where the mock library stands in. */
@@ -15,6 +15,8 @@ export interface Api {
   /** Sizes install folders whose store reports none; true when any changed. */
   measureSizes(): Promise<boolean>;
   getDetails(id: string): Promise<Details | null>;
+  /** The game's achievements from the Steam or Xbox account it came from. */
+  getAchievements(id: string): Promise<Achievement[]>;
   setFlag(id: string, flag: "favorite" | "hidden", value: boolean): Promise<void>;
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;
@@ -70,6 +72,7 @@ const tauriApi: Api = {
   resolveArt: () => call("resolve_art"),
   measureSizes: () => call("measure_sizes"),
   getDetails: (id) => call("get_details", { id }),
+  getAchievements: (id) => call("get_achievements", { id }),
   setFlag: (id, flag, value) => call("set_flag", { id, flag, value }),
   getSettings: () => call("get_settings"),
   saveSettings: (settings) => call("save_settings", { settings }),

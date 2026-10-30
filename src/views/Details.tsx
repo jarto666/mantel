@@ -5,6 +5,7 @@ import { SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
 import { AchievementsStat, Stat } from "../components/Stat";
+import { AchievementList, TROPHY } from "../components/AchievementList";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
@@ -21,7 +22,7 @@ interface Action {
   run: () => void;
 }
 
-function actionsFor(game: Game, running: boolean): Action[] {
+function actionsFor(game: Game, running: boolean, showAchievements: () => void): Action[] {
   const close = () => useStore.setState({ detailsId: null });
   const list: Action[] = [
     {
@@ -41,6 +42,9 @@ function actionsFor(game: Game, running: boolean): Action[] {
       run: () => toggleFavorite(game),
     },
   ];
+  if (game.achievements) {
+    list.push({ id: "achievements", label: "Achievements", icon: TROPHY, run: showAchievements });
+  }
   if (game.installDir) {
     list.push({
       id: "folder",
@@ -93,6 +97,7 @@ export function Details() {
   const [ai, setAi] = useState(0);
   const [si, setSi] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
+  const [achievements, setAchievements] = useState(false);
   const shots = useRef<HTMLDivElement>(null);
   useScrollFocus(shots, `${zone}${si}`, { axis: "x" });
 
@@ -102,6 +107,7 @@ export function Details() {
     setAi(0);
     setSi(0);
     setViewer(null);
+    setAchievements(false);
     if (!detailsId) return;
     let live = true;
     api.getDetails(detailsId).then((d) => live && setInfo(d)).catch(() => {});
@@ -110,7 +116,7 @@ export function Details() {
     };
   }, [detailsId]);
 
-  const actions = game ? actionsFor(game, running?.id === game.id) : [];
+  const actions = game ? actionsFor(game, running?.id === game.id, () => setAchievements(true)) : [];
   const screenshots = info?.screenshots ?? [];
   const close = () => useStore.setState({ detailsId: null });
 
@@ -286,6 +292,8 @@ export function Details() {
           }}
         />
       )}
+
+      <AnimatePresence>{achievements && <AchievementList game={game} onClose={() => setAchievements(false)} />}</AnimatePresence>
 
       <AnimatePresence>
         {viewer !== null && screenshots[viewer] && (

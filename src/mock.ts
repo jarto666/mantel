@@ -94,6 +94,8 @@ const trailers: Record<number, string> = {
   1903340: `${VIDEO}/1903340/876247/5c4709c3a98d932003a6b85bd5e4bfcd6a777e7a/1748581603/dash_h264.mpd`,
 };
 
+const SAMPLE_ACHIEVEMENTS = ["First Steps", "Night Owl", "Collector", "Untouchable", "Speed Demon", "Completionist", "Explorer", "Sharpshooter"];
+
 let running: Running | null = null;
 let steamKey = "";
 let xboxTag: string | null = null;
@@ -127,6 +129,24 @@ export const mockApi: Api = {
       screenshots: [...g.art.hero.slice(0, 1), ...g.art.icon],
       trailer: trailers[g.steamAppId] ?? null,
     };
+  },
+  async getAchievements(id) {
+    const g = games.find((x) => x.id === id);
+    const a = g?.achievements;
+    if (!g || !a) throw "Achievements come from Steam and Xbox accounts";
+    await wait(500);
+    const total = a.total || 40;
+    const unlocked = a.total ? a.unlocked : Math.round((total * a.percent) / 100);
+    return Array.from({ length: total }, (_, i) => ({
+      name: `${SAMPLE_ACHIEVEMENTS[i % SAMPLE_ACHIEVEMENTS.length]}${i >= SAMPLE_ACHIEVEMENTS.length ? ` ${Math.floor(i / SAMPLE_ACHIEVEMENTS.length) + 1}` : ""}`,
+      description: "Demo achievement: in the app this comes from your Steam or Xbox account.",
+      icon: null,
+      unlocked: i < unlocked,
+      unlockedAt: i < unlocked ? now - i * DAY : null,
+      rarity: Math.round(((i * 37) % 90) * 10 + 7) / 10,
+      gamerscore: g.source === "xbox" ? 10 + (i % 4) * 5 : null,
+      secret: i >= unlocked && i % 7 === 3,
+    }));
   },
   async setFlag(id, flag, value) {
     games = games.map((g) => (g.id === id ? { ...g, [flag]: value } : g));
