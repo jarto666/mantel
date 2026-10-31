@@ -42,7 +42,8 @@ Download `Mantel_x.y.z_x64-setup.exe` from
 Settings, one button to install.
 
 The installer isn't code-signed yet, so Windows may show "Windows protected your PC":
-choose *More info → Run anyway*.
+choose *More info → Run anyway*. Signing will come through SignPath Foundation; see the
+[code signing policy](https://playmantel.com/code-signing).
 
 ### As the home app of Xbox mode
 
@@ -147,6 +148,13 @@ URI `https://login.live.com/oauth20_desktop.srf`; put its client ID in
 ## Contributing
 
 Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). Only installers that GitHub Actions builds from
+this repository are signed, and each signing request is approved by hand. Team roles, what the
+installer changes and the privacy notes are on [playmantel.com/code-signing](https://playmantel.com/code-signing).
 
 ## License
 

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Code signing policy · Mantel</title>
+  <meta name="description" content="How Mantel's Windows installer is code-signed: what gets signed, who approves each release, and where the source and builds come from.">
+  <link rel="canonical" href="https://playmantel.com/code-signing">
+  <meta name="theme-color" content="#05060a">
+  <link rel="icon" href="/assets/img/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/assets/fonts/google-sans-flex-wdth.woff2?v=2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/css/style.css?v=7">
+  <script>(function (d) { var e = d.documentElement; var f = '900 100px "Google Sans Flex"'; if (!d.fonts || d.fonts.check(f)) return; e.classList.add("wf"); var done = function () { e.classList.remove("wf"); }; d.fonts.load(f).then(done, done); setTimeout(done, 2500); })(document);</script>
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Mantel">
+  <meta property="og:url" content="https://playmantel.com/code-signing">
+  <meta property="og:title" content="Mantel code signing policy">
+  <meta property="og:description" content="What gets signed, who approves each release, and where the builds come from.">
+  <meta property="og:image" content="https://playmantel.com/assets/img/og-3.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="topbar is-scrolled" id="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Mantel home"><img src="/assets/img/logo.svg" alt="" width="30" height="30">Mantel</a>
+      <div class="topbar-end">
+        <a class="btn btn-primary btn-sm" href="https://github.com/jarto666/mantel/releases/latest"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Download</span></a>
+      </div>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="wrap">
+      <h1 class="display">Code signing policy</h1>
+      <p class="updated">Last updated 31 October 2026</p>
+
+      <p class="tldr"><strong>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</strong></p>
+
+      <h2>What is signed</h2>
+      <p>The Mantel installer for Windows (<code>Mantel_x.y.z_x64-setup.exe</code>) and the program it installs, <code>mantel.exe</code>. Only files built from <a href="https://github.com/jarto666/mantel">Mantel's own source code</a> are signed. Components from other open source projects that ship inside the installer, such as its NSIS plugins, keep their own signatures or stay unsigned.</p>
+      <p>Every release is built by GitHub Actions from a version tag in that repository. Nothing built on a personal computer is signed.</p>
+      <p>Because the certificate belongs to SignPath Foundation, Windows shows <strong>SignPath Foundation</strong> as the publisher. Releases made before Mantel joined the program are not signed.</p>
+
+      <h2>What the installer changes</h2>
+      <ul>
+        <li>It installs Mantel for your Windows account only, in <code>%LOCALAPPDATA%\Mantel</code>, without asking for administrator rights, and adds Mantel's shortcuts and its entry in Installed apps.</li>
+        <li>If your PC lacks the Microsoft Edge WebView2 runtime, it downloads Microsoft's installer for it.</li>
+        <li>If Developer Mode is on, it registers a small app package so that Windows can offer Mantel as the home app of Xbox mode (the full screen experience). It doesn't choose Mantel for you: you pick the home app in Windows Settings.</li>
+      </ul>
+      <p>Uninstalling Mantel removes all of this. Mantel starts with Windows only if you turn that on in its Settings.</p>
+
+      <h2>Team</h2>
+      <ul>
+        <li><strong>Committers and reviewers:</strong> <a href="https://github.com/jarto666">jarto666</a></li>
+        <li><strong>Approvers:</strong> <a href="https://github.com/jarto666">jarto666</a></li>
+      </ul>
+      <p>An approver checks and approves every signing request by hand. All team accounts on GitHub and SignPath use multi-factor authentication.</p>
+
+      <h2>Privacy</h2>
+      <p>Mantel has no servers and sends no telemetry. It checks GitHub for new versions of itself, and it reads game details and artwork from Steam and GOG. It reads your Steam and Xbox accounts only after you sign in, and to SteamGridDB only if you add your own key. The <a href="/privacy">privacy statement</a> lists every service Mantel talks to, what it reads and where your data stays.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/img/logo.svg" alt="" width="26" height="26">Mantel</a>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="/">Home</a>
+        <a href="/privacy">Privacy</a>
+        <a href="https://github.com/jarto666/mantel">GitHub</a>
+        <a href="https://github.com/jarto666/mantel/releases">Releases</a>
+        <a href="https://github.com/jarto666/mantel/blob/main/LICENSE">License</a>
+      </nav>
+      <small>Mantel is free software under the GPL-3.0-or-later. It is not affiliated with Valve, Microsoft, ASUS, Epic Games, GOG or Ubisoft.</small>
+    </div>
+  </footer>
+</body>
+</html>

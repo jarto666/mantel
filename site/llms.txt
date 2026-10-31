@@ -22,3 +22,4 @@ Key facts:
 - [Download the latest release](https://github.com/jarto666/mantel/releases/latest): Windows x64 installer
 - [Source code](https://github.com/jarto666/mantel): GitHub repository and README
 - [Privacy statement](https://playmantel.com/privacy): what the app reads and where data is stored
+- [Code signing policy](https://playmantel.com/code-signing): how releases are built, signed and approved
