@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Mantel: a console-style home screen for Windows handhelds</title>
-  <meta name="description" content="Mantel is a free, open-source, controller-first game launcher for Windows handhelds like the ROG Xbox Ally X. Every installed game from Steam, Xbox / Game Pass, Epic, GOG and Ubisoft Connect on one fullscreen shelf.">
+  <title>Mantel: a console-style game launcher for Windows handhelds</title>
+  <meta name="description" content="Free, open-source game launcher for Windows handhelds like the ROG Xbox Ally X. Steam, Xbox Game Pass, Epic, GOG and Ubisoft games on one controller-first screen.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://playmantel.com/">
   <meta name="theme-color" content="#05060a">
   <link rel="icon" href="/assets/img/logo.svg" type="image/svg+xml">
@@ -16,6 +17,7 @@
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Mantel">
+  <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://playmantel.com/">
   <meta property="og:title" content="Mantel: a console-style home screen for Windows handhelds">
   <meta property="og:description" content="Every game you have installed, from every store, on one fullscreen shelf you drive with the controller. Free and open source.">
@@ -31,35 +33,154 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Mantel",
-    "alternateName": "Mantel game launcher",
-    "description": "A free, open-source, controller-first home screen for Windows handhelds. Mantel finds installed games from Steam, Xbox / Game Pass / Microsoft Store, Epic Games, GOG and Ubisoft Connect and puts them on one fullscreen shelf; games still launch through their own stores.",
-    "url": "https://playmantel.com/",
-    "applicationCategory": "GameApplication",
-    "operatingSystem": "Windows",
-    "processorRequirements": "x64",
-    "downloadUrl": "https://github.com/jarto666/mantel/releases/latest",
-    "installUrl": "https://github.com/jarto666/mantel/releases/latest",
-    "image": "https://playmantel.com/assets/img/logo-512.png",
-    "screenshot": [
-      "https://playmantel.com/assets/img/home.jpg",
-      "https://playmantel.com/assets/img/library.jpg",
-      "https://playmantel.com/assets/img/details.jpg"
-    ],
-    "featureList": [
-      "Finds installed games on first launch, with no plugins or per-store setup",
-      "Every screen works with a gamepad, the touchscreen or a keyboard",
-      "Times every session and brings in playtime from Steam and Xbox accounts",
-      "Shows owned but not installed Steam and Xbox games",
-      "Minimizes while a game runs and comes back when it exits",
-      "Covers, backgrounds and logos from Steam, GOG and SteamGridDB"
-    ],
-    "isAccessibleForFree": true,
-    "license": "https://www.gnu.org/licenses/gpl-3.0.html",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "author": { "@type": "Person", "name": "jarto666", "url": "https://github.com/jarto666" },
-    "sameAs": ["https://github.com/jarto666/mantel"]
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://playmantel.com/#website",
+        "name": "Mantel",
+        "alternateName": [
+          "Mantel launcher",
+          "playmantel.com"
+        ],
+        "url": "https://playmantel.com/",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://playmantel.com/#app",
+        "name": "Mantel",
+        "alternateName": "Mantel game launcher",
+        "description": "A free, open-source, controller-first game launcher and home screen for Windows handhelds such as the ROG Xbox Ally X. Mantel finds installed games from Steam, Xbox / Game Pass / Microsoft Store, Epic Games, GOG and Ubisoft Connect and puts them on one fullscreen shelf; games still launch through their own stores.",
+        "url": "https://playmantel.com/",
+        "applicationCategory": "GameApplication",
+        "applicationSubCategory": "Game launcher",
+        "operatingSystem": "Windows",
+        "processorRequirements": "x64",
+        "downloadUrl": "https://github.com/jarto666/mantel/releases/latest",
+        "installUrl": "https://github.com/jarto666/mantel/releases/latest",
+        "releaseNotes": "https://github.com/jarto666/mantel/releases",
+        "image": "https://playmantel.com/assets/img/logo-512.png",
+        "screenshot": [
+          "https://playmantel.com/assets/img/home.jpg",
+          "https://playmantel.com/assets/img/library.jpg",
+          "https://playmantel.com/assets/img/details.jpg"
+        ],
+        "featureList": [
+          "Finds installed games from Steam, Xbox / Game Pass, Epic Games, GOG and Ubisoft Connect on first launch, with no plugins or per-store setup",
+          "Every screen works with a gamepad, the touchscreen or a keyboard",
+          "Control center for volume, brightness, closing games, restart and power off",
+          "Times every session and brings in playtime from Steam and Xbox accounts",
+          "Steam and Xbox achievements, with rarity and gamerscore",
+          "Shows owned but not installed Steam and Xbox games",
+          "Plays a game's trailer, muted, behind it",
+          "Can be the home app of the Windows full screen experience (Xbox mode)",
+          "Minimizes while a game runs and comes back when it exits",
+          "Covers, backgrounds and logos from Steam, GOG and SteamGridDB"
+        ],
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "jarto666",
+          "url": "https://github.com/jarto666"
+        },
+        "sameAs": [
+          "https://github.com/jarto666/mantel"
+        ],
+        "isPartOf": {
+          "@id": "https://playmantel.com/#website"
+        }
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "Mantel source code",
+        "codeRepository": "https://github.com/jarto666/mantel",
+        "programmingLanguage": [
+          "Rust",
+          "TypeScript"
+        ],
+        "runtimePlatform": "Windows",
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "targetProduct": {
+          "@id": "https://playmantel.com/#app"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://playmantel.com/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Windows says “Windows protected your PC”. Is that expected?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, for now. That's Microsoft Defender SmartScreen, and it warns about installers that aren't code-signed. Mantel's installer isn't code-signed yet, so choose More info → Run anyway. Signing will come through SignPath Foundation's free program for open source projects; the code signing policy explains how it works. Every release is built by GitHub Actions from the public source code, so you can see exactly what goes into it."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is it different from Playnite?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Playnite is a mature, open-source library manager with a big plugin ecosystem and both a desktop and a fullscreen mode; you can make it do almost anything. Mantel is narrower on purpose: one controller-first home screen that finds games from the supported stores on first launch, with no plugins and no per-store setup. If you love tuning your setup, Playnite is great. If you want a handheld that boots straight into your games, try Mantel."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is it different from the Xbox full screen experience on the ROG Xbox Ally?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The Xbox full screen experience is Microsoft's console-style shell for Windows handhelds, built around the Xbox app. Mantel is an independent, open-source app that treats every store the same, shows the games and playtime from your Steam and Xbox accounts side by side, and launches each game through its own store. It's a regular Windows app, so you can try it without changing how your handheld boots. When you like it, turn on Start with Windows, or make it the home app of Xbox mode itself."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can Mantel be the home app of Xbox mode?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, with one extra step. Windows' full screen experience (Xbox mode) boots into a home app instead of the desktop. Turn on Developer Mode (Settings → System → Advanced → For developers) before you install Mantel, then pick it in Settings → Gaming → Full screen experience → Home app. The handheld then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡) switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer Mantel there yet."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is it free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Mantel is free and open source under the GPL-3.0-or-later license, with no ads, no subscription and no account required. The source code is on GitHub."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which handhelds does it run on?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Mantel is built on and for the ROG Xbox Ally X, and it should feel at home on any Windows handheld, such as the ROG Ally, Lenovo Legion Go or MSI Claw, or on a TV PC. The installer is for 64-bit (x64) Windows. If something looks off on your device, open an issue."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I have to reinstall or move my games?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Mantel reads what your stores have already installed and launches each game through its own store, so nothing gets reinstalled or reconfigured."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Mantel collect any data?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Mantel has no servers and sends no telemetry; your settings, playtime and account tokens stay on your PC. The privacy statement lists every service it talks to."
+            }
+          }
+        ]
+      }
+    ]
   }
   </script>
 </head>
@@ -187,14 +308,14 @@
             <div class="step-frame" aria-hidden="true"><img src="/assets/img/home.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
             <p class="eyebrow"><b>02</b> <span class="sep">/</span> 06 <span class="sep">·</span> Controller first</p>
             <h3 class="display">Pad, touch or keys</h3>
-            <p class="step-text">Every screen works with the gamepad, the touchscreen or a keyboard. The control center (≡) closes games, restarts or powers off the device.</p>
+            <p class="step-text">Every screen works with the gamepad, the touchscreen or a keyboard. The control center (≡) sets volume and brightness, closes games, restarts or powers off the device.</p>
             <p class="step-where">Games · hint bar</p>
           </article>
           <article class="step" data-i="2" data-img="home" style="--z:2.6;--tx:-4.2%;--ty:-61.9%">
             <div class="step-frame" aria-hidden="true"><img src="/assets/img/home.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
             <p class="eyebrow"><b>03</b> <span class="sep">/</span> 06 <span class="sep">·</span> Playtime that adds up</p>
             <h3 class="display">Every hour counts</h3>
-            <p class="step-text">Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices.</p>
+            <p class="step-text">Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices, along with each game's achievements.</p>
             <p class="step-where">Games · playtime</p>
           </article>
           <article class="step" data-i="3" data-img="library" style="--z:2.0;--tx:-13.5%;--ty:0.0%">
@@ -215,7 +336,7 @@
             <div class="step-frame" aria-hidden="true"><img src="/assets/img/home.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
             <p class="eyebrow"><b>06</b> <span class="sep">/</span> 06 <span class="sep">·</span> Art for everything</p>
             <h3 class="display">Art for everything</h3>
-            <p class="step-text">Covers, backgrounds and logos come from Steam and GOG; a free SteamGridDB key covers the rest.</p>
+            <p class="step-text">Covers, backgrounds and logos come from Steam and GOG; a free SteamGridDB key covers the rest. Rest on a game and its trailer plays, muted, behind it.</p>
             <p class="step-where">Games · covers</p>
           </article>
           </div>
@@ -240,7 +361,7 @@
             <li data-pad="4 5"><span class="glyph bumper">LB</span><span class="glyph bumper">RB</span>Games ↔ Library ↔ Settings</li>
             <li data-pad="6 7"><span class="glyph trigger">LT</span><span class="glyph trigger">RT</span>Library filters</li>
             <li data-pad="8"><span class="glyph round" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="11" height="9" rx="1.5"/><rect x="9" y="10" width="11" height="9" rx="1.5"/></svg></span>Search</li>
-            <li data-pad="9"><span class="glyph round" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span>Control center: close game, restart, power off, desktop</li>
+            <li data-pad="9"><span class="glyph round" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span>Control center: volume, brightness, close game, restart, power off, desktop</li>
           </ul>
           <p class="kb">On a keyboard: arrows, Enter, Esc, <kbd>I</kbd> details, <kbd>F</kbd> favorite, <kbd>Q</kbd> / <kbd>E</kbd> tabs, <kbd>/</kbd> search, <kbd>M</kbd> menu.</p>
         </div>
@@ -269,14 +390,14 @@
               <h3 class="display">Steam</h3>
               <dl>
                 <div><dt>Installed games</dt><dd>Found automatically, with your playtime</dd></div>
-                <div><dt>With your account</dt><dd>Every game you own, playtime from all your devices</dd></div>
+                <div><dt>With your account</dt><dd>Every game you own, playtime from all your devices, achievements</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-xbox" role="tabpanel" aria-labelledby="st-xbox" hidden>
               <h3 class="display">Xbox / Game Pass / Microsoft Store</h3>
               <dl>
                 <div><dt>Installed games</dt><dd>Found automatically</dd></div>
-                <div><dt>With your account</dt><dd>Play history and minutes played</dd></div>
+                <div><dt>With your account</dt><dd>Play history, minutes played and achievements</dd></div>
               </dl>
             </div>
             <div class="store-panel" id="sp-epic" role="tabpanel" aria-labelledby="st-epic" hidden>
@@ -330,7 +451,7 @@
     <section class="section" id="faq" aria-labelledby="faq-title">
       <div class="wrap">
         <div class="section-head reveal">
-          <p class="eyebrow">Help <span class="sep">·</span> 7 answers</p>
+          <p class="eyebrow">Help <span class="sep">·</span> 8 answers</p>
           <h2 class="display h-lg" id="faq-title">FAQ</h2>
         </div>
         <div class="faq reveal">
@@ -352,7 +473,14 @@
             <summary><span class="glyph face a" aria-hidden="true">A</span>How is it different from the Xbox full screen experience on the ROG Xbox Ally?</summary>
             <div class="answer">
               <p>The Xbox full screen experience is Microsoft's console-style shell for Windows handhelds, built around the Xbox app. Mantel is an independent, open-source app that treats every store the same, shows the games and playtime from your Steam and Xbox accounts side by side, and launches each game through its own store.</p>
-              <p>It's a regular Windows app, so you can try it without changing how your handheld boots, and turn on <em>Start with Windows</em> when you want it as your home screen.</p>
+              <p>It's a regular Windows app, so you can try it without changing how your handheld boots. When you like it, turn on <em>Start with Windows</em>, or make it the home app of Xbox mode itself.</p>
+            </div>
+          </details>
+          <details id="faq-home-app">
+            <summary><span class="glyph face a" aria-hidden="true">A</span>Can Mantel be the home app of Xbox mode?</summary>
+            <div class="answer">
+              <p>Yes, with one extra step. Windows' full screen experience (Xbox mode) boots into a home app instead of the desktop. Turn on Developer Mode (Settings → System → Advanced → For developers) before you install Mantel, then pick it in Settings → Gaming → Full screen experience → Home app.</p>
+              <p>The handheld then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡) switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer Mantel there yet.</p>
             </div>
           </details>
           <details>
@@ -364,7 +492,7 @@
           <details>
             <summary><span class="glyph face a" aria-hidden="true">A</span>Which handhelds does it run on?</summary>
             <div class="answer">
-              <p>Mantel is built on and for the ROG Xbox Ally X, and it should feel at home on any Windows handheld or a TV PC. The installer is for 64-bit (x64) Windows. If something looks off on your device, <a href="https://github.com/jarto666/mantel/issues">open an issue</a>.</p>
+              <p>Mantel is built on and for the ROG Xbox Ally X, and it should feel at home on any Windows handheld, such as the ROG Ally, Lenovo Legion Go or MSI Claw, or on a TV PC. The installer is for 64-bit (x64) Windows. If something looks off on your device, <a href="https://github.com/jarto666/mantel/issues">open an issue</a>.</p>
             </div>
           </details>
           <details>
@@ -415,7 +543,7 @@
         <a href="https://github.com/jarto666/mantel/blob/main/LICENSE">License</a>
         <!-- TODO: donation links (GitHub Sponsors / Ko-fi) once they exist -->
       </nav>
-      <small>Mantel is free software under the GPL-3.0-or-later. It is not affiliated with Valve, Microsoft, ASUS, Epic Games, GOG or Ubisoft. Game names and artwork in the screenshots belong to their owners.</small>
+      <small>Mantel is free software under the GPL-3.0-or-later. It is not affiliated with Valve, Microsoft, ASUS, Lenovo, MSI, Epic Games, GOG or Ubisoft. Game names and artwork in the screenshots belong to their owners.</small>
     </div>
   </footer>
 

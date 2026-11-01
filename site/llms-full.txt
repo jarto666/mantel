@@ -1,0 +1,107 @@
+# Mantel: a console-style game launcher for Windows handhelds
+
+> Mantel is a free, open-source (GPL-3.0-or-later), controller-first game launcher for Windows handhelds such as the ASUS ROG Xbox Ally X. It puts every installed game from Steam, Xbox / Game Pass / Microsoft Store, Epic Games, GOG, Ubisoft Connect and any other .exe on one fullscreen shelf you drive with a gamepad. Games still launch through their own stores, so nothing gets reinstalled or reconfigured.
+
+- Website: https://playmantel.com/
+- Download: https://github.com/jarto666/mantel/releases/latest (Windows x64 installer, `Mantel_x.y.z_x64-setup.exe`)
+- Source code: https://github.com/jarto666/mantel
+- License: GPL-3.0-or-later. Free, with no ads, no subscription and no account required.
+- Built with: Tauri 2 (Rust) and React + TypeScript.
+- Mantel is not affiliated with Valve, Microsoft, ASUS, Lenovo, MSI, Epic Games, GOG or Ubisoft.
+
+## Install
+
+1. Download `Mantel_x.y.z_x64-setup.exe` from GitHub Releases and run it. It installs for your Windows account only, without administrator rights.
+2. The installer isn't code-signed yet, so Windows may show "Windows protected your PC" (Microsoft Defender SmartScreen). Choose More info → Run anyway. Signing will come through SignPath Foundation's free program for open source projects.
+3. Turn on Settings → Start with Windows to boot the handheld straight into Mantel, or make Mantel the home app of Xbox mode (see below).
+4. New versions show up in Mantel's Settings: one button installs them.
+
+Every release is built by GitHub Actions from the public source code.
+
+## Features
+
+- **Works on first launch.** Mantel finds installed games on its own: no plugins, no per-store setup.
+- **Controller first.** Every screen works with the gamepad, the touchscreen or a keyboard. The control center (≡) sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device.
+- **Playtime that adds up.** Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices.
+- **Your whole collection.** Sign in to Steam or Xbox to also see the games you own but haven't installed. Picking one opens its install page in Steam or the Xbox app.
+- **Achievements.** With an account connected, every Steam and Xbox game shows its progress, and its page lists each achievement with rarity and gamerscore.
+- **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it. Settings → Interface turns that off.
+- **Steps aside while you play.** Mantel minimizes when a game starts and comes back when it exits.
+- **Art for everything.** Covers, backgrounds and logos come from Steam and GOG; a free SteamGridDB key covers the rest.
+
+## Controls
+
+The same on every screen:
+
+| Gamepad | Action |
+| --- | --- |
+| A | Play |
+| B | Back |
+| Y | Details |
+| X | Favorite |
+| LB / RB | Games ↔ Library ↔ Settings |
+| LT / RT | Library filters |
+| View | Search |
+| Menu | Control center: volume, brightness, close game, restart, power off, desktop |
+
+On a keyboard: arrows, Enter, Esc, I details, F favorite, Q / E tabs, / search, M menu.
+
+## Where games come from
+
+| Store | Installed games | With your account |
+| --- | --- | --- |
+| Steam | Found automatically, with your playtime | Every game you own, playtime from all your devices, achievements |
+| Xbox / Game Pass / Microsoft Store | Found automatically | Play history, minutes played and achievements |
+| Epic Games | Found automatically | Coming later |
+| GOG | Found automatically, launched through Galaxy if you have it | Coming later |
+| Ubisoft Connect | Found automatically | Coming later |
+| Anything else | Add any game, `.exe`, `.lnk` or `.url` shortcut yourself in Settings | No account needed |
+
+## Mantel as the home app of Xbox mode
+
+Windows' full screen experience (Xbox mode) boots into a home app instead of the desktop. With Developer Mode on (Settings → System → Advanced → For developers) before you install, Mantel shows up there: Settings → Gaming → Full screen experience → Home app. The handheld then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡) switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer Mantel there yet.
+
+## Accounts and privacy
+
+Mantel has no servers and sends no telemetry. Your settings, playtime and account tokens stay on your PC, in `%APPDATA%\com.playmantel.launcher\`; tokens are encrypted so that only your Windows account can read them.
+
+- **Steam.** You sign in on Steam's own page inside Mantel; Mantel never sees your password. It then reads your owned games, playtime and achievements.
+- **Xbox.** You sign in on Microsoft's own page and allow Mantel to read your Xbox profile: play history, minutes played and achievements.
+- **Artwork.** Game details and artwork come from Steam and GOG, and from SteamGridDB only if you add your own key.
+- **Updates.** Mantel checks GitHub for new versions of itself.
+
+Signing in is optional: it only adds your whole collection, playtime from other devices and achievements. Sign out any time in Settings. Full details: https://playmantel.com/privacy
+
+## FAQ
+
+### Windows says "Windows protected your PC". Is that expected?
+
+Yes, for now. That's Microsoft Defender SmartScreen, and it warns about installers that aren't code-signed. Mantel's installer isn't code-signed yet, so choose More info → Run anyway. Signing will come through SignPath Foundation's free program for open source projects; the code signing policy (https://playmantel.com/code-signing) explains how it works. Every release is built by GitHub Actions from the public source code, so you can see exactly what goes into it.
+
+### How is it different from Playnite?
+
+Playnite is a mature, open-source library manager with a big plugin ecosystem and both a desktop and a fullscreen mode; you can make it do almost anything. Mantel is narrower on purpose: one controller-first home screen that finds games from the supported stores on first launch, with no plugins and no per-store setup. If you love tuning your setup, Playnite is great. If you want a handheld that boots straight into your games, try Mantel.
+
+### How is it different from the Xbox full screen experience on the ROG Xbox Ally?
+
+The Xbox full screen experience is Microsoft's console-style shell for Windows handhelds, built around the Xbox app. Mantel is an independent, open-source app that treats every store the same, shows the games and playtime from your Steam and Xbox accounts side by side, and launches each game through its own store. It's a regular Windows app, so you can try it without changing how your handheld boots. When you like it, turn on Start with Windows, or make it the home app of Xbox mode itself.
+
+### Can Mantel be the home app of Xbox mode?
+
+Yes, with one extra step. Windows' full screen experience (Xbox mode) boots into a home app instead of the desktop. Turn on Developer Mode (Settings → System → Advanced → For developers) before you install Mantel, then pick it in Settings → Gaming → Full screen experience → Home app. The handheld then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡) switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer Mantel there yet.
+
+### Is it free?
+
+Yes. Mantel is free and open source under the GPL-3.0-or-later license, with no ads, no subscription and no account required. The source code is on GitHub: https://github.com/jarto666/mantel
+
+### Which handhelds does it run on?
+
+Mantel is built on and for the ROG Xbox Ally X, and it should feel at home on any Windows handheld, such as the ROG Ally, Lenovo Legion Go or MSI Claw, or on a TV PC. The installer is for 64-bit (x64) Windows. If something looks off on your device, open an issue: https://github.com/jarto666/mantel/issues
+
+### Do I have to reinstall or move my games?
+
+No. Mantel reads what your stores have already installed and launches each game through its own store, so nothing gets reinstalled or reconfigured.
+
+### Does Mantel collect any data?
+
+No. Mantel has no servers and sends no telemetry; your settings, playtime and account tokens stay on your PC. The privacy statement (https://playmantel.com/privacy) lists every service it talks to.
