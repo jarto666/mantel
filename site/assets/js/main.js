@@ -202,6 +202,36 @@
     if (opened.size >= 3) trophy("manual", "Read the manual", "silver");
   }));
 
+  // ---------- Download: the installer itself, not GitHub's release page ----------
+
+  // The release page lists the updater's files next to the installer, so ask GitHub for the
+  // installer's own link. If GitHub doesn't answer, the links still lead to the release page.
+  let installer = null;
+  function latestInstaller() {
+    installer ??= fetch("https://api.github.com/repos/jarto666/mantel/releases/latest")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((release) => {
+        const asset = release.assets.find((a) => a.name.endsWith("_x64-setup.exe"));
+        if (!asset) throw new Error("no installer");
+        return { url: asset.browser_download_url, version: release.tag_name.replace(/^v/, "") };
+      })
+      .catch(() => (installer = null));
+    return installer;
+  }
+
+  let downloading = false;
+  $$('a[href$="/releases/latest"]').forEach((a) => a.addEventListener("click", async (e) => {
+    if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    if (downloading) return;
+    downloading = true;
+    const found = await Promise.race([latestInstaller(), new Promise((r) => setTimeout(r, 3000, null))]);
+    downloading = false;
+    if (!found) return void (location.href = a.href);
+    location.href = found.url;
+    toast(`<span class="dot"></span><span>Downloading Mantel ${found.version}. If SmartScreen warns you, choose <b>More info → Run anyway</b>.</span>`);
+  }));
+
   // ---------- Controls: a pressed button lights its hint ----------
 
   const hints = $$(".hints [data-pad]");
