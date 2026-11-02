@@ -1,5 +1,5 @@
 mod epic;
-mod steam;
+pub mod steam;
 #[cfg(windows)]
 mod windows_stores;
 
@@ -183,6 +183,9 @@ pub fn apply_meta(games: &mut [Game], user: &UserData, art: &HashMap<String, Res
         if let Some(resolved) = art.get(&g.id) {
             g.art = g.art.behind(&resolved.art);
             g.steam_app_id = g.steam_app_id.or(resolved.steam_app_id);
+        }
+        if let Some(picked) = user.meta.get(&g.id).map(|m| &m.art).filter(|a| !a.is_empty()) {
+            g.art = g.art.behind(picked);
         }
     }
 }

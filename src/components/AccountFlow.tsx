@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { api } from "../api";
+import { errorText, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { rescan, toast } from "../store";
@@ -46,7 +47,7 @@ export function AccountFlow({ copy, onChange, onClose }: { copy: AccountCopy; on
     try {
       if (a === "signin") {
         onChange(await copy.signIn());
-        toast(`${copy.service} connected`, "good");
+        toast(t("{service} connected", { service: copy.service }), "good");
         rescan(true);
         onClose();
       } else if (a === "sync") {
@@ -54,12 +55,12 @@ export function AccountFlow({ copy, onChange, onClose }: { copy: AccountCopy; on
         onChange(await api.accountsStatus());
       } else {
         onChange(await api.disconnectAccount(copy.disconnect));
-        toast(`Signed out of ${copy.service}`);
+        toast(t("Signed out of {service}", { service: copy.service }));
         rescan(true);
         onClose();
       }
     } catch (e) {
-      setError(String(e));
+      setError(errorText(e));
     } finally {
       setBusy(null);
     }
@@ -79,16 +80,16 @@ export function AccountFlow({ copy, onChange, onClose }: { copy: AccountCopy; on
   useHints(busy ? [] : [["a", "Select"], ["b", "Close"]], Layer.modal);
 
   const label: Record<Action, string> = {
-    signin: busy === "signin" ? `Finish signing in in the ${copy.service} window…` : copy.signInLabel,
-    sync: busy === "sync" ? "Syncing…" : "Sync now",
-    signout: "Sign out",
+    signin: busy === "signin" ? t("Finish signing in in the {service} window…", { service: copy.service }) : copy.signInLabel,
+    sync: busy === "sync" ? t("Syncing…") : t("Sync now"),
+    signout: t("Sign out"),
   };
 
   return (
     <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <motion.div className="keyflow-card" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
         <div className="eyebrow">{copy.service}</div>
-        <h2 className="keyflow-title">{connected ? copy.connectedAs : `Sign in to ${copy.service}`}</h2>
+        <h2 className="keyflow-title">{connected ? copy.connectedAs : t("Sign in to {service}", { service: copy.service })}</h2>
         <p className="keyflow-intro">{connected ? copy.intro.connected : copy.intro.signedOut}</p>
         {!connected && (
           <ol className="keyflow-howto">

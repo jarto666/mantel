@@ -60,6 +60,71 @@ fn game_from_manifest(root: &Path, apps: &Path, state: &Vdf, usage: &HashMap<u32
     Some(game)
 }
 
+/// What a game's manifest says while Steam gets it onto the disk. Steam rewrites the file between
+/// phases, not as the bytes arrive.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Manifest {
+    pub flags: u32,
+    pub to_download: u64,
+    pub to_stage: u64,
+    pub staged: u64,
+}
+
+impl Manifest {
+    /// "Update required" joins the installed bit while the game is being removed.
+    pub fn installed(&self) -> bool {
+        self.flags & 4 != 0 && self.flags & 2 == 0
+    }
+
+    /// Steam got to this game; until then it sits in the queue.
+    pub fn started(&self) -> bool {
+        self.flags & 1024 != 0
+    }
+
+    /// On its way for the first time, as opposed to an update of a game that can already play.
+    pub fn downloading(&self) -> bool {
+        self.flags & 2 != 0 && self.flags & 4 == 0
+    }
+}
+
+fn parse_manifest(text: &str) -> Option<Manifest> {
+    let manifest = vdf::parse(text);
+    let state = manifest.get("AppState")?;
+    let number = |key: &str| state.str(key).and_then(|s| s.parse().ok()).unwrap_or(0);
+    Some(Manifest {
+        flags: state.str("StateFlags")?.parse().ok()?,
+        to_download: number("BytesToDownload"),
+        to_stage: number("BytesToStage"),
+        staged: number("BytesStaged"),
+    })
+}
+
+pub fn read_manifest(path: &Path) -> Option<Manifest> {
+    parse_manifest(&fs::read_to_string(path).ok()?)
+}
+
+pub fn manifest_path(appid: u32) -> Option<PathBuf> {
+    let root = steam_root()?;
+    library_paths(&root).into_iter().map(|lib| lib.join("steamapps").join(format!("appmanifest_{appid}.acf"))).find(|p| p.exists())
+}
+
+/// Games Steam is installing, whoever asked it to.
+pub fn downloading() -> Vec<u32> {
+    let Some(root) = steam_root() else { return Vec::new() };
+    let mut found = Vec::new();
+    for lib in library_paths(&root) {
+        let Ok(entries) = fs::read_dir(lib.join("steamapps")) else { continue };
+        for entry in entries.flatten() {
+            let file = entry.file_name().to_string_lossy().to_string();
+            let Some(appid) = file.strip_prefix("appmanifest_").and_then(|f| f.strip_suffix(".acf")).and_then(|f| f.parse().ok()) else { continue };
+            if read_manifest(&entry.path()).is_some_and(|m| m.downloading()) {
+                found.push(appid);
+            }
+        }
+    }
+    found
+}
+
 fn is_blocked(appid: u32, name: &str) -> bool {
     let n = name.to_lowercase();
     BLOCKED_IDS.contains(&appid)
@@ -220,4 +285,30 @@ fn steam_root() -> Option<PathBuf> {
     [home.join("Library/Application Support/Steam"), home.join(".steam/steam"), home.join(".local/share/Steam")]
         .into_iter()
         .find(|p| p.join("steamapps").is_dir())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manifest(flags: u32) -> Manifest {
+        let text = format!("\"AppState\"\n{{\n\t\"StateFlags\"\t\t\"{flags}\"\n\t\"BytesToDownload\"\t\t\"608111824\"\n\t\"BytesToStage\"\t\t\"803964902\"\n\t\"BytesStaged\"\t\t\"13699237\"\n}}\n");
+        parse_manifest(&text).unwrap()
+    }
+
+    #[test]
+    fn reads_a_download_from_the_manifest() {
+        let m = manifest(1026);
+        assert_eq!((m.to_download, m.to_stage, m.staged), (608111824, 803964902, 13699237));
+        assert!(m.started() && m.downloading() && !m.installed());
+    }
+
+    #[test]
+    fn tells_the_states_apart() {
+        assert!(manifest(2).downloading() && !manifest(2).started());
+        assert!(manifest(4).installed() && !manifest(4).downloading());
+        // Being uninstalled, and an update of a game that can already play.
+        assert!(!manifest(38).installed() && !manifest(38).downloading());
+        assert!(!manifest(1030).downloading());
+    }
 }

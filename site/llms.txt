@@ -9,6 +9,9 @@ Key facts:
 - Finds installed games on first launch, with no plugins and no per-store setup.
 - Every screen works with a gamepad, the touchscreen or a keyboard. The control center sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device.
 - Times every play session; with Steam or Xbox accounts connected it also brings in playtime from all devices, shows achievements (rarity, gamerscore) and lists owned games that aren't installed.
+- Xbox and Steam tabs hold the user's games, the PC Game Pass catalog and each store's lists by genre, and search reaches both stores. Buying happens in the store itself.
+- Installs Game Pass games and anything else on the Microsoft account through Windows' own installer, with a list of editions showing what's owned and what the others cost, and Steam games through Steam's dialog, with progress, speed and time left on the home screen; uninstalls too.
+- Interface in English, French, German, Spanish and Russian.
 - Plays a game's trailer, muted, behind it (can be turned off).
 - Can be the home app of Windows' full screen experience (Xbox mode) when Developer Mode is on before installing: Settings → Gaming → Full screen experience → Home app.
 - Minimizes while a game runs and comes back when it exits.

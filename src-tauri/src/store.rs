@@ -33,6 +33,10 @@ pub struct Settings {
     pub minimize_on_launch: bool,
     /// Muted trailers behind the focused game on Home.
     pub trailers: bool,
+    /// Interface language ("en", "fr"); empty follows Windows.
+    pub language: String,
+    /// The Game Pass tab: the catalog is public, so it's on until the player hides it.
+    pub game_pass: bool,
 }
 
 impl Default for Settings {
@@ -43,6 +47,8 @@ impl Default for Settings {
             sounds: true,
             minimize_on_launch: true,
             trailers: true,
+            language: String::new(),
+            game_pass: true,
         }
     }
 }
@@ -56,6 +62,8 @@ pub struct GameMeta {
     pub tracked_minutes: u64,
     pub last_played: Option<i64>,
     pub added_at: Option<i64>,
+    /// Images the player picked, shown ahead of everything the stores offer.
+    pub art: Art,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +135,8 @@ pub struct Cache {
     pub owned_xbox: Vec<crate::accounts::XboxTitle>,
     /// Install folder sizes for stores that don't report one, by install folder.
     pub sizes: HashMap<String, MeasuredSize>,
+    pub gamepass: crate::gamepass::Catalog,
+    pub steam_facts: crate::steam_store::Facts,
 }
 
 pub struct AppState {
@@ -153,6 +163,11 @@ impl AppState {
             crate::log::info("account tokens encrypted");
         }
         state
+    }
+
+    /// Copies of image files the player picked as art, so they outlive the originals.
+    pub fn art_dir(&self) -> PathBuf {
+        self.dir.join("art")
     }
 
     pub fn save_user(&self, user: &UserData) {

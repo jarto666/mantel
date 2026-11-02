@@ -31,6 +31,27 @@ impl Art {
         merge(&mut self.icon, &other.icon);
     }
 
+    /// One kind of image: "cover", "hero", "logo" or "icon".
+    pub fn slot(&self, kind: &str) -> Option<&Vec<String>> {
+        match kind {
+            "cover" => Some(&self.cover),
+            "hero" => Some(&self.hero),
+            "logo" => Some(&self.logo),
+            "icon" => Some(&self.icon),
+            _ => None,
+        }
+    }
+
+    pub fn slot_mut(&mut self, kind: &str) -> Option<&mut Vec<String>> {
+        match kind {
+            "cover" => Some(&mut self.cover),
+            "hero" => Some(&mut self.hero),
+            "logo" => Some(&mut self.logo),
+            "icon" => Some(&mut self.icon),
+            _ => None,
+        }
+    }
+
     /// Returns `first` followed by our own candidates.
     pub fn behind(&self, first: &Art) -> Art {
         let mut out = first.clone();
@@ -122,6 +143,18 @@ pub struct Game {
     pub installed: bool,
     #[serde(default)]
     pub achievements: Option<Achievements>,
+    /// Collections a Game Pass game is in: "new", "leaving", "popular", "eaplay".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Store categories, in the catalog's language.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub genres: Vec<String>,
+    /// What it costs on the Steam store, for games from its lists; "Free" for free ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<String>,
+    /// Percent off that price right now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discount: Option<u8>,
 }
 
 fn installed_default() -> bool {
@@ -149,6 +182,10 @@ impl Game {
             size_bytes: None,
             installed: true,
             achievements: None,
+            tags: Vec::new(),
+            genres: Vec::new(),
+            price: None,
+            discount: None,
         }
     }
 }

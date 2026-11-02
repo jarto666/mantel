@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, toSrc } from "../api";
 import { usePageHidden } from "../hooks";
 import { idleFor } from "../input";
-import { gameById, useStore } from "../store";
+import { gameById, isCatalog, isStoreItem, useStore } from "../store";
 import { streamTrailer } from "../trailer";
 import type { Game } from "../types";
 import { placeholderHue } from "../util";
@@ -50,26 +50,28 @@ async function layerFor(game: Game): Promise<Layer> {
 }
 
 /**
- * The focused game's trailer over its art, muted and looping, once focus has rested on it
- * for a moment. Paused under overlays; stopped while a game runs or Mantel is out of sight.
+ * The focused game's trailer over its art (or the open page's game), muted and looping, once
+ * focus has rested on it for a moment. Paused under overlays; stopped while a game runs or
+ * Mantel is out of sight.
  */
 function Trailer() {
-  const focusId = useStore((s) => s.focusId);
+  const focusId = useStore((s) => s.detailsId ?? s.focusId);
   const enabled = useStore((s) => s.settings?.trailers ?? false);
-  const onHome = useStore((s) => s.view === "home" && !s.detailsId);
-  const covered = useStore((s) => s.overlay !== null || s.launching !== null);
+  // Where a game has the screen to itself: Home, Game Pass, and its own page.
+  const onStage = useStore((s) => s.view === "home" || s.view === "gamepass" || s.detailsId !== null);
+  const covered = useStore((s) => s.overlay !== null || s.launching !== null || s.watching);
   const running = useStore((s) => s.running !== null);
   const hidden = usePageHidden();
   const video = useRef<HTMLVideoElement>(null);
   const coveredRef = useRef(covered);
   coveredRef.current = covered;
   const [shown, setShown] = useState(false);
-  const live = enabled && onHome && !running && !hidden;
+  const live = enabled && onStage && !running && !hidden;
 
   useEffect(() => {
     const game = gameById(focusId);
     const el = video.current;
-    if (!live || !game?.steamAppId || !el) return;
+    if (!live || !game || !(game.steamAppId || isCatalog(game) || isStoreItem(game)) || !el) return;
     const stream = new AbortController();
     const start = setTimeout(async () => {
       try {
@@ -143,8 +145,8 @@ export function Background({ mode }: { mode: "home" | "dim" | "page" }) {
           <motion.div
             key={layer.id}
             className={`bg-layer ${layer.soft ? "soft" : ""}`}
-            initial={{ opacity: 0, scale: 1.09, filter: "blur(14px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            initial={mode === "dim" ? { opacity: 0 } : { opacity: 0, scale: 1.09, filter: "blur(14px)" }}
+            animate={mode === "dim" ? { opacity: 1 } : { opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, transition: { duration: 0.9, ease: "easeOut" } }}
             transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
           >
@@ -159,7 +161,7 @@ export function Background({ mode }: { mode: "home" | "dim" | "page" }) {
           </motion.div>
         )}
       </AnimatePresence>
-      {mode === "home" && <Trailer />}
+      <Trailer />
       <div className="bg-light" />
       <div className="bg-shade" />
       <div className="bg-grain" />

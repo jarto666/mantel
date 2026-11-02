@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
+import { locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import type { Achievement, Game } from "../types";
 import { useHints } from "./Hints";
@@ -62,10 +63,10 @@ export function AchievementList({ game, list, error, onClose }: { game: Game; li
   return (
     <motion.div className="ach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="ach-head">
-        <div className="eyebrow">Achievements</div>
+        <div className="eyebrow">{t("Achievements")}</div>
         <h2 className="ach-title">{game.name}</h2>
         <div className="ach-summary">
-          {list ? <span>{unlocked.length} of {count} unlocked</span> : <span>&nbsp;</span>}
+          {list ? <span>{unlocked.length === 1 ? t("1 of {total} unlocked", { total: count }) : t("{n} of {total} unlocked", { n: unlocked.length, total: count })}</span> : <span>&nbsp;</span>}
           <span>{percent}%</span>
           {gamerscore && <span>{gamerscore}</span>}
         </div>
@@ -77,22 +78,22 @@ export function AchievementList({ game, list, error, onClose }: { game: Game; li
         {error ? (
           <div className="ach-note">{error}</div>
         ) : !list ? (
-          <div className="ach-note"><span className="spinner" />Loading achievements…</div>
+          <div className="ach-note"><span className="spinner" />{t("Loading achievements…")}</div>
         ) : !count ? (
-          <div className="ach-note">This game has no achievements.</div>
+          <div className="ach-note">{t("This game has no achievements.")}</div>
         ) : (
           list.map((a, n) => (
             <div key={`${n}${a.name}`} className={`ach-row ${n === index ? "is-focused" : ""} ${a.unlocked ? "" : "is-locked"}`} onClick={() => setIndex(n)}>
               <Badge a={a} />
               <div className="ach-text">
-                <div className="ach-name">{a.secret ? "Secret achievement" : a.name}</div>
-                <div className="ach-desc">{a.secret ? "Unlock it to see what it is." : a.description}</div>
+                <div className="ach-name">{a.secret ? t("Secret achievement") : a.name}</div>
+                <div className="ach-desc">{a.secret ? t("Unlock it to see what it is.") : a.description}</div>
               </div>
               <div className="ach-meta">
                 {a.gamerscore ? <span className="ach-score">{a.gamerscore} G</span> : null}
-                {a.rarity != null && <span>{a.rarity < 10 ? a.rarity.toFixed(1) : Math.round(a.rarity)}% of players</span>}
+                {a.rarity != null && <span>{t("{percent}% of players", { percent: a.rarity.toLocaleString(locale(), { maximumFractionDigits: a.rarity < 10 ? 1 : 0 }) })}</span>}
                 {a.unlockedAt ? (
-                  <span>{new Date(a.unlockedAt * 1000).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span>{new Date(a.unlockedAt * 1000).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" })}</span>
                 ) : null}
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { t } from "../i18n";
 import { sound } from "../sound";
 import type { Result } from "../input";
 
@@ -107,7 +108,7 @@ export function useKeyboard(opts: {
               press(k);
             }}
           >
-            {k === "space" ? "Space" : k === "back" ? "Delete" : "Done"}
+            {k === "space" ? t("Space") : k === "back" ? t("Delete") : t("Done")}
           </button>
         ))}
       </div>

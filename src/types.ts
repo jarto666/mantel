@@ -47,12 +47,77 @@ export interface Game {
   /** False for games an account owns but this device hasn't installed. */
   installed: boolean;
   achievements?: Achievements | null;
+  /** Game Pass collections the game is in: "new", "leaving", "popular", "eaplay". */
+  tags?: string[];
+  /** Store categories, in the catalog's language. */
+  genres?: string[];
+  /** What it costs on the Steam store, for games from its lists; "Free" for free ones. */
+  price?: string | null;
+  /** Percent off that price right now. */
+  discount?: number | null;
+}
+
+export interface StoreShelf {
+  id: string;
+  title: string;
+  games: Game[];
+}
+
+/** The Steam store's front page and the genres to filter it by. */
+export interface StoreHome {
+  shelves: StoreShelf[];
+  genres: { tag: number; name: string }[];
+}
+
+export interface StorePage {
+  games: Game[];
+  more: boolean;
+}
+
+/** A way to buy a game, as the Store sells it where the player is. */
+export interface Edition {
+  id: string;
+  title: string;
+  /** Empty when it isn't on sale here. */
+  price: number | null;
+  was: number | null;
+  currency: string | null;
+  /** What's inside a bundle: having all of it is as good as having the bundle. */
+  parts: string[];
+}
+
+export interface Editions {
+  /** The product with the files, which is what installs: many editions have none of their own. */
+  game: string;
+  pfn: string;
+  title: string;
+  editions: Edition[];
+}
+
+export interface StoreHit {
+  game: Game;
+  price: number | null;
+  was: number | null;
+  currency: string | null;
+}
+
+export interface InstallProgress {
+  id: string;
+  state: "pending" | "downloading" | "installing" | "paused" | "canceling" | "done" | "canceled" | "error";
+  percent: number;
+  /** Bytes so far and in all; 0 until Windows knows. */
+  downloaded: number;
+  total: number;
+  /** Bytes per second, worked out here from one report to the next. */
+  speed?: number;
+  at?: number;
+  error?: string | null;
 }
 
 export interface PickEntry {
   name: string;
   path: string;
-  kind: "drive" | "place" | "dir" | "exe" | "lnk" | "url" | "bat";
+  kind: "drive" | "place" | "dir" | "exe" | "lnk" | "url" | "bat" | "image";
   size?: number | null;
 }
 
@@ -60,6 +125,16 @@ export interface Listing {
   path: string | null;
   parent: string | null;
   entries: PickEntry[];
+}
+
+export type ArtKind = "cover" | "hero" | "logo";
+
+export interface ArtChoices {
+  /** The image picked before, if any: an https URL or a copied file. */
+  picked: string | null;
+  options: { url: string; thumb: string }[];
+  /** Whether a SteamGridDB key is set; without one there's nothing to choose from. */
+  connected: boolean;
 }
 
 export interface Suggestion {
@@ -79,11 +154,38 @@ export interface Settings {
   sounds: boolean;
   minimizeOnLaunch: boolean;
   trailers: boolean;
+  /** Interface language id; "" follows Windows. */
+  language: string;
+  /** Show the Game Pass tab. */
+  gamePass: boolean;
+}
+
+/** What a bundle is made of: the "main" game, its "launcher", another "game", or an "addon". */
+export interface BundleItem {
+  id: string;
+  title: string;
+  kind: "main" | "launcher" | "game" | "addon";
+  size?: number | null;
+}
+
+export interface Video {
+  /** DASH manifest. */
+  url: string;
+  thumb?: string | null;
+  title?: string | null;
 }
 
 export interface Details {
+  /** A catalog game's logos, looked up on first view. */
+  logo?: string[];
+  videos?: Video[];
+  /** How it plays: single player, co-op, controller support. */
+  features?: string[];
+  /** A bundle's parts, when some can be left out of the install. */
+  items?: BundleItem[];
   description?: string | null;
-  genres: string[];
+  /** Null for games the Store hasn't filed yet, like ones still to come out. */
+  genres?: string[] | null;
   developers?: string[] | null;
   publishers?: string[] | null;
   releaseDate?: string | null;

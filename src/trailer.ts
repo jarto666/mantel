@@ -1,6 +1,6 @@
-// Steam serves trailers only as DASH or HLS, and WebView2 plays neither by itself. This feeds
-// the video track of the DASH version through Media Source Extensions: no player library, and
-// the audio is never downloaded since trailers play muted.
+// Steam and Xbox serve trailers only as DASH or HLS, and WebView2 plays neither by itself. This feeds
+// the DASH version through Media Source Extensions, with no player library: video only for the
+// muted background trailers, sound as well when a trailer is opened to watch.
 
 interface Track {
   mime: string;
@@ -25,12 +25,12 @@ function isoSeconds(iso: string | null): number {
 }
 
 /** The smallest video stream at least `height` pixels tall, or the largest there is. */
-async function readManifest(url: string, height: number, signal: AbortSignal): Promise<Track | null> {
+async function readManifest(url: string, height: number, signal: AbortSignal, kind = "video"): Promise<Track | null> {
   const res = await fetch(url, { signal });
   if (!res.ok) return null;
   const doc = new DOMParser().parseFromString(await res.text(), "application/xml");
   const total = isoSeconds(doc.documentElement.getAttribute("mediaPresentationDuration"));
-  const set = [...doc.getElementsByTagName("AdaptationSet")].find((a) => a.getAttribute("contentType") === "video");
+  const set = [...doc.getElementsByTagName("AdaptationSet")].find((a) => a.getAttribute("contentType") === kind);
   if (!set || !total) return null;
   const attr = (el: Element, name: string) => el.getAttribute(name) ?? set.getAttribute(name);
   const streams = [...set.getElementsByTagName("Representation")]
@@ -48,14 +48,18 @@ async function readManifest(url: string, height: number, signal: AbortSignal): P
         .replace(/\$Number(?:%0(\d+)d)?\$/g, (_, width) => String(n).padStart(Number(width ?? 0), "0")),
       url,
     ).href;
-  const seconds = Number(tpl.getAttribute("duration") ?? 0) / Number(tpl.getAttribute("timescale") ?? 1);
+  // Steam gives one chunk length; Xbox lists each chunk in a timeline, where the average
+  // is close enough for buffering.
+  const timeline = [...(tpl.getElementsByTagName("SegmentTimeline")[0]?.getElementsByTagName("S") ?? [])];
+  const listed = timeline.reduce((n, s) => n + 1 + Number(s.getAttribute("r") ?? 0), 0);
+  const seconds = listed ? total / listed : Number(tpl.getAttribute("duration") ?? 0) / Number(tpl.getAttribute("timescale") ?? 1);
   if (!seconds) return null;
   return {
     mime: pick.mime,
     init: fill(tpl.getAttribute("initialization") ?? ""),
     chunk: (n) => fill(tpl.getAttribute("media") ?? "", n),
     first: Number(tpl.getAttribute("startNumber") ?? 1),
-    count: Math.ceil(total / seconds - 0.001),
+    count: listed || Math.ceil(total / seconds - 0.001),
     seconds,
   };
 }
@@ -75,6 +79,49 @@ const sleep = (ms: number, signal: AbortSignal) =>
     const t = setTimeout(() => (signal.removeEventListener("abort", abort), resolve()), ms);
     signal.addEventListener("abort", abort, { once: true });
   });
+
+/** Plays the trailer at `url` once from the start, with its sound, until it ends or `signal` aborts. */
+export async function watchTrailer(video: HTMLVideoElement, url: string, height: number, signal: AbortSignal) {
+  const [picture, sound] = await Promise.all([readManifest(url, height, signal), readManifest(url, 0, signal, "audio")]);
+  if (!picture) throw new Error("no stream this device can play");
+  const source = new MediaSource();
+  video.src = URL.createObjectURL(source);
+  signal.addEventListener(
+    "abort",
+    () => {
+      URL.revokeObjectURL(video.src);
+      video.removeAttribute("src");
+      video.load();
+    },
+    { once: true },
+  );
+  await once(source, "sourceopen", signal);
+  const feed = async (track: Track, buffer: SourceBuffer) => {
+    const append = async (src: string) => {
+      const res = await fetch(src, { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      buffer.appendBuffer(await res.arrayBuffer());
+      await once(buffer, "updateend", signal);
+    };
+    await append(track.init);
+    for (let n = 0; n < track.count; n++) {
+      await append(track.chunk(track.first + n));
+      for (;;) {
+        const ranges = buffer.buffered;
+        if (!ranges.length || ranges.end(ranges.length - 1) - video.currentTime <= AHEAD) break;
+        if (ranges.start(0) < video.currentTime - BEHIND - 4) {
+          buffer.remove(0, video.currentTime - BEHIND);
+          await once(buffer, "updateend", signal);
+        }
+        await sleep(500, signal);
+      }
+    }
+  };
+  const tracks = [picture, ...(sound ? [sound] : [])].map((track) => feed(track, source.addSourceBuffer(track.mime)));
+  video.play().catch(() => {});
+  await Promise.all(tracks);
+  if (source.readyState === "open") source.endOfStream();
+}
 
 /**
  * Streams the DASH trailer at `url` into `video`, looping, until `signal` aborts. Only a few

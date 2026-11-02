@@ -76,9 +76,89 @@ let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   achievements: achievementsFor(source, i, minutes),
 }));
 
+const pickedArt: Record<string, string> = {};
+const installing = new Set<string>();
+
+const catalog: Game[] = (
+  [
+    ["Forza Horizon 5 Standard Edition", 1551360],
+    ["Hollow Knight: Silksong", 1030300],
+    ["Celeste", 504230],
+    ["Vampire Survivors", 1794680],
+    ["It Takes Two", 1426210],
+    ["Balatro", 2379780],
+    ["Dave the Diver", 1868140],
+    ["Dead Cells", 588650],
+  ] as const
+).map(([name, appid]) => ({
+  ...games[0],
+  id: `gamepass:${appid}`,
+  source: "xbox",
+  sourceId: "",
+  name,
+  art: cdn(appid),
+  steamAppId: appid,
+  playtimeMinutes: 0,
+  lastPlayed: null,
+  favorite: false,
+  installed: false,
+  sizeBytes: (3 + name.length * 3) * 1024 ** 3,
+  achievements: null,
+  tags: name === "Hollow Knight: Silksong" ? ["new", "popular"] : name === "Dead Cells" ? ["leaving"] : name === "It Takes Two" ? ["eaplay", "popular"] : ["new"],
+  genres: ["Action & adventure", ...(["Celeste", "Hollow Knight: Silksong", "Dead Cells"].includes(name) ? ["Platformer"] : [])],
+}));
+
+// Store shelves for the browser: real art, made-up prices.
+const storeSeeds: [string, number, string, number?][] = [
+  ["Hades", 1145360, "$24.99"],
+  ["HELLDIVERS 2", 553850, "$39.99"],
+  ["Palworld", 1623730, "$29.99"],
+  ["Sekiro: Shadows Die Twice", 814380, "$23.99", 60],
+  ["Street Fighter 6", 1364780, "$23.99", 60],
+  ["TEKKEN 8", 1778820, "$34.99", 50],
+  ["Split Fiction", 2001120, "$49.99"],
+  ["Persona 3 Reload", 2161700, "$27.99", 60],
+  ["Metaphor: ReFantazio", 2679460, "$41.99", 40],
+  ["SILENT HILL 2", 2124490, "$41.99", 40],
+  ["Lethal Company", 1966720, "$9.99"],
+  ["Sea of Thieves", 1172620, "$19.99", 50],
+  ["Slay the Spire", 646570, "$6.24", 75],
+  ["Portal 2", 620, "$0.99", 90],
+  ["DOOM Eternal", 782330, "$9.99", 75],
+  ["Control Ultimate Edition", 870780, "$7.99", 80],
+  ["Dead Space", 1693980, "$14.99", 75],
+  ["Factorio", 427520, "$35.00"],
+  ["Sid Meier's Civilization VI", 289070, "$5.99", 90],
+  ["Terraria", 105600, "$4.99", 50],
+];
+const xboxSeeds: [string, string, number][] = [["Cyberpunk 2077: Ultimate Edition", "CYBERULT0000", 1091500], ["Probably Stolen - Cyberpunk Shopkeeper Sim", "STOLEN000000", 4348910]];
+const xboxList = (): Game[] =>
+  xboxSeeds.map(([name, id, appid]) => ({ ...storeList[0], id: `msstore:${id}`, source: "xbox", sourceId: "", name, art: cdn(appid), steamAppId: null, price: "$31.99", discount: null, tags: ["store"] }));
+const storeList: Game[] = storeSeeds.map(([name, appid, price, discount]) => ({
+  ...games[0],
+  id: `steam:${appid}`,
+  source: "steam",
+  sourceId: String(appid),
+  name,
+  art: cdn(appid),
+  steamAppId: appid,
+  playtimeMinutes: 0,
+  lastPlayed: null,
+  favorite: false,
+  installed: false,
+  sizeBytes: null,
+  achievements: null,
+  tags: ["store"],
+  genres: ["Action", "Adventure"],
+  price,
+  discount: discount ?? null,
+}));
+
 let settings: Settings = {
   sources: { steam: true, epic: true, gog: true, xbox: true, ubisoft: true },
   steamgriddbKey: "",
+  language: "",
+  gamePass: true,
   sounds: true,
   minimizeOnLaunch: true,
   trailers: true,
@@ -117,13 +197,20 @@ export const mockApi: Api = {
     return false;
   },
   async getDetails(id) {
-    const g = games.find((x) => x.id === id);
+    const g = games.find((x) => x.id === id) ?? catalog.find((x) => x.id === id) ?? storeList.find((x) => x.id === id) ?? xboxList().find((x) => x.id === id);
     if (!g?.steamAppId) return null;
     await wait(250);
     return {
       description:
         "Demo description: in the app this comes from the Steam store. Right now the interface is running in a browser with a sample library.",
       genres: ["Action", "RPG", "Adventure"],
+      features: ["Single player", "Online co-op", "Cross-platform", "Controller support", "Cloud saves", "Achievements"],
+      videos: [{ url: "https://cdn.trailers.xboxservices.com/none/manifest.mpd", thumb: g?.art.hero[0], title: "Official trailer" }],
+      items: g?.name === "Celeste" ? [
+        { id: "9MOCKGAME001", title: g.name, kind: "main", size: 12 * 1024 ** 3 },
+        { id: "9MOCKADDON01", title: `${g.name}: Farewell`, kind: "addon", size: null },
+        { id: "9MOCKADDON02", title: `${g.name}: Soundtrack`, kind: "addon", size: 300 * 1024 ** 2 },
+      ] : undefined,
       developers: ["Studio"],
       releaseDate: "2024",
       metacritic: 80 + (g.name.length % 15),
@@ -167,8 +254,23 @@ export const mockApi: Api = {
     games = games.map((g) => (g.id === id ? { ...g, name } : g));
     return structuredClone(games);
   },
-  async listDir(path) {
+  async listDir(path, images) {
     await wait(150);
+    if (images)
+      return {
+        path,
+        parent: null,
+        entries: path
+          ? [
+              { name: "Wallpapers", path: `${path}\\Wallpapers`, kind: "dir" },
+              { name: "fc27-cover.png", path: `${path}\\fc27-cover.png`, kind: "image", size: 812_000 },
+              { name: "screenshot.jpg", path: `${path}\\screenshot.jpg`, kind: "image", size: 1_412_000 },
+            ]
+          : [
+              { name: "Pictures", path: "C:\\Users\\you\\Pictures", kind: "place" },
+              { name: "Downloads", path: "C:\\Users\\you\\Downloads", kind: "place" },
+            ],
+      };
     if (!path)
       return {
         path: null,
@@ -190,6 +292,65 @@ export const mockApi: Api = {
       ],
     };
   },
+  async installGame(id) {
+    const game = catalog.find((g) => g.id === id) ?? (id.startsWith("msstore:") ? { ...xboxList()[0], id, sourceId: "Mock.Game_abc", sizeBytes: 8 * 1024 ** 3 } : undefined);
+    if (!game) throw "Only Store games install from Mantel";
+    installing.add(id);
+    let percent = 0;
+    const total = game.sizeBytes ?? 8 * 1024 ** 3;
+    const bytes = () => ({ downloaded: (total * percent) / 100, total });
+    emit("install-progress", { id, state: "pending", percent, ...bytes() });
+    const tick = setInterval(() => {
+      if (!installing.has(id)) {
+        clearInterval(tick);
+        return emit("install-progress", { id, state: "canceled", percent, ...bytes() });
+      }
+      percent = Math.min(100, percent + 9);
+      if (percent < 100) return emit("install-progress", { id, state: "downloading", percent, ...bytes() });
+      clearInterval(tick);
+      installing.delete(id);
+      games = [...games, { ...game, id: `xbox:${id}`, installed: true, tags: [] }];
+      emit("install-progress", { id, state: "done", percent, ...bytes() });
+    }, 600);
+  },
+  async cancelInstall(id) {
+    installing.delete(id);
+  },
+  async installs() {
+    return [];
+  },
+  async installsUnderWay() {
+    return [];
+  },
+  async installAccess(id) {
+    await wait(500);
+    return catalog.find((g) => g.id === id)?.name !== "Dead Cells";
+  },
+  async uninstallGame(id) {
+    await wait(1500);
+    games = games.filter((g) => g.id !== id);
+    emit("game-uninstalled", id);
+  },
+  async gamepassCatalog() {
+    await wait(400);
+    return structuredClone(catalog);
+  },
+  async artChoices(id, kind) {
+    await wait(500);
+    const picked = pickedArt[`${id}:${kind}`] ?? null;
+    const options = games.filter((g) => g.id !== id && g.art[kind].length).map((g) => ({ url: g.art[kind][0], thumb: g.art[kind].at(-1)! }));
+    return { picked, options: settings.steamgriddbKey ? options : [], connected: !!settings.steamgriddbKey };
+  },
+  async setArt(id, kind, src) {
+    const key = `${id}:${kind}`;
+    const old = pickedArt[key];
+    if (src) pickedArt[key] = src;
+    else delete pickedArt[key];
+    games = games.map((g) =>
+      g.id === id ? { ...g, art: { ...g.art, [kind]: [...(src ? [src] : []), ...g.art[kind].filter((s) => s !== old)] } } : g,
+    );
+    return structuredClone(games);
+  },
   async appSuggestions() {
     await wait(600);
     return [
@@ -206,6 +367,7 @@ export const mockApi: Api = {
     return structuredClone(games);
   },
   async launchGame(id) {
+    if (id.startsWith("gamepass:")) return;
     running = { id, startedAt: Math.floor(Date.now() / 1000), detected: false };
     setTimeout(() => {
       if (running?.id !== id) return;
@@ -276,6 +438,58 @@ export const mockApi: Api = {
     if (service === "xbox") xboxTag = null;
     else steamKey = "";
     return mockApi.accountsStatus();
+  },
+  async openSteamDownloads() {},
+  async openSteamStore() {},
+  async resolveSteamFacts() {
+    return false;
+  },
+  async steamStoreHome() {
+    await wait(300);
+    const shelves = [
+      { id: "top", title: "Top sellers", games: storeList.slice(0, 7) },
+      { id: "new", title: "New releases", games: storeList.slice(6, 14) },
+      { id: "deals", title: "Deals", games: storeList.filter((g) => g.discount) },
+    ];
+    const genres = ["Action", "Adventure", "RPG", "Strategy", "Simulation", "Shooter", "Racing", "Sports", "Puzzle"].map((name, i) => ({ tag: i + 1, name }));
+    return { shelves, genres };
+  },
+  async steamStorePage(_list, _tag, start) {
+    await wait(300);
+    return { games: storeList.slice(start, start + 12), more: start + 12 < storeList.length };
+  },
+  async openXboxStore() {},
+  async xboxEditions(id) {
+    const product = id.replace("msstore:", "").replace("xbox:", "");
+    return {
+      game: "BASE00000000",
+      pfn: "Mock.Game_abc",
+      title: xboxList().find((g) => g.id === id)?.name ?? product,
+      editions: [
+        { id: "BASE00000000", title: "Standard Edition", price: 29.99, was: 59.99, currency: "USD", parts: [] },
+        { id: "DELUXE000000", title: "Deluxe Edition", price: 79.99, was: 79.99, currency: "USD", parts: ["BASE00000000", "ADDON0000000"] },
+      ],
+    };
+  },
+  async editionOnAccount(id) {
+    await new Promise((r) => setTimeout(r, 300));
+    return id === "BASE00000000";
+  },
+  async xboxStoreSearch(query) {
+    const q = query.toLowerCase();
+    return xboxList()
+      .filter((g) => g.name.toLowerCase().includes(q))
+      .map((game) => ({ game, price: 29.99, was: 59.99, currency: "USD" }));
+  },
+  async steamStoreSearch(query) {
+    const q = query.toLowerCase();
+    return storeList.filter((g) => g.source === "steam" && g.name.toLowerCase().includes(q));
+  },
+  async xboxStoreHome() {
+    return [{ id: "top", title: "Top sellers", games: xboxList() }];
+  },
+  async xboxStorePage() {
+    return { games: xboxList(), more: false };
   },
   async openUrl(url) {
     window.open(url, "_blank");

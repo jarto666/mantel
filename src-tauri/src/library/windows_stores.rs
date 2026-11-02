@@ -96,6 +96,10 @@ $out = foreach ($p in Get-AppxPackage) {
 ConvertTo-Json -InputObject @($out) -Compress
 "#;
 
+fn is_launcher(name: &str) -> bool {
+    name.trim().to_lowercase().ends_with(" launcher")
+}
+
 pub fn scan_xbox() -> Scan {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -127,6 +131,9 @@ pub fn scan_xbox() -> Scan {
             Launch::Uri { uri: format!(r"shell:AppsFolder\{}!{app_id}", pkg.family) },
         );
         game.install_dir = Some(pkg.location.clone());
+        // Bundles install their launcher next to the game, as a package that looks like one more
+        // game. Settings' hidden games can bring it back for those who play through it.
+        game.hidden = is_launcher(&game.name);
         game.exe_names = visuals.executables.iter().filter_map(|e| crate::model::exe_name(e)).collect();
         let file = |rel: &Option<String>| rel.as_ref().map(|r| loc.join(r)).filter(|p| p.is_file()).map(|p| p.to_string_lossy().to_string());
         game.art.cover.extend(file(&visuals.square480));
@@ -175,4 +182,16 @@ fn folder_name(loc: &Path) -> Option<String> {
         return None;
     }
     loc.parent()?.file_name().map(|n| n.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tells_a_launcher_from_a_game() {
+        assert!(is_launcher("Minecraft Launcher"));
+        assert!(!is_launcher("Minecraft Dungeons II"));
+        assert!(!is_launcher("Launcher Wars"));
+    }
 }

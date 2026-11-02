@@ -1,15 +1,17 @@
 import { AnimatePresence, motion, type Variants } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Cover } from "../components/Cover";
-import { Glyph, SourceIcon } from "../components/Glyph";
+import { DOWNLOAD, Glyph, SourceIcon } from "../components/Glyph";
+import { GameName } from "../components/GameName";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
-import { AchievementsStat, Stat } from "../components/Stat";
+import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
+import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring, useRem, useSettled } from "../motion";
-import { launch, rescan, setFocus, sourceLabel, toggleFavorite, useStore } from "../store";
+import { askCancel, gamePassGames, isCatalog, launch, rescan, setFocus, sourceLabel, toggleFavorite, useStore } from "../store";
 import type { Game } from "../types";
-import { hours, lastPlayed, size } from "../util";
+import { hours, installLabel, lastPlayed, size } from "../util";
 
 const SHELF_SIZE = 18;
 const LIBRARY_KEY = "library";
@@ -18,16 +20,19 @@ const CARD_W = 10.2;
 const GAP = 1.25;
 const FOCUS_SCALE = 1.32;
 
-/** Recently played first, then favorites, then the newest installs. */
-function shelf(games: Game[]): Game[] {
+/** What Mantel just installed, then recently played, favorites, and the newest installs. */
+function shelf(games: Game[], justInstalled: string[]): Game[] {
   const visible = games.filter((g) => !g.hidden && g.installed);
+  const installed = justInstalled.flatMap((id) => visible.filter((g) => g.id === id && !g.lastPlayed));
   const recent = visible.filter((g) => g.lastPlayed).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0));
   const favs = visible.filter((g) => g.favorite);
   const fresh = [...visible].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
-  return [...new Set([...recent, ...favs, ...fresh])].slice(0, SHELF_SIZE);
+  return [...new Set([...installed, ...recent, ...favs, ...fresh])].slice(0, SHELF_SIZE);
 }
 
-type Button = "play" | "details" | "fav";
+type Button = "play" | "details" | "fav" | "progress" | "cancel";
+
+const buttonsFor = (game: Game | undefined): Button[] => (game && !game.installed ? ["progress", "cancel"] : ["play", "details", "fav"]);
 
 const heroVariants: Variants = {
   enter: { opacity: 0 },
@@ -41,36 +46,51 @@ const item: Variants = {
 };
 
 function Hero({ game, running, zone, btn, onPress }: { game: Game; running: boolean; zone: string; btn: number; onPress: (b: Button) => void }) {
-  const t = game.playtimeMinutes;
-  const buttons: Button[] = ["play", "details", "fav"];
+  const played = game.playtimeMinutes;
+  const install = useStore((s) => s.installs[game.id]);
+  const buttons = buttonsFor(game);
   return (
     <motion.section className="hero" variants={heroVariants} initial="enter" animate="show" exit="exit">
       <motion.div className="hero-eyebrow" variants={item}>
         <SourceIcon source={game.source} />
-        <span>{sourceLabel(game)}</span>
-        {running && <span className="live"><span className="live-dot" />Running</span>}
+        <span>{isCatalog(game) ? "PC Game Pass" : sourceLabel(game)}</span>
+        {running && <span className="live"><span className="live-dot" />{t("Running")}</span>}
       </motion.div>
       <motion.div className="hero-title" variants={item}>
-        <Img srcs={game.art.logo} className="hero-logo" trim fallback={<h1 className="hero-name">{game.name}</h1>} />
+        <Img srcs={game.art.logo} className="hero-logo" trim fallback={<GameName name={game.name} />} />
       </motion.div>
       <motion.div className="hero-stats" variants={item}>
-        <Stat value={t ? hours(t) : "—"} unit={t ? (t >= 60 ? "h" : "min") : undefined} label="Played" />
-        <Stat value={lastPlayed(game.lastPlayed)} label="Last played" />
-        {game.achievements && <AchievementsStat a={game.achievements} />}
-        <Stat value={size(game.sizeBytes)} label="On disk" />
+        {install ? (
+          <InstallStat install={install} total={game.sizeBytes} />
+        ) : (
+          <>
+            <Stat value={played ? hours(played) : "—"} unit={played ? (played >= 60 ? t("h") : t("min")) : undefined} label={t("Played")} />
+            <Stat value={lastPlayed(game.lastPlayed, game.playtimeMinutes > 0)} label={t("Last played")} />
+            {game.achievements && <AchievementsStat a={game.achievements} />}
+            <Stat value={size(game.sizeBytes)} label={t("On disk")} />
+          </>
+        )}
       </motion.div>
       <motion.div className="hero-actions" variants={item}>
         {buttons.map((b, n) => (
           <button
             key={b}
-            className={`btn ${b === "play" ? "btn-play" : "btn-round"} ${zone === "hub" && n === btn ? "is-focused" : ""} ${b === "fav" && game.favorite ? "is-on" : ""}`}
+            className={`btn ${b === "play" || b === "progress" ? "btn-play" : "btn-round"} ${b === "progress" ? "has-progress" : ""} ${b === "cancel" && install?.state === "canceling" ? "is-busy" : ""} ${zone === "hub" && n === btn ? "is-focused" : ""} ${b === "fav" && game.favorite ? "is-on" : ""}`}
+            style={b === "progress" ? ({ "--progress": (install?.percent ?? 100) / 100 } as React.CSSProperties) : undefined}
             onClick={() => onPress(b)}
           >
             {b === "play" ? (
               <>
                 <svg viewBox="0 0 24 24"><path d="M8 5.2v13.6L19 12z" /></svg>
-                {running ? "Resume" : "Play"}
+                {running ? t("Resume") : t("Play")}
               </>
+            ) : b === "progress" ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{DOWNLOAD}</svg>
+                {install ? installLabel(install) : t("Installed")}
+              </>
+            ) : b === "cancel" ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
             ) : b === "details" ? (
               <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
             ) : (
@@ -95,7 +115,7 @@ function LibraryCard({ count, focused, onClick }: { count: number; focused: bool
             <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" />
           </svg>
           <span className="library-card-count">{count}</span>
-          <span className="library-card-label">Game Library</span>
+          <span className="library-card-label">{t("Game Library")}</span>
         </div>
       </div>
     </div>
@@ -107,12 +127,28 @@ export function Home({ active }: { active: boolean }) {
   const loaded = useStore((s) => s.loaded);
   const scanning = useStore((s) => s.scanning);
   const running = useStore((s) => s.running);
-  const list = useMemo(() => shelf(games), [games]);
+  const justInstalled = useStore((s) => s.justInstalled);
+  const catalog = useStore((s) => s.catalog);
+  // Just the ids: the progress itself ticks every moment, and only the tile and the hero show it.
+  const installing = useStore((s) => Object.keys(s.installs).join());
+  // Games on their way open the shelf, as tiles that fill up. Once a scan finds one in the
+  // library, that copy takes its place.
+  const list = useMemo(() => {
+    const ids = new Set(installing.split(","));
+    const onItsWay = [...gamePassGames(games, catalog.filter((g) => ids.has(g.id))), ...games.filter((g) => !g.installed && ids.has(g.id))];
+    for (const g of onItsWay) ids.add(g.id);
+    return [...onItsWay, ...shelf(games, justInstalled).filter((g) => !ids.has(g.id))];
+  }, [catalog, installing, games, justInstalled]);
   const total = useMemo(() => games.filter((g) => !g.hidden && g.installed).length, [games]);
   const rem = useRem();
 
   // Focus follows a game, not a slot: the shelf reorders when something gets played.
-  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [wantKey, setFocusKey] = useState<string | null>(null);
+  // A finished install's tile hands focus to the library's copy.
+  const focusKey = useMemo(() => {
+    const from = catalog.find((g) => g.id === wantKey);
+    return from && !list.some((g) => g.id === from.id) ? gamePassGames(games, [from])[0].id : wantKey;
+  }, [wantKey, catalog, list, games]);
   const [dir, setDir] = useState(1);
   const [zone, setZone] = useState<"rail" | "hub">("rail");
   const [btn, setBtn] = useState(0);
@@ -122,18 +158,22 @@ export function Home({ active }: { active: boolean }) {
   const c = found >= 0 ? found : 0; // list.length = the library card
   const game: Game | undefined = list[c];
   const heroGame = useSettled(game, 70);
-  const buttons: Button[] = ["play", "details", "fav"];
+  const buttons = buttonsFor(game);
+  const onItsWay = !!game && !game.installed;
 
   useEffect(() => {
     if (active && game) setFocus(game);
   }, [active, game]);
 
   const openLibrary = () => useStore.setState({ view: "library" });
+  // A game still installing opens its page: there's nothing to launch yet.
+  const activate = (g: Game) => (g.installed ? launch(g) : useStore.setState({ detailsId: g.id }));
   const press = (b: Button) => {
     if (!game) return;
     if (b === "play") launch(game);
-    if (b === "details") useStore.setState({ detailsId: game.id });
+    if (b === "details" || b === "progress") useStore.setState({ detailsId: game.id });
     if (b === "fav") toggleFavorite(game);
+    if (b === "cancel") askCancel(game);
   };
   const move = (d: number) => {
     const next = c + d;
@@ -165,7 +205,7 @@ export function Home({ active }: { active: boolean }) {
           case "y":
             return press("details");
           case "x":
-            return press("fav");
+            return onItsWay ? "edge" : press("fav");
           default:
             return false;
         }
@@ -183,12 +223,12 @@ export function Home({ active }: { active: boolean }) {
           return "edge";
         case "a":
           if (!game) return openLibrary();
-          launch(game);
-          return "silent";
+          activate(game);
+          return onItsWay ? undefined : "silent";
         case "y":
           return game ? press("details") : "edge";
         case "x":
-          return game ? press("fav") : "edge";
+          return game && !onItsWay ? press("fav") : "edge";
         default:
           return false;
       }
@@ -202,7 +242,9 @@ export function Home({ active }: { active: boolean }) {
       ? [["a", "Scan again"], ["menu", "Control center"]]
       : !game
         ? [["a", "Open library"], ["view", "Search"], ["menu", "Control center"]]
-        : [["a", isRunning ? "Resume" : "Play"], ["y", "Details"], ["x", game.favorite ? "Unfavorite" : "Favorite"], ["view", "Search"], ["menu", "Control center"]],
+        : onItsWay
+          ? [["a", "Details"], ["view", "Search"], ["menu", "Control center"]]
+          : [["a", isRunning ? "Resume" : "Play"], ["y", "Details"], ["x", game.favorite ? "Unfavorite" : "Favorite"], ["view", "Search"], ["menu", "Control center"]],
     Layer.view,
     active,
   );
@@ -211,13 +253,12 @@ export function Home({ active }: { active: boolean }) {
     return (
       <main className="home">
         <div className="empty-state">
-          <div className="eyebrow">{scanning ? "Looking for games…" : "Nothing here yet"}</div>
-          <h1>No games found</h1>
+          <div className="eyebrow">{scanning ? t("Looking for games…") : t("Nothing here yet")}</div>
+          <h1>{t("No games found")}</h1>
           <p>
-            Mantel reads your Steam, Epic Games, GOG, Xbox / Game Pass and Ubisoft Connect libraries.
-            Install something in any of them, or add your own in Settings.
+            {t("Mantel reads your Steam, Epic Games, GOG, Xbox / Game Pass and Ubisoft Connect libraries. Install something in any of them, or add your own in Settings.")}
           </p>
-          <span className="btn btn-play is-focused"><Glyph b="a" />Scan again</span>
+          <span className="btn btn-play is-focused"><Glyph b="a" />{t("Scan again")}</span>
         </div>
       </main>
     );
@@ -272,7 +313,7 @@ export function Home({ active }: { active: boolean }) {
                   lazy={i > 10}
                   onClick={() => {
                     setZone("rail");
-                    if (focused) launch(g);
+                    if (focused) activate(g);
                     else {
                       setDir(i > c ? 1 : -1);
                       setFocusKey(keyAt(i));

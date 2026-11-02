@@ -1,5 +1,6 @@
-import type { AccountsStatus, Achievement, Details, Game, Listing, Power, Quick, Running, Settings, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, ArtChoices, ArtKind, Details, Editions, Game, InstallProgress, Listing, Power, Quick, Running, Settings, StoreHit, StoreHome, StorePage, StoreShelf, Suggestion } from "./types";
 import { mockApi } from "./mock";
+import { steamLanguage } from "./i18n";
 
 /** True inside the Tauri shell; false in a plain browser, where the mock library stands in. */
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -15,6 +16,20 @@ export interface Api {
   /** Sizes install folders whose store reports none; true when any changed. */
   measureSizes(): Promise<boolean>;
   getDetails(id: string): Promise<Details | null>;
+  /** Every PC Game Pass game, in `language` like "en-us"; refreshed by the backend once a day. */
+  gamepassCatalog(language: string): Promise<Game[]>;
+  /** Installs a Game Pass game through Windows' Store installer; "install-progress" follows it. */
+  /** `chosen` installs only these parts of a bundle. */
+  installGame(id: string, chosen?: string[]): Promise<void>;
+  cancelInstall(id: string): Promise<void>;
+  /** Installs still under way. */
+  installs(): Promise<InstallProgress[]>;
+  /** Store product ids of the installs Windows has under way, whoever started them. */
+  installsUnderWay(): Promise<string[]>;
+  /** Whether a catalog game is on the player's Microsoft account; null when the Store can't say. */
+  installAccess(id: string): Promise<boolean | null>;
+  /** Removes an installed game; "game-uninstalled" says when it's gone. Steam asks the player first. */
+  uninstallGame(id: string): Promise<void>;
   /** The game's achievements from the Steam or Xbox account it came from. */
   getAchievements(id: string): Promise<Achievement[]>;
   setFlag(id: string, flag: "favorite" | "hidden", value: boolean): Promise<void>;
@@ -22,7 +37,12 @@ export interface Api {
   saveSettings(settings: Settings): Promise<void>;
   addCustomGame(path: string, name?: string, target?: string): Promise<Game[]>;
   renameCustomGame(id: string, name: string): Promise<Game[]>;
-  listDir(path: string | null): Promise<Listing>;
+  /** Folders and launchable files, or with `images` folders and pictures. */
+  listDir(path: string | null, images?: boolean): Promise<Listing>;
+  /** SteamGridDB's art of one kind for a game, and what was picked before. */
+  artChoices(id: string, kind: ArtKind): Promise<ArtChoices>;
+  /** An https URL or an image file as the game's art; null goes back to the store's. */
+  setArt(id: string, kind: ArtKind, src: string | null): Promise<Game[]>;
   appSuggestions(): Promise<Suggestion[]>;
   switchToGame(): Promise<boolean>;
   removeCustomGame(id: string): Promise<Game[]>;
@@ -49,6 +69,19 @@ export interface Api {
   xboxSignIn(): Promise<AccountsStatus>;
   disconnectAccount(service: "steam" | "xbox"): Promise<AccountsStatus>;
   openUrl(url: string): Promise<void>;
+  openSteamDownloads(): Promise<void>;
+  openSteamStore(appid: number): Promise<void>;
+  /** Asks Steam about the library's Steam games; whether anything changed. */
+  resolveSteamFacts(): Promise<boolean>;
+  steamStoreHome(): Promise<StoreHome>;
+  steamStorePage(list: string, tag: number | null, start: number): Promise<StorePage>;
+  openXboxStore(product: string): Promise<void>;
+  xboxEditions(id: string, language: string): Promise<Editions | null>;
+  editionOnAccount(id: string, parts: string[]): Promise<boolean | null>;
+  xboxStoreSearch(query: string, language: string): Promise<StoreHit[]>;
+  steamStoreSearch(query: string): Promise<Game[]>;
+  xboxStoreHome(language: string): Promise<StoreShelf[]>;
+  xboxStorePage(list: string, genre: string | null, page: number, language: string): Promise<StorePage>;
   readClipboard(): Promise<string>;
   appVersion(): Promise<string>;
   /** The version of a newer release, or null when up to date. */
@@ -57,7 +90,7 @@ export interface Api {
   installUpdate(): Promise<void>;
 }
 
-export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout";
+export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout" | "install-progress" | "game-uninstalled";
 
 export interface FullScreenMode {
   supported: boolean;
@@ -75,14 +108,23 @@ const tauriApi: Api = {
   getLibrary: (rescan) => call("get_library", { rescan }),
   resolveArt: () => call("resolve_art"),
   measureSizes: () => call("measure_sizes"),
-  getDetails: (id) => call("get_details", { id }),
+  getDetails: (id) => call("get_details", { id, language: steamLanguage() }),
+  gamepassCatalog: (language) => call("gamepass_catalog", { language }),
+  installGame: (id, chosen) => call("install_game", { id, chosen }),
+  cancelInstall: (id) => call("cancel_install", { id }),
+  installs: () => call("installs"),
+  installsUnderWay: () => call("installs_under_way"),
+  installAccess: (id) => call("install_access", { id }),
+  uninstallGame: (id) => call("uninstall_game", { id }),
   getAchievements: (id) => call("get_achievements", { id }),
   setFlag: (id, flag, value) => call("set_flag", { id, flag, value }),
   getSettings: () => call("get_settings"),
   saveSettings: (settings) => call("save_settings", { settings }),
   addCustomGame: (path, name, target) => call("add_custom_game", { path, name: name ?? null, target: target ?? null }),
   renameCustomGame: (id, name) => call("rename_custom_game", { id, name }),
-  listDir: (path) => call("list_dir", { path }),
+  listDir: (path, images) => call("list_dir", { path, images: images ?? false }),
+  artChoices: (id, kind) => call("art_choices", { id, kind }),
+  setArt: (id, kind, src) => call("set_art", { id, kind, src }),
   appSuggestions: () => call("app_suggestions"),
   switchToGame: () => call("switch_to_game"),
   removeCustomGame: (id) => call("remove_custom_game", { id }),
@@ -113,6 +155,18 @@ const tauriApi: Api = {
   xboxSignIn: () => call("xbox_sign_in"),
   disconnectAccount: (service) => call("disconnect_account", { service }),
   openUrl: (url) => call("open_url", { url }),
+  openSteamDownloads: () => call("open_steam_downloads"),
+  openSteamStore: (appid) => call("open_steam_store", { appid }),
+  resolveSteamFacts: () => call("resolve_steam_facts", { language: steamLanguage() }),
+  steamStoreHome: () => call("steam_store_home", { language: steamLanguage() }),
+  steamStorePage: (list, tag, start) => call("steam_store_page", { list, tag, start, language: steamLanguage() }),
+  openXboxStore: (product) => call("open_xbox_store", { product }),
+  xboxEditions: (id, language) => call("xbox_editions", { id, language }),
+  editionOnAccount: (id, parts) => call("edition_on_account", { id, parts }),
+  xboxStoreSearch: (query, language) => call("xbox_store_search", { query, language }),
+  steamStoreSearch: (query) => call("steam_store_search", { query, language: steamLanguage() }),
+  xboxStoreHome: (language) => call("xbox_store_home", { language }),
+  xboxStorePage: (list, genre, page, language) => call("xbox_store_page", { list, genre, page, language }),
   async readClipboard() {
     const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
     return (await readText()) ?? "";

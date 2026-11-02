@@ -763,6 +763,17 @@ async fn xbox_minutes_batch(http: &reqwest::Client, auth: &str, xuid: &str, ids:
         .unwrap_or_default())
 }
 
+/// Title history links its art over plain http, which the page's content policy refuses, and at
+/// full size, a megabyte or more per cover.
+fn cover_url(image: &str) -> String {
+    let url = image.strip_prefix("http://").map_or_else(|| image.to_string(), |rest| format!("https://{rest}"));
+    if url.contains("store-images.") && !url.contains('?') {
+        format!("{url}?w=600")
+    } else {
+        url
+    }
+}
+
 /// Installed games gain account playtime; the rest open their page in the Xbox app to
 /// install, or the Microsoft Store when Live sent no store id.
 pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
@@ -782,7 +793,7 @@ pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
         g.installed = false;
         g.playtime_minutes = t.minutes;
         g.last_played = last;
-        g.art.cover.extend(t.image.clone());
+        g.art.cover.extend(t.image.as_deref().map(cover_url));
         g.achievements = t.achievements.clone();
         games.push(g);
     }
@@ -805,12 +816,16 @@ fn parse_iso(s: &str) -> Option<i64> {
     Some((era * 146097 + doe - 719468) * 86400 + h * 3600 + min * 60 + sec)
 }
 
+/// Steam came out in 2003. For games last played before it kept track it answers with a date
+/// next to 1970, which only means it doesn't know.
+const STEAM_BEGAN: i64 = 1_063_000_000;
+
 /// Folds account data into a scan: better playtime for installed games, and entries
 /// for the rest that open Steam's install dialog.
 pub fn merge_steam(games: &mut Vec<Game>, owned: &[OwnedSteam]) {
     for o in owned {
         let id = format!("steam:{}", o.appid);
-        let last = (o.last_played > 0).then_some(o.last_played);
+        let last = (o.last_played > STEAM_BEGAN).then_some(o.last_played);
         if let Some(g) = games.iter_mut().find(|g| g.id == id) {
             g.playtime_minutes = g.playtime_minutes.max(o.minutes);
             g.last_played = g.last_played.max(last);
@@ -831,6 +846,24 @@ pub fn merge_steam(games: &mut Vec<Game>, owned: &[OwnedSteam]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn asks_for_covers_over_https_at_their_size() {
+        assert_eq!(cover_url("http://store-images.s-microsoft.com/image/apps.1.2"), "https://store-images.s-microsoft.com/image/apps.1.2?w=600");
+        assert_eq!(cover_url("https://store-images.microsoft.com/image/apps.1.2"), "https://store-images.microsoft.com/image/apps.1.2?w=600");
+        assert_eq!(cover_url("http://images-eds.xboxlive.com/image?url=abc"), "https://images-eds.xboxlive.com/image?url=abc");
+    }
+
+    #[test]
+    fn takes_steams_dates_near_1970_as_unknown() {
+        let owned = |last_played| OwnedSteam { appid: 400, name: "Portal".into(), minutes: 22, last_played, achievements: None };
+        let mut games = Vec::new();
+        merge_steam(&mut games, &[owned(86400)]);
+        assert_eq!(games[0].last_played, None);
+        let mut games = Vec::new();
+        merge_steam(&mut games, &[owned(1_700_000_000)]);
+        assert_eq!(games[0].last_played, Some(1_700_000_000));
+    }
 
     #[test]
     fn parses_xbox_dates() {

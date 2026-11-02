@@ -10,9 +10,9 @@ TV PC.
 
 ![Home](docs/screens/home.jpg)
 
-| Library | Game details |
-| --- | --- |
-| ![Library](docs/screens/library.jpg) | ![Details](docs/screens/details.jpg) |
+| Library | Stores | Game details |
+| --- | --- | --- |
+| ![Library](docs/screens/library.jpg) | ![Stores](docs/screens/store.jpg) | ![Details](docs/screens/details.jpg) |
 
 ## Features
 
@@ -23,8 +23,15 @@ TV PC.
   games, restarts or powers off the device.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts
   connected, brings in playtime from Steam and Xbox across all your devices.
-- **Your whole collection.** Sign in to Steam or Xbox to also see the games you own but
-  haven't installed. Picking one opens its install page in Steam or the Xbox app.
+- **Browse the stores.** The Xbox and Steam tabs hold your games, the PC Game Pass catalog
+  and each store's lists, by genre, with shelves that open into full grids. Search reaches
+  both stores too. Sign in to see your Steam games and the Xbox games you've played, installed
+  or not. Buying happens in the store itself.
+- **Install from the couch.** Game Pass games and anything else on your Microsoft account
+  install right in Mantel through Windows' own installer, with a list of editions showing
+  what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the
+  home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
+- **In your language.** English, French, German, Spanish and Russian.
 - **Achievements.** With an account connected, every Steam and Xbox game shows its
   progress, and its page lists each achievement with rarity and gamerscore.
 - **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it.
@@ -74,6 +81,11 @@ Mantel has no servers and sends no telemetry. It talks only to the services you 
   with the same short-lived token the Steam store page uses.
 - **Xbox.** You sign in on Microsoft's own page and allow Mantel to read your Xbox profile.
   Mantel reads your play history, minutes played and achievements from Xbox Live.
+- **Store catalogs.** Microsoft's public Game Pass and Store catalogs and Steam's store, for
+  the lists to browse and for search, which sends them what you type. No account is involved
+  in reading them.
+- **Installing.** Store installs go through Windows' own installer, under the Microsoft
+  account signed in to Windows; Steam installs go through the Steam client.
 - **Artwork and trailers.** Steam's store, image and video servers, GOG's public API and,
   if you add a key, SteamGridDB.
 
@@ -88,9 +100,9 @@ user (DPAPI); `cache.json` can be deleted at any time. Settings → Accounts sig
 | A | Play |
 | B | Back |
 | Y | Game details |
-| X | Favorite |
-| LB / RB | Games ↔ Library ↔ Settings |
-| LT / RT | Library filters |
+| X | Favorite; on the Xbox and Steam tabs, switches between Game Pass, My games and Store |
+| LB / RB | Games ↔ Library ↔ Xbox ↔ Steam ↔ Settings |
+| LT / RT | Filters |
 | View (⧉) | Search |
 | Menu (≡) | Control center: volume, brightness, close game, restart, power off, desktop |
 

@@ -1,5 +1,6 @@
 import { animate, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
 import { gameById, sourceLabel, useStore } from "../store";
@@ -7,11 +8,14 @@ import { placeholderHue } from "../util";
 import { Img } from "./Img";
 import { useHints } from "./Hints";
 
+/** How long after Mantel gets the screen back it keeps waiting for the game, in ms. */
+const GIVE_UP = 4000;
+
 const TEXT = {
-  starting: (src: string) => ["Starting", `via ${src}`],
-  started: () => ["Enjoy", "Mantel will wait in the background"],
-  timeout: (src: string) => [`Handed off to ${src}`, "If the game opened, you’re all set"],
-  error: () => ["Couldn’t launch", ""],
+  starting: (src: string) => [t("Starting"), t("via {store}", { store: src })],
+  started: () => [t("Enjoy"), t("Mantel will wait in the background")],
+  timeout: (src: string) => [t("Handed off to {store}", { store: src }), t("If the game opened, you’re all set")],
+  error: () => [t("Couldn’t launch"), ""],
 };
 
 /** The cover lifts out of the shelf, flies to centre stage, and a shockwave rings out. */
@@ -19,12 +23,38 @@ export function LaunchOverlay() {
   const launching = useStore((s) => s.launching);
   const game = gameById(launching?.id ?? null);
   const card = useRef<HTMLDivElement>(null);
-  const close = () => useStore.setState({ launching: null });
+  // A game not seen yet doesn't count as running once nobody's waiting for it; "game-started"
+  // still picks it up if it comes after all.
+  const close = () => useStore.setState((s) => ({ launching: null, running: s.running?.detected ? s.running : null }));
 
   useInput(() => {
     close();
   }, Layer.modal, !!launching);
   useHints([["b", "Dismiss"]], Layer.modal, !!launching);
+
+  // Something came up over Mantel and went away, and still no game: a license prompt, say, or a
+  // launcher's dialog. There's nothing more to wait for.
+  const id = launching?.id;
+  const starting = launching?.phase === "starting";
+  useEffect(() => {
+    if (!id || !starting) return;
+    let left = false;
+    let timer = 0;
+    const onBlur = () => {
+      left = true;
+      clearTimeout(timer);
+    };
+    const onFocus = () => {
+      if (left) timer = window.setTimeout(() => useStore.setState((s) => ({ launching: { id, phase: "timeout" }, running: s.running?.detected ? s.running : null })), GIVE_UP);
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [id, starting]);
 
   useEffect(() => {
     if (!launching || launching.phase === "starting") return;

@@ -1,8 +1,10 @@
 import { useEffect, useId } from "react";
 import { create } from "zustand";
+import { t } from "../i18n";
 import { Glyph, type Button } from "./Glyph";
 
-export type Hint = [Button, string];
+/** A button, or a pair that do the same thing in opposite directions. */
+export type Hint = [Button | [Button, Button], string];
 
 const useHintStore = create<{ stacks: Record<string, { priority: number; items: Hint[] }> }>(() => ({ stacks: {} }));
 
@@ -29,9 +31,9 @@ export function HintBar() {
   return (
     <div className="hintbar" key={JSON.stringify(top.items)}>
       {top.items.map(([b, label]) => (
-        <span className="hint" key={b + label}>
-          <Glyph b={b} />
-          {label}
+        <span className="hint" key={String(b) + label}>
+          {(Array.isArray(b) ? b : [b]).map((one) => <Glyph key={one} b={one} />)}
+          {t(label)}
         </span>
       ))}
     </div>

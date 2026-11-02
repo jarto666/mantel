@@ -7,7 +7,8 @@ import { KeyFlow } from "../components/KeyFlow";
 import { AccountFlow } from "../components/AccountFlow";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
-import { installUpdate, rescan, saveSettings, setHidden, toast, useStore } from "../store";
+import { errorText, LANGUAGES, t } from "../i18n";
+import { checkForUpdateNow, installUpdate, loadCatalog, rescan, saveSettings, setHidden, toast, useStore } from "../store";
 import { sound } from "../sound";
 import type { AccountsStatus, Settings as S, Source } from "../types";
 
@@ -59,15 +60,20 @@ const SOURCES: [Exclude<Source, "custom">, string][] = [
   ["ubisoft", "Ubisoft Connect"],
 ];
 
+/** Where the player was: a new language remounts the interface, and they should stay put. */
+const place = { category: "library" as Category, zone: "categories" as "categories" | "rows", index: 0 };
+
 export function Settings({ active }: { active: boolean }) {
   const settings = useStore((s) => s.settings);
   const games = useStore((s) => s.games);
   const scanning = useStore((s) => s.scanning);
   const version = useStore((s) => s.version);
   const update = useStore((s) => s.update);
-  const [category, setCategory] = useState<Category>("library");
-  const [zone, setZone] = useState<"categories" | "rows">("categories");
-  const [index, setIndex] = useState(0);
+  const checkingUpdate = useStore((s) => s.checkingUpdate);
+  const [category, setCategory] = useState<Category>(place.category);
+  const [zone, setZone] = useState<"categories" | "rows">(place.zone);
+  const [index, setIndex] = useState(place.index);
+  useEffect(() => void Object.assign(place, { category, zone, index }), [category, zone, index]);
   const [autostart, setAutostart] = useState(false);
   const [flow, setFlow] = useState<Flow>(null);
   const [accounts, setAccounts] = useState<AccountsStatus | null>(null);
@@ -78,6 +84,14 @@ export function Settings({ active }: { active: boolean }) {
     api.getAutostart().then(setAutostart).catch(() => {});
     api.accountsStatus().then(setAccounts).catch(() => {});
   }, []);
+
+  const signInAsk = useStore((s) => s.signInAsk);
+  useEffect(() => {
+    if (!signInAsk) return;
+    setCategory("accounts");
+    setFlow(signInAsk);
+    useStore.setState({ signInAsk: null });
+  }, [signInAsk]);
 
   // Again on every visit: the home app is picked in Windows' own Settings.
   useEffect(() => {
@@ -99,24 +113,24 @@ export function Settings({ active }: { active: boolean }) {
     {
       kind: "button",
       id: "rescan",
-      label: scanning ? "Scanning…" : "Refresh library",
-      sub: "Look for new installs across all launchers",
+      label: scanning ? t("Scanning…") : t("Refresh library"),
+      sub: t("Look for new installs across all launchers"),
       run: () => rescan(),
     },
     {
       kind: "button",
       id: "add",
-      label: "Add a game manually",
-      sub: "Any .exe, shortcut or .url: games outside a store, emulators, Battle.net, EA app",
+      label: t("Add a game manually"),
+      sub: t("Any .exe, shortcut or .url: games outside a store, emulators, Battle.net, EA app"),
       run: () => setFlow("add"),
     },
-    { kind: "group", label: "Stores on this PC" },
+    { kind: "group", label: t("Stores on this PC") },
     ...SOURCES.map(
       ([id, label]): Row => ({
         kind: "toggle",
         id: `src-${id}`,
         label,
-        sub: `Show games installed with ${label}`,
+        sub: t("Show games installed with {store}", { store: label }),
         icon: id,
         value: settings.sources[id],
         set: (v) => {
@@ -126,9 +140,9 @@ export function Settings({ active }: { active: boolean }) {
     ),
     ...(hidden.length
       ? [
-          { kind: "group", label: `Hidden games · ${hidden.length}` } as Row,
+          { kind: "group", label: t("Hidden games · {n}", { n: hidden.length }) } as Row,
           ...hidden.map(
-            (g): Row => ({ kind: "button", id: `hidden-${g.id}`, label: g.name, value: "Unhide", run: () => setHidden(g, false) }),
+            (g): Row => ({ kind: "button", id: `hidden-${g.id}`, label: g.name, value: t("Unhide"), run: () => setHidden(g, false) }),
           ),
         ]
       : []),
@@ -141,9 +155,15 @@ export function Settings({ active }: { active: boolean }) {
       icon: "steam",
       label: "Steam",
       sub: steam?.connected
-        ? `${steam.owned} games on ${steam.user ?? "your account"}, playtime from every device`
-        : "Sign in to see every game you own and playtime from all your devices",
-      value: steam?.connected ? "Connected" : "Sign in",
+        ? steam.user
+          ? steam.owned === 1
+            ? t("1 game on {user}, playtime from every device", { user: steam.user })
+            : t("{n} games on {user}, playtime from every device", { n: steam.owned, user: steam.user })
+          : steam.owned === 1
+            ? t("1 game on your account, playtime from every device")
+            : t("{n} games on your account, playtime from every device", { n: steam.owned })
+        : t("Sign in to see every game you own and playtime from all your devices"),
+      value: steam?.connected ? t("Connected") : t("Sign in"),
       run: () => setFlow("steam"),
     },
     {
@@ -152,40 +172,58 @@ export function Settings({ active }: { active: boolean }) {
       icon: "xbox",
       label: "Xbox",
       sub: accounts?.xboxGamertag
-        ? `Signed in as ${accounts.xboxGamertag}: play history and minutes played`
-        : "Play history and minutes played across your Xbox PC games",
-      value: accounts?.xboxGamertag ? "Connected" : "Sign in",
+        ? t("Signed in as {gamertag}: play history and minutes played", { gamertag: accounts.xboxGamertag })
+        : t("Play history and minutes played across your Xbox PC games"),
+      value: accounts?.xboxGamertag ? t("Connected") : t("Sign in"),
       run: () => setFlow("xbox"),
     },
-    { kind: "group", label: "Artwork" },
+    { kind: "group", label: t("Artwork") },
     {
       kind: "button",
       id: "sgdb",
       icon: "art",
       label: "SteamGridDB",
-      sub: "Covers, backgrounds and logos for games Steam doesn't know: Epic exclusives, emulators, your own",
-      value: settings.steamgriddbKey ? "Connected" : "Connect",
+      sub: t("Art for games Steam doesn't know, and more covers, backgrounds and logos to pick from on any game's page"),
+      value: settings.steamgriddbKey ? t("Connected") : t("Connect"),
       run: () => setFlow("sgdb"),
     },
-    { kind: "group", label: "More stores" },
+    { kind: "group", label: t("More stores") },
     ...MORE_STORES.map(
-      ([id, label, icon]): Row => ({ kind: "button", id: `acc-${id}`, icon, label, value: "Coming soon", soon: true, run: () => toast(`${label} accounts are coming later`) }),
+      ([id, label, icon]): Row => ({ kind: "button", id: `acc-${id}`, icon, label, value: t("Coming soon"), soon: true, run: () => toast(t("{store} accounts are coming later", { store: label })) }),
     ),
   ];
 
+  const languageAt = Math.max(0, LANGUAGES.findIndex((l) => l.id === settings.language));
   const interfaceRows: Row[] = [
+    {
+      kind: "button",
+      id: "language",
+      label: t("Language"),
+      sub: t("System follows the language of Windows"),
+      value: t(LANGUAGES[languageAt].label),
+      // Cycles, like a console's option row.
+      run: () => patch({ language: LANGUAGES[(languageAt + 1) % LANGUAGES.length].id }),
+    },
     {
       kind: "toggle",
       id: "trailers",
-      label: "Trailers",
-      sub: "Play a muted trailer behind the game you stop on",
+      label: t("Trailers"),
+      sub: t("Play a muted trailer behind the game you stop on"),
       value: settings.trailers,
       set: (v) => patch({ trailers: v }),
     },
     {
       kind: "toggle",
+      id: "gamepass",
+      label: t("Game Pass catalog"),
+      sub: t("Browse the PC Game Pass catalog and install from it"),
+      value: settings.gamePass,
+      set: (v) => patch({ gamePass: v }).then(loadCatalog),
+    },
+    {
+      kind: "toggle",
       id: "sounds",
-      label: "Interface sounds",
+      label: t("Interface sounds"),
       value: settings.sounds,
       set: (v) => patch({ sounds: v }),
     },
@@ -197,49 +235,58 @@ export function Settings({ active }: { active: boolean }) {
           {
             kind: "button",
             id: "update",
-            label: `Update to Mantel ${update}`,
-            sub: "Installs in under a minute and restarts Mantel",
-            value: "Install",
+            label: t("Update to Mantel {version}", { version: update }),
+            sub: t("Installs in under a minute and restarts Mantel"),
+            value: t("Install"),
             run: () => void installUpdate(),
           },
         ] as Row[])
-      : []),
+      : ([
+          {
+            kind: "button",
+            id: "check-update",
+            label: t("Check for updates"),
+            sub: `Mantel ${version}`,
+            value: checkingUpdate ? t("Checking…") : t("Check"),
+            run: () => void checkForUpdateNow(),
+          },
+        ] as Row[])),
     {
       kind: "toggle",
       id: "autostart",
-      label: "Start with Windows",
-      sub: "Boot straight into Mantel, like a console",
+      label: t("Start with Windows"),
+      sub: t("Boot straight into Mantel, like a console"),
       value: autostart,
       set: (v) => {
         setAutostart(v);
-        api.setAutostart(v).catch((e) => toast(String(e), "warn"));
+        api.setAutostart(v).catch((e) => toast(errorText(e), "warn"));
       },
     },
     {
       kind: "toggle",
       id: "minimize",
-      label: "Minimize while playing",
-      sub: "Mantel steps aside during a game and comes back when it closes",
+      label: t("Minimize while playing"),
+      sub: t("Mantel steps aside during a game and comes back when it closes"),
       value: settings.minimizeOnLaunch,
       set: (v) => patch({ minimizeOnLaunch: v }),
     },
     ...(mode?.supported
       ? ([
-          { kind: "group", label: "Xbox mode" },
+          { kind: "group", label: t("Xbox mode") },
           {
             kind: "button",
             id: "home-app",
-            label: "Home app",
+            label: t("Home app"),
             sub: mode.home
-              ? "Xbox mode starts in Mantel, and Home in Game Bar comes back to it"
+              ? t("Xbox mode starts in Mantel, and Home in Game Bar comes back to it")
               : mode.offered
-                ? "Pick Mantel under Home app in Windows Settings to start Xbox mode in Mantel"
-                : "Turn on Developer Mode in Windows, then reinstall Mantel, to start Xbox mode in Mantel",
-            value: mode.home ? "Mantel" : mode.offered ? "Choose" : "Unavailable",
+                ? t("Pick Mantel under Home app in Windows Settings to start Xbox mode in Mantel")
+                : t("Turn on Developer Mode in Windows, then reinstall Mantel, to start Xbox mode in Mantel"),
+            value: mode.home ? "Mantel" : mode.offered ? t("Choose") : t("Unavailable"),
             run: () =>
               mode.offered
-                ? void api.powerAction("home-app-settings").catch((e) => toast(String(e), "warn"))
-                : toast("Windows offers Mantel as the home app only in Developer Mode for now", "warn"),
+                ? void api.powerAction("home-app-settings").catch((e) => toast(errorText(e), "warn"))
+                : toast(t("Windows offers Mantel as the home app only in Developer Mode for now"), "warn"),
           },
         ] as Row[])
       : []),
@@ -285,7 +332,7 @@ export function Settings({ active }: { active: boolean }) {
       onActivate={() => activate(rows[i])}
     >
       <main className={`settings zone-${zone}`}>
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">{t("Settings")}</h1>
         <div className="settings-body">
           <nav className="settings-cats">
             {CATEGORIES.map(([id, label, icon]) => (
@@ -300,7 +347,7 @@ export function Settings({ active }: { active: boolean }) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   {icon}
                 </svg>
-                {label}
+                {t(label)}
                 {id === "system" && update && <span className="settings-badge" />}
               </button>
             ))}
@@ -341,14 +388,14 @@ export function Settings({ active }: { active: boolean }) {
           <AccountFlow
             copy={{
               service: "Steam",
-              connectedAs: steam?.connected ? steam.user ?? "Steam account" : null,
-              status: steam?.connected ? `Connected · ${steam.owned} games` : "Not signed in",
+              connectedAs: steam?.connected ? steam.user ?? t("Steam account") : null,
+              status: steam?.connected ? (steam.owned === 1 ? t("Connected · 1 game") : t("Connected · {n} games", { n: steam.owned })) : t("Not signed in"),
               intro: {
-                connected: "Mantel sees every game you own and your playtime from all devices. Games you haven't installed are under Library → Not installed.",
-                signedOut: "Adds every game you own, installed or not, and playtime from all your devices. You sign in on Steam's own page: Mantel never sees your password, and email Steam Guard codes work.",
+                connected: t("Mantel sees every game you own and your playtime from all devices. Games you haven't installed are under Library → Not installed."),
+                signedOut: t("Adds every game you own, installed or not, and playtime from all your devices. You sign in on Steam's own page: Mantel never sees your password, and email Steam Guard codes work."),
               },
-              steps: ["A Steam window opens above Mantel", "Sign in and enter the code Steam emails you", "The window closes by itself when you're in"],
-              signInLabel: "Sign in with Steam",
+              steps: [t("A Steam window opens above Mantel"), t("Sign in and enter the code Steam emails you"), t("The window closes by itself when you're in")],
+              signInLabel: t("Sign in with Steam"),
               signIn: api.steamSignIn,
               disconnect: "steam",
             }}
@@ -361,13 +408,13 @@ export function Settings({ active }: { active: boolean }) {
             copy={{
               service: "Xbox",
               connectedAs: accounts?.xboxGamertag ?? null,
-              status: accounts?.xboxGamertag ? `Signed in as ${accounts.xboxGamertag}` : "Not signed in",
+              status: accounts?.xboxGamertag ? t("Signed in as {gamertag}", { gamertag: accounts.xboxGamertag }) : t("Not signed in"),
               intro: {
-                connected: "Mantel sees your Xbox play history and minutes played. PC games you've played but haven't installed are under Library → Not installed.",
-                signedOut: "Brings in your Xbox play history and minutes played, and lists PC games you've played but haven't installed. You sign in on Microsoft's own page: Mantel never sees your password.",
+                connected: t("Mantel sees your Xbox play history and minutes played. PC games you've played but haven't installed are under Library → Not installed."),
+                signedOut: t("Brings in your Xbox play history and minutes played, and lists PC games you've played but haven't installed. You sign in on Microsoft's own page: Mantel never sees your password."),
               },
-              steps: ["A Microsoft window opens above Mantel", "Sign in and allow Mantel to see your Xbox profile", "The window closes by itself when you're in"],
-              signInLabel: "Sign in with Microsoft",
+              steps: [t("A Microsoft window opens above Mantel"), t("Sign in and allow Mantel to see your Xbox profile"), t("The window closes by itself when you're in")],
+              signInLabel: t("Sign in with Microsoft"),
               signIn: api.xboxSignIn,
               disconnect: "xbox",
             }}
@@ -378,15 +425,15 @@ export function Settings({ active }: { active: boolean }) {
         {flow === "sgdb" && (
           <KeyFlow
             service="SteamGridDB"
-            title="Better artwork"
-            intro="A free community library of covers, backgrounds and logos. Mantel uses it for games Steam doesn't have."
-            howTo={["Open SteamGridDB and log in with Steam", "Preferences → API → Generate API key", "Copy it, come back here and paste it"]}
+            title={t("Better artwork")}
+            intro={t("A free community library of covers, backgrounds and logos. Mantel uses it for games Steam doesn't have.")}
+            howTo={[t("Open SteamGridDB and log in with Steam"), t("Preferences → API → Generate API key"), t("Copy it, come back here and paste it")]}
             url="https://www.steamgriddb.com/profile/preferences/api"
             site="steamgriddb.com"
             connected={!!settings.steamgriddbKey}
-            status={settings.steamgriddbKey ? `Connected · key ••••${settings.steamgriddbKey.slice(-4)}` : undefined}
+            status={settings.steamgriddbKey ? t("Connected · key ••••{last4}", { last4: settings.steamgriddbKey.slice(-4) }) : undefined}
             onSubmit={async (key) => {
-              if (!/^[0-9a-f]{32}$/i.test(key)) throw "That doesn't look like a SteamGridDB key (32 letters and digits).";
+              if (!/^[0-9a-f]{32}$/i.test(key)) throw t("That doesn't look like a SteamGridDB key (32 letters and digits).");
               await patch({ steamgriddbKey: key });
               rescan(true);
             }}
