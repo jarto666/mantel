@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { api } from "../api";
+import { errorText, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { toast } from "../store";
@@ -52,15 +53,15 @@ export function KeyFlow({
   const [typing, setTyping] = useState(false);
 
   const submit = async (key: string) => {
-    if (!key.trim()) return setError("The clipboard is empty. Copy the key first.");
+    if (!key.trim()) return setError(t("The clipboard is empty. Copy the key first."));
     setBusy(true);
     setError(null);
     try {
       await onSubmit(key.trim());
-      toast(`${service} connected`, "good");
+      toast(t("{service} connected", { service }), "good");
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -69,24 +70,24 @@ export function KeyFlow({
   const run = async (step: Step) => {
     if (busy) return;
     if (step === "open") {
-      await api.openUrl(url).catch((e) => setError(String(e)));
-      toast(`Opened ${site} in the browser. Copy the key there, then come back.`);
+      await api.openUrl(url).catch((e) => setError(errorText(e)));
+      toast(t("Opened {site} in the browser. Copy the key there, then come back.", { site }));
     } else if (step === "paste") {
       submit(await api.readClipboard().catch(() => ""));
     } else if (step === "type") {
       setTyping(true);
     } else if (step === "disconnect" && onDisconnect) {
       await onDisconnect();
-      toast(`${service} disconnected`);
+      toast(t("{service} disconnected", { service }));
       onClose();
     }
   };
 
   const label: Record<Step, string> = {
-    open: `Open ${site}`,
-    paste: busy ? "Checking the key…" : "Paste key from clipboard",
-    type: "Type the key",
-    disconnect: `Disconnect ${service}`,
+    open: t("Open {site}", { site }),
+    paste: busy ? t("Checking the key…") : t("Paste key from clipboard"),
+    type: t("Type the key"),
+    disconnect: t("Disconnect {service}", { service }),
   };
 
   useInput(
@@ -137,8 +138,8 @@ export function KeyFlow({
       </motion.div>
       {typing && (
         <TextPrompt
-          title={`${service} key`}
-          hint="Type or paste with Ctrl+V."
+          title={t("{service} key", { service })}
+          hint={t("Type or paste with Ctrl+V.")}
           initial=""
           onDone={(v) => {
             setTyping(false);

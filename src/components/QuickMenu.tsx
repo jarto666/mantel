@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { errorText, locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { closeRunning, gameById, rescan, toast, useStore } from "../store";
+import { installLabel } from "../util";
+import { DOWNLOAD } from "./Glyph";
 import type { Power, Quick } from "../types";
 import { useHints } from "./Hints";
 import { Battery, timeText, useClock } from "./TopBar";
@@ -29,6 +32,7 @@ export const GEAR = (
 
 const ICONS: Record<string, React.ReactNode> = {
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  install: DOWNLOAD,
   rescan: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />,
   search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>,
   settings: GEAR,
@@ -60,7 +64,7 @@ function WifiStatus({ wifi }: { wifi: NonNullable<Quick["wifi"]> }) {
         {arcs.map((d, n) => <path key={d} d={d} className={n < bars ? "" : "off"} />)}
         <circle cx="12" cy="18.6" r="1.1" fill="currentColor" className={wifi.connected ? "" : "off"} />
       </svg>
-      {wifi.connected ? wifi.name ?? "Connected" : "Not connected"}
+      {wifi.connected ? wifi.name ?? t("Connected") : t("Not connected")}
     </span>
   );
 }
@@ -80,7 +84,7 @@ function useLatest(send: (v: number) => Promise<void>) {
       while (next.current !== null) {
         const v = next.current;
         next.current = null;
-        await send(v).catch((e) => toast(String(e), "warn"));
+        await send(v).catch((e) => toast(errorText(e), "warn"));
       }
       busy.current = false;
     })();
@@ -127,7 +131,7 @@ function SliderRow({
           <span className="cc-fill" style={{ width: `${value}%` }} />
         </span>
       </span>
-      <span className="cc-slider-value">{muted ? "Muted" : value}</span>
+      <span className="cc-slider-value">{muted ? t("Muted") : value}</span>
     </div>
   );
 }
@@ -136,6 +140,7 @@ function SliderRow({
 export function QuickMenu() {
   const open = useStore((s) => s.overlay === "menu");
   const running = useStore((s) => s.running);
+  const install = useStore((s) => Object.values(s.installs)[0]);
   const now = useClock();
   const [index, setIndex] = useState(0);
   const [zone, setZone] = useState<Slider | "actions">("actions");
@@ -181,20 +186,21 @@ export function QuickMenu() {
   const toggleMute = () => {
     if (!quick) return;
     setQuick({ ...quick, muted: !quick.muted });
-    api.setMuted(!quick.muted).catch((e) => toast(String(e), "warn"));
+    api.setMuted(!quick.muted).catch((e) => toast(errorText(e), "warn"));
   };
 
   const game = gameById(running?.id ?? null);
   const items: Item[] = [
-    ...(game ? [{ id: "close", label: "Close game", danger: true, confirm: true, run: () => closeRunning() }] : []),
-    { id: "search", label: "Search", run: () => useStore.setState({ overlay: "search" }) },
-    { id: "rescan", label: "Refresh library", run: () => rescan() },
-    { id: "settings", label: "Settings", run: () => useStore.setState({ view: "settings", detailsId: null }) },
-    ...(canEnterFullScreen ? [{ id: "fullscreen", label: "Full screen mode", run: () => api.powerAction("fullscreen") }] : []),
-    { id: "desktop", label: "Desktop", run: () => api.powerAction("desktop") },
-    { id: "restart", label: "Restart", confirm: true, run: () => api.powerAction("restart") },
-    { id: "shutdown", label: "Power off", confirm: true, danger: true, run: () => api.powerAction("shutdown") },
-    { id: "quit", label: "Quit Mantel", confirm: true, run: () => api.powerAction("quit") },
+    ...(game ? [{ id: "close", label: t("Close game"), danger: true, confirm: true, run: () => closeRunning() }] : []),
+    ...(install ? [{ id: "install", label: installLabel(install), run: () => useStore.setState({ detailsId: install.id }) }] : []),
+    { id: "search", label: t("Search"), run: () => useStore.setState({ overlay: "search" }) },
+    { id: "rescan", label: t("Refresh library"), run: () => rescan() },
+    { id: "settings", label: t("Settings"), run: () => useStore.setState({ view: "settings", detailsId: null }) },
+    ...(canEnterFullScreen ? [{ id: "fullscreen", label: t("Full screen mode"), run: () => api.powerAction("fullscreen") }] : []),
+    { id: "desktop", label: t("Desktop"), run: () => api.powerAction("desktop") },
+    { id: "restart", label: t("Restart"), confirm: true, run: () => api.powerAction("restart") },
+    { id: "shutdown", label: t("Power off"), confirm: true, danger: true, run: () => api.powerAction("shutdown") },
+    { id: "quit", label: t("Quit Mantel"), confirm: true, run: () => api.powerAction("quit") },
   ];
   const i = Math.min(index, items.length - 1);
   // The zone can outlive its slider, e.g. when the output device goes away.
@@ -275,10 +281,10 @@ export function QuickMenu() {
               <>
                 <span className="live-dot" />
                 <span>{game.name}</span>
-                <span className="cc-dim">{minutes} min this session</span>
+                <span className="cc-dim">{t("{n} min this session", { n: minutes })}</span>
               </>
             ) : (
-              <span className="cc-dim">Control Center</span>
+              <span className="cc-dim">{t("Control Center")}</span>
             )}
           </div>
           <div className="cc-status">
@@ -286,11 +292,11 @@ export function QuickMenu() {
             {power?.hasBattery && (
               <span className="cc-chip">
                 <Battery power={power} />
-                {power.charging && <span className="cc-dim">Charging</span>}
+                {power.charging && <span className="cc-dim">{t("Charging")}</span>}
               </span>
             )}
             <div className="cc-time">
-              {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              {now.toLocaleDateString(locale(), { weekday: "long", month: "long", day: "numeric" })}
               <span>{timeText(now)}</span>
             </div>
           </div>
@@ -301,7 +307,7 @@ export function QuickMenu() {
               <SliderRow
                 key={s}
                 id={s}
-                label={s === "volume" ? "Volume" : "Brightness"}
+                label={s === "volume" ? t("Volume") : t("Brightness")}
                 value={(s === "volume" ? quick.volume : quick.brightness) ?? 0}
                 muted={s === "volume" && quick.muted}
                 focused={at === s}
@@ -323,7 +329,7 @@ export function QuickMenu() {
               }}
             >
               <span className="cc-icon"><Icon id={item.id} /></span>
-              <span className="cc-label">{armed === item.id ? "Press A again" : item.label}</span>
+              <span className="cc-label">{armed === item.id ? t("Press A again") : item.label}</span>
             </button>
           ))}
         </div>

@@ -1,6 +1,9 @@
 import { siEpicgames, siGogdotcom, siSteam, siUbisoft } from "simple-icons";
 import type { Source } from "../types";
 
+/** Goes in a stroked 24-unit svg. */
+export const DOWNLOAD = <path d="M12 3.5v12M6.75 10.25 12 15.5l5.25-5.25M4.5 20.5h15" />;
+
 export type Button = "a" | "b" | "x" | "y" | "lb" | "rb" | "lt" | "rt" | "menu" | "view" | "dpad" | "stick";
 
 /** Controller face buttons in the dark-cap, coloured-letter style of modern pads. */
@@ -48,8 +51,8 @@ export function SourceIcon({ source }: { source: Source }) {
       {brand ? (
         <path d={brand.path} />
       ) : source === "xbox" ? (
-        // A generic pad: Microsoft's mark isn't in the icon set.
-        <path d="M7 7h10a5 5 0 0 1 4.9 6l-.8 4a2.5 2.5 0 0 1-4.3 1.1L14.6 16H9.4l-2.2 2.1A2.5 2.5 0 0 1 2.9 17l-.8-4A5 5 0 0 1 7 7Zm.5 3v1.5H6v1h1.5V14h1v-1.5H10v-1H8.5V10h-1Zm8.75.25a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Zm-1.9 1.9a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Z" />
+        // Not in the icon set, which dropped Microsoft's marks.
+        <path d="M4.102 21.033C6.211 22.881 8.977 24 12 24c3.026 0 5.789-1.119 7.902-2.967 1.877-1.912-4.316-8.709-7.902-11.417-3.582 2.708-9.779 9.505-7.898 11.417zm11.16-14.406c2.5 2.961 7.484 10.313 6.076 12.912C23.002 17.48 24 14.861 24 12.004c0-3.34-1.365-6.362-3.57-8.536 0 0-.027-.022-.082-.042-.063-.022-.152-.045-.281-.045-.592 0-1.985.434-4.805 3.246zM3.654 3.426c-.057.02-.082.041-.086.042C1.365 5.642 0 8.664 0 12.004c0 2.854.998 5.473 2.661 7.533-1.401-2.605 3.579-9.951 6.08-12.91-2.82-2.813-4.216-3.245-4.806-3.245-.131 0-.223.021-.281.046v-.002zM12 3.551S9.055 1.828 6.755 1.746c-.903-.033-1.454.295-1.521.339C7.379.646 9.659 0 11.984 0H12c2.334 0 4.605.646 6.766 2.085-.068-.046-.615-.372-1.52-.339C14.946 1.828 12 3.545 12 3.545v.006z" />
       ) : (
         <path d="M12 2.5l2.6 6.1 6.6.6-5 4.4 1.5 6.5L12 16.7l-5.7 3.4 1.5-6.5-5-4.4 6.6-.6z" />
       )}

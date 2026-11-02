@@ -1,5 +1,6 @@
 import { toSrc } from "./api";
-import type { Game, Source } from "./types";
+import { locale, t } from "./i18n";
+import type { Game, InstallProgress, Source } from "./types";
 
 export const SOURCE_NAME: Record<Source, string> = {
   steam: "Steam",
@@ -11,37 +12,69 @@ export const SOURCE_NAME: Record<Source, string> = {
 };
 
 export function playtime(minutes: number): string {
-  if (minutes <= 0) return "Not played yet";
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes <= 0) return t("Not played yet");
+  if (minutes < 60) return t("{n} min", { n: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return h >= 100 || !m ? `${h} h` : `${h} h ${m} min`;
+  return h >= 100 || !m ? t("{h} h", { h }) : t("{h} h {m} min", { h, m });
 }
 
 /** Hours with one decimal, for big stat numerals. */
 export function hours(minutes: number): string {
   if (minutes < 60) return `${minutes}`;
-  return `${Math.round(minutes / 6) / 10}`;
+  return (Math.round(minutes / 6) / 10).toLocaleString(locale());
 }
 
-export function lastPlayed(ts?: number | null): string {
-  if (!ts) return "Never";
+/** `played` tells a game with no date on record from one that was never started. */
+export function lastPlayed(ts?: number | null, played = false): string {
+  if (!ts) return played ? "—" : t("Never");
   const days = Math.floor((Date.now() / 1000 - ts) / 86400);
   const sameDay = new Date(ts * 1000).toDateString() === new Date().toDateString();
-  if (sameDay) return "Today";
-  if (days <= 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
+  if (sameDay) return t("Today");
+  if (days <= 1) return t("Yesterday");
+  if (days < 7) return t("{days} days ago", { days });
   if (days < 30) {
     const w = Math.floor(days / 7);
-    return w === 1 ? "Last week" : `${w} weeks ago`;
+    return w === 1 ? t("Last week") : t("{w} weeks ago", { w });
   }
-  return new Date(ts * 1000).toLocaleDateString("en-US", { day: "numeric", month: "short", year: days > 330 ? "numeric" : undefined });
+  return new Date(ts * 1000).toLocaleDateString(locale(), { day: "numeric", month: "short", year: days > 330 ? "numeric" : undefined });
 }
 
 export function size(bytes?: number | null): string {
   if (!bytes) return "—";
   const gb = bytes / 1024 ** 3;
-  return gb >= 1 ? `${gb.toFixed(gb >= 100 ? 0 : 1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
+  const digits = gb >= 100 ? 0 : 1;
+  const n = gb.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return gb >= 1 ? t("{n} GB", { n }) : t("{n} MB", { n: Math.round(bytes / 1024 ** 2) });
+}
+
+export function speedText(bytesPerSecond: number): string {
+  return t("{n} MB/s", { n: (bytesPerSecond / 1024 ** 2).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
+}
+
+export function timeLeft(seconds: number): string {
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes <= 1) return t("Less than a minute left");
+  const h = Math.floor(minutes / 60);
+  return h ? t("{h} h {m} min left", { h, m: minutes % 60 }) : t("{m} min left", { m: minutes });
+}
+
+export function installLabel(p: InstallProgress): string {
+  const percent = Math.round(p.percent);
+  switch (p.state) {
+    case "pending":
+      return p.id.startsWith("steam:") ? t("Waiting for Steam…") : t("Waiting to install…");
+    case "paused":
+      return t("Install paused");
+    case "canceling":
+      return t("Canceling…");
+    case "done":
+      return t("Installed");
+    case "downloading":
+      return t("Downloading… {percent}%", { percent });
+    default:
+      return percent >= 100 ? t("Installing…") : t("Installing… {percent}%", { percent });
+  }
 }
 
 export function hash(s: string): number {
@@ -57,6 +90,18 @@ export function placeholderHue(name: string): number {
 
 const normalize = (s: string) =>
   s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+const EDITION_WORDS = new Set(
+  "standard deluxe ultimate gold complete definitive goty game of the year cross gen edition bundle for windows pc launcher elite".split(" "),
+);
+
+/** A store title without its edition, for matching the same game across listings:
+ * "Forza Horizon 5 Standard Edition" and "Forza Horizon 5" both become "forza horizon 5". */
+export function baseTitle(name: string): string {
+  const words = normalize(name).split(" ");
+  while (words.length > 1 && EDITION_WORDS.has(words[words.length - 1])) words.pop();
+  return words.join(" ");
+}
 
 /** Substring match, plus initials ("rdr" → Red Dead Redemption). */
 export function matches(game: Game, query: string): boolean {

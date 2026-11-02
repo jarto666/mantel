@@ -65,7 +65,9 @@ export function Img({
   const src = toSrc(srcs[cur.index]);
   return (
     <img
-      key={src}
+      // A fresh element per attempt: when the list changes but leads to the same image, a
+      // reused element is already loaded and never fires onLoad, so it would stay hidden.
+      key={`${key}#${cur.index}`}
       src={src}
       className={`${className ?? ""} ${cur.loaded ? "is-loaded" : ""}`}
       decoding="async"

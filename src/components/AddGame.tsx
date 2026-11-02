@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useScrollFocus } from "../hooks";
+import { errorText, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { rescan, toast, useStore } from "../store";
@@ -20,6 +21,7 @@ const KIND_ICON: Record<PickEntry["kind"] | "app", React.ReactNode> = {
   lnk: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
   url: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.7 2.5 14.3 0 17M12 3.5c-2.5 2.7-2.5 14.3 0 17" /></>,
   bat: <><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M7 9l3 3-3 3M12 15h5" /></>,
+  image: <><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></>,
   app: <><rect x="3" y="3" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" /></>,
 };
 
@@ -64,7 +66,7 @@ export function AddGame({ onClose }: { onClose: () => void }) {
       const from = back ? listing?.path : null;
       setIndex(from ? Math.max(0, next.entries.findIndex((e) => e.path === from)) : 0);
     } catch (e) {
-      toast(String(e), "warn");
+      toast(errorText(e), "warn");
     }
   }
 
@@ -76,10 +78,11 @@ export function AddGame({ onClose }: { onClose: () => void }) {
       useStore.setState({ games });
       setAdded((s) => new Set(s).add(path));
       const game = games.find((g) => g.source === "custom" && g.installDir && (target ?? path).startsWith(g.installDir));
-      toast(`Added ${game?.name ?? name ?? "the game"}`, "good");
+      const label = game?.name ?? name;
+      toast(label ? t("Added {name}", { name: label }) : t("Added the game"), "good");
       rescan(true);
     } catch (e) {
-      toast(String(e), "warn");
+      toast(errorText(e), "warn");
     } finally {
       setBusy(false);
     }
@@ -134,30 +137,30 @@ export function AddGame({ onClose }: { onClose: () => void }) {
   return (
     <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <motion.div className="keyflow-card addgame" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
-        <h2 className="keyflow-title">Add a game</h2>
+        <h2 className="keyflow-title">{t("Add a game")}</h2>
         <div className="addgame-tabs">
           <Glyph b="lb" />
           <button className={`addgame-tab ${tab === "suggested" ? "is-active" : ""}`} onClick={() => switchTab("suggested")}>
-            Suggested
+            {t("Suggested")}
           </button>
           <button className={`addgame-tab ${tab === "browse" ? "is-active" : ""}`} onClick={() => switchTab("browse")}>
-            Browse files
+            {t("Browse files")}
           </button>
           <Glyph b="rb" />
         </div>
         <div className="addgame-where">
           {tab === "suggested"
-            ? "Games in your Start menu and on your desktop that aren't in Mantel yet"
-            : listing?.path ?? "Pick a place to start. Folders and launchable files only"}
+            ? t("Games in your Start menu and on your desktop that aren't in Mantel yet")
+            : listing?.path ?? t("Pick a place to start. Folders and launchable files only")}
         </div>
         <div className="addgame-list" ref={list}>
           {tab === "suggested" && suggestions === null && (
             <div className="addgame-empty">
-              <span className="spinner" /> Looking for games…
+              <span className="spinner" /> {t("Looking for games…")}
             </div>
           )}
           {rows.length === 0 && (suggestions !== null || tab === "browse") && (
-            <div className="addgame-empty">{tab === "suggested" ? "Nothing new found. Try Browse files." : "No folders or launchable files here."}</div>
+            <div className="addgame-empty">{tab === "suggested" ? t("Nothing new found. Try Browse files.") : t("No folders or launchable files here.")}</div>
           )}
           {rows.map((r, n) => (
             <button
@@ -175,7 +178,7 @@ export function AddGame({ onClose }: { onClose: () => void }) {
                 <span className="addgame-name">{r.name}</span>
                 {r.sub && <span className="addgame-sub">{r.sub}</span>}
               </span>
-              {added.has(r.key) && <span className="addgame-badge">Added</span>}
+              {added.has(r.key) && <span className="addgame-badge">{t("Added")}</span>}
             </button>
           ))}
         </div>

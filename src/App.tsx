@@ -1,23 +1,39 @@
 import { MotionConfig } from "motion/react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Background } from "./components/Background";
+import { Boundary } from "./components/Boundary";
+import { CancelPrompt } from "./components/CancelPrompt";
 import { HintBar } from "./components/Hints";
 import { LaunchOverlay } from "./components/LaunchOverlay";
 import { QuickMenu } from "./components/QuickMenu";
 import { Search } from "./components/Search";
 import { Toasts } from "./components/Toasts";
-import { TAB_ORDER, timeText, TopBar, useClock } from "./components/TopBar";
+import { tabOrder, timeText, TopBar, useClock } from "./components/TopBar";
 import { isTauri } from "./api";
 import { usePageHidden } from "./hooks";
 import { idleFor, Layer, setBackgroundInput, setWakeHandler, startInput, useInput } from "./input";
 import { warmUpSound } from "./sound";
+import { setLanguage, t } from "./i18n";
 import { boot, gameById, toast, useStore, wireEvents } from "./store";
+import { installLabel } from "./util";
 import { Details } from "./views/Details";
+import { GamePass } from "./views/GamePass";
 import { Home } from "./views/Home";
 import { Library } from "./views/Library";
 import { Settings } from "./views/Settings";
+import { Steam } from "./views/Steam";
 
 const AMBIENT_AFTER = 30_000;
+
+// These follow the store themselves; a tab changing is no reason to render all of them again.
+const HomeTab = memo(Home);
+const LibraryTab = memo(Library);
+const SteamTab = memo(Steam);
+const XboxTab = memo(GamePass);
+const SettingsTab = memo(Settings);
+const Page = memo(Details);
+const Menu = memo(QuickMenu);
+const SearchOverlay = memo(Search);
 
 // The tap that wakes the screen must not also press whatever sits under the finger.
 let swallowClicksUntil = 0;
@@ -64,15 +80,21 @@ function useAmbient(allowed: boolean) {
 function AmbientCaption() {
   const now = useClock(10_000);
   const game = useStore((s) => gameById(s.focusId));
+  const install = useStore((s) => Object.values(s.installs)[0]);
+  const installing = gameById(install?.id ?? null);
   return (
     <div className="ambient">
       <div className="ambient-time">{timeText(now)}</div>
-      <div className="ambient-sub">{game ? game.name : "Mantel"} · press any button</div>
+      {install && installing && <div className="ambient-sub">{installing.name} · {installLabel(install)}</div>}
+      <div className="ambient-sub">{install && game?.id === install.id ? t("press any button") : `${game ? game.name : "Mantel"} · ${t("press any button")}`}</div>
     </div>
   );
 }
 
 export function App() {
+  // Set before anything below renders; the key then remounts the interface in the new language.
+  const languageSetting = useStore((s) => s.settings?.language ?? "");
+  const lang = useMemo(() => setLanguage(languageSetting), [languageSetting]);
   const view = useStore((s) => s.view);
   const detailsId = useStore((s) => s.detailsId);
   const overlay = useStore((s) => s.overlay);
@@ -88,7 +110,7 @@ export function App() {
     setBackgroundInput(() => !useStore.getState().running);
     if (isTauri) import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setFocus()).catch(() => {});
     const off = wireEvents();
-    boot().catch((e) => toast(`Startup failed: ${e}`, "warn"));
+    boot().catch((e) => toast(t("Startup failed: {error}", { error: String(e) }), "warn"));
     return off;
   }, []);
 
@@ -102,9 +124,10 @@ export function App() {
     switch (a) {
       case "lb":
       case "rb": {
-        const n = TAB_ORDER.indexOf(s.view) + (a === "lb" ? -1 : 1);
-        if (n < 0 || n >= TAB_ORDER.length) return "edge";
-        useStore.setState({ view: TAB_ORDER[n] });
+        const order = tabOrder();
+        const n = order.indexOf(s.view) + (a === "lb" ? -1 : 1);
+        if (n < 0 || n >= order.length) return "edge";
+        useStore.setState({ view: order[n], detailsId: null });
         return;
       }
       case "menu":
@@ -127,25 +150,34 @@ export function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className={`app view-${view} ${detailsId ? "has-page" : ""} ${idle ? "is-idle" : ""} ${ambient ? "is-ambient" : ""}`}>
+    <div key={lang} className={`app view-${view} ${detailsId ? "has-page" : ""} ${idle ? "is-idle" : ""} ${ambient ? "is-ambient" : ""}`}>
+      <Boundary>
       <Background mode={bgMode} />
       <TopBar />
       <div className={`view ${view === "home" ? "is-active" : ""}`}>
-        <Home active={viewActive && view === "home"} />
+        <HomeTab active={viewActive && view === "home"} />
       </div>
       <div className={`view ${view === "library" ? "is-active" : ""}`}>
-        <Library active={viewActive && view === "library"} />
+        <LibraryTab active={viewActive && view === "library"} />
+      </div>
+      <div className={`view ${view === "steam" ? "is-active" : ""}`}>
+        <SteamTab active={viewActive && view === "steam"} />
+      </div>
+      <div className={`view ${view === "gamepass" ? "is-active" : ""}`}>
+        <XboxTab active={viewActive && view === "gamepass"} />
       </div>
       <div className={`view ${view === "settings" ? "is-active" : ""}`}>
-        <Settings active={viewActive && view === "settings"} />
+        <SettingsTab active={viewActive && view === "settings"} />
       </div>
-      <Details />
-      <QuickMenu />
-      <Search />
+      <Page />
+      <Menu />
+      <SearchOverlay />
       <LaunchOverlay />
+      <CancelPrompt />
       {ambient && <AmbientCaption />}
       <Toasts />
       <HintBar />
+      </Boundary>
     </div>
     </MotionConfig>
   );

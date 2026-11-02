@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Entry {
     pub name: String,
     pub path: String,
-    /// "drive", "place", "dir", "exe", "lnk", "url" or "bat".
+    /// "drive", "place", "dir", "exe", "lnk", "url", "bat" or "image".
     pub kind: String,
     pub size: Option<u64>,
 }
@@ -33,9 +33,11 @@ pub struct Suggestion {
 }
 
 const PICKABLE: &[&str] = &["exe", "lnk", "url", "bat", "cmd"];
+pub const IMAGES: &[&str] = &["png", "jpg", "jpeg", "webp"];
 
-pub fn list_dir(path: Option<&str>) -> Result<Listing, String> {
-    let Some(path) = path else { return Ok(top_level()) };
+/// Folders and launchable files, or with `images` folders and pictures (for picking art).
+pub fn list_dir(path: Option<&str>, images: bool) -> Result<Listing, String> {
+    let Some(path) = path else { return Ok(top_level(images)) };
     let dir = Path::new(path);
     let read = std::fs::read_dir(dir).map_err(|e| format!("Can't open {path}: {e}"))?;
     let mut entries: Vec<Entry> = read
@@ -51,19 +53,22 @@ pub fn list_dir(path: Option<&str>) -> Result<Listing, String> {
                 return Some(Entry { name, path: p.to_string_lossy().to_string(), kind: "dir".into(), size: None });
             }
             let ext = p.extension()?.to_string_lossy().to_lowercase();
-            PICKABLE.contains(&ext.as_str()).then(|| Entry {
-                name,
-                path: p.to_string_lossy().to_string(),
-                kind: if ext == "cmd" { "bat".into() } else { ext },
-                size: Some(meta.len()),
-            })
+            let kind = match ext.as_str() {
+                e if images && IMAGES.contains(&e) => "image".to_string(),
+                _ if images => return None,
+                "cmd" => "bat".into(),
+                e if PICKABLE.contains(&e) => ext.clone(),
+                _ => return None,
+            };
+            Some(Entry { name, path: p.to_string_lossy().to_string(), kind, size: Some(meta.len()) })
         })
         .collect();
-    // Folders first; then the biggest executables, which are usually the game itself.
+    // Folders first; then the biggest executables, which are usually the game itself, or
+    // pictures by name.
     entries.sort_by(|a, b| {
         let rank = |e: &Entry| if e.kind == "dir" { 0 } else { 1 };
         rank(a).cmp(&rank(b)).then_with(|| match a.kind.as_str() {
-            "dir" => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            "dir" | "image" => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
             _ => b.size.cmp(&a.size),
         })
     });
@@ -74,7 +79,7 @@ pub fn list_dir(path: Option<&str>) -> Result<Listing, String> {
     })
 }
 
-fn top_level() -> Listing {
+fn top_level(images: bool) -> Listing {
     let mut entries = Vec::new();
     let mut place = |name: &str, path: PathBuf| {
         if path.is_dir() {
@@ -82,12 +87,15 @@ fn top_level() -> Listing {
         }
     };
     if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(PathBuf::from) {
+        if images {
+            place("Pictures", home.join("Pictures"));
+        }
         place("Desktop", home.join("Desktop"));
         place("Downloads", home.join("Downloads"));
     }
     #[cfg(windows)]
     {
-        for letter in b'C'..=b'Z' {
+        for letter in (b'C'..=b'Z').filter(|_| !images) {
             let root = format!("{}:\\", letter as char);
             for sub in ["Games", "XboxGames", "SteamLibrary", "Program Files", "Program Files (x86)"] {
                 place(&format!("{sub} ({}:)", letter as char), PathBuf::from(&root).join(sub));

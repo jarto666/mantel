@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "../components/Cover";
 import { Glyph, SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
-import { useScrollFocus } from "../hooks";
+import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow } from "../hooks";
+import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
 import { launch, setFocus, toggleFavorite, useStore } from "../store";
@@ -32,24 +33,6 @@ const BASE_FILTERS: Filter[] = [
   },
 ];
 
-/** Columns must match the grid in CSS so up/down moves straight. */
-function useColumns(ref: React.RefObject<HTMLDivElement | null>) {
-  const [cols, setCols] = useState(7);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const tracks = getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
-      if (tracks) setCols(tracks);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
-  return cols;
-}
-
 export function Library({ active }: { active: boolean }) {
   const games = useStore((s) => s.games);
   const running = useStore((s) => s.running);
@@ -76,14 +59,24 @@ export function Library({ active }: { active: boolean }) {
   const i = Math.min(index, Math.max(0, list.length - 1));
   const game = list[i];
 
+  const track = useRef<HTMLDivElement>(null);
+  const railOver = useOverflowing(track, `${f}:${filters.length}`);
   const grid = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const cols = useColumns(grid);
+  const cols = useGridColumns(grid, filters[f].id);
+  const end = useRef<HTMLDivElement>(null);
+  const shown = useWindow(list.length, i, cols, filters[f].id, end);
   useScrollFocus(scroller, `${f}:${i}`);
 
   useEffect(() => {
     if (active && game) setFocus(game);
   }, [active, game]);
+
+  const pick = useHandler((g: Game) => {
+    const n = list.indexOf(g);
+    if (n === i) launch(g);
+    else if (n >= 0) setIndex(n);
+  });
 
   const switchFilter = (d: number) => {
     const next = f + d;
@@ -135,18 +128,20 @@ export function Library({ active }: { active: boolean }) {
     active,
   );
   useHints(
-    [["a", game && !game.installed ? "Install" : "Play"], ["y", "Details"], ["x", game?.favorite ? "Unfavorite" : "Favorite"], ["lt", "Filter"], ["view", "Search"]],
+    [["a", game && !game.installed ? "Install" : "Play"], ["y", "Details"], ["x", game?.favorite ? "Unfavorite" : "Favorite"], [["lt", "rt"], "Filter"], ["view", "Search"]],
     Layer.view,
     active,
   );
 
+  const more = visible.length - installed.length;
+
   return (
     <main className="library">
       <div className="library-head">
-        <div className="library-eyebrow">Game Library · {installed.length} installed{visible.length > installed.length ? ` · ${visible.length - installed.length} more on your accounts` : ""}</div>
+        <div className="library-eyebrow">{t("Game Library")} · {installed.length === 1 ? t("1 installed") : t("{n} installed", { n: installed.length })}{more > 0 ? ` · ${more === 1 ? t("1 more on your accounts") : t("{n} more on your accounts", { n: more })}` : ""}</div>
         <div className="filter-rail">
           <Glyph b="lt" />
-          <div className="filter-track">
+          <div className={`filter-track ${railOver ? "is-overflowing" : ""}`} ref={track}>
             <AnimatePresence initial={false} mode="popLayout">
               {filters.map((flt, n) =>
                 n < f - 1 ? null : (
@@ -164,36 +159,39 @@ export function Library({ active }: { active: boolean }) {
                     }}
                   >
                     {flt.source && <SourceIcon source={flt.source} />}
-                    <span>{flt.id === "all" && n === f ? "All games" : flt.label}</span>
+                    <span>{flt.id === "all" && n === f ? t("All games") : t(flt.label)}</span>
                     {n === f && <span className="filter-count">{list.length}</span>}
                   </motion.button>
                 ),
               )}
             </AnimatePresence>
           </div>
-          <Glyph b="rt" />
+          <motion.span layout className="filter-rail-end" transition={spring.rail}>
+            <Glyph b="rt" />
+          </motion.span>
         </div>
       </div>
       <div className="grid-scroll" ref={scroller}>
         <div className="grid" ref={grid} key={filters[f].id} data-dir={dir}>
-          {list.map((g, n) => (
+          {list.slice(0, shown).map((g, n) => (
             <Cover
               key={g.id}
               game={g}
               focused={n === i}
               running={running?.id === g.id}
               lazy
-              onClick={() => (n === i ? launch(g) : setIndex(n))}
+              onClick={pick}
             />
           ))}
         </div>
+        <div ref={end} />
         {list.length === 0 && (
           <div className="grid-empty">
             {filters[f].id === "fav"
-              ? "Press X on any game to add it to favorites"
+              ? t("Press X on any game to add it to favorites")
               : filters[f].id === "recent" || filters[f].id === "most"
-                ? "Play something and it will show up here"
-                : "Nothing here"}
+                ? t("Play something and it will show up here")
+                : t("Nothing here")}
           </div>
         )}
       </div>
@@ -202,7 +200,7 @@ export function Library({ active }: { active: boolean }) {
           <span className="library-focus-name">{game.name}</span>
           <span className="library-focus-meta">
             <SourceIcon source={game.source} />
-            {SOURCE_NAME[game.source]}
+            {t(SOURCE_NAME[game.source])}
             <span className="meta-dot" />
             {playtime(game.playtimeMinutes)}
           </span>

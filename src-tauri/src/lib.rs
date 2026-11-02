@@ -1,6 +1,11 @@
 mod accounts;
 mod art;
 mod fse;
+mod gamepass;
+mod install;
+mod steam_install;
+mod steam_store;
+mod xbox_store;
 mod launcher;
 mod library;
 mod log;
@@ -9,6 +14,7 @@ mod model;
 mod pick;
 mod store;
 mod system;
+mod uninstall;
 mod vdf;
 
 use serde_json::Value;
@@ -27,6 +33,9 @@ fn snapshot(state: &AppState) -> Vec<Game> {
     let user = state.user.lock().unwrap();
     let mut games = cache.library.clone();
     library::apply_meta(&mut games, &user, &cache.art);
+    for g in games.iter_mut().filter(|g| g.source == "steam") {
+        cache.steam_facts.apply(g);
+    }
     for g in games.iter_mut().filter(|g| g.size_bytes.is_none()) {
         g.size_bytes = g.install_dir.as_ref().and_then(|d| cache.sizes.get(d)).and_then(|s| s.bytes);
     }
@@ -92,7 +101,8 @@ fn rescan(app: &AppHandle) {
         let mut user = state.user.lock().unwrap();
         let t = now();
         for g in scan.games.iter().filter(|g| g.installed) {
-            user.meta.entry(g.id.clone()).or_default().added_at.get_or_insert(t);
+            // A game the scan hides by default stays hidden until the player says otherwise.
+            user.meta.entry(g.id.clone()).or_insert_with(|| store::GameMeta { hidden: g.hidden, ..Default::default() }).added_at.get_or_insert(t);
         }
         state.save_user(&user);
     }
@@ -146,6 +156,69 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Asks Steam about the library's Steam games: genres, and art for those the plain addresses miss.
+/// Returns whether anything changed.
+#[tauri::command]
+async fn resolve_steam_facts(state: State<'_, AppState>, language: String) -> Result<bool, String> {
+    let (todo, names_stale) = {
+        let cache = state.cache.lock().unwrap();
+        (cache.steam_facts.missing(&cache.library), cache.steam_facts.language != language)
+    };
+    if todo.is_empty() && !names_stale {
+        return Ok(false);
+    }
+    let names = if names_stale { steam_store::genre_names(&language).await } else { None };
+    let found = if todo.is_empty() { None } else { steam_store::facts(&todo, &language).await };
+    let changed = names.is_some() || found.is_some();
+    let mut cache = state.cache.lock().unwrap();
+    if let Some(names) = names {
+        cache.steam_facts.names = names;
+        cache.steam_facts.language = language;
+    }
+    if let Some(found) = found {
+        cache.steam_facts.apps.extend(found);
+    }
+    if changed {
+        state.save_cache(&cache);
+    }
+    Ok(changed)
+}
+
+#[tauri::command]
+async fn steam_store_home(language: String) -> Result<steam_store::Home, String> {
+    steam_store::home(&language).await
+}
+
+#[tauri::command]
+async fn steam_store_page(list: String, tag: Option<u32>, start: u32, language: String) -> Result<steam_store::Page, String> {
+    steam_store::page(&list, tag, start, &language).await
+}
+
+#[tauri::command]
+async fn xbox_store_home(language: String) -> Result<Vec<xbox_store::Shelf>, String> {
+    xbox_store::home(&language).await
+}
+
+#[tauri::command]
+async fn xbox_store_page(list: String, genre: Option<String>, page: u32, language: String) -> Result<xbox_store::Page, String> {
+    xbox_store::page(&list, genre.as_deref(), page, &language).await
+}
+
+/// A game's page in the Xbox app, or the Microsoft Store without it.
+#[tauri::command]
+fn open_xbox_store(product: String) -> Result<(), String> {
+    launcher::open_external(&format!("{}{}", gamepass::install_uri(), xbox_store::checked(&product)?))
+}
+
+/// A game's page in the Steam client, or on the web without one.
+#[tauri::command]
+fn open_steam_store(appid: u32) -> Result<(), String> {
+    if library::steam_user().is_some() {
+        return launcher::open_external(&format!("steam://store/{appid}"));
+    }
+    launcher::open_external(&format!("https://store.steampowered.com/app/{appid}"))
+}
+
 /// Measures the install folders of games whose store reports no size: Xbox, GOG, Ubisoft and
 /// games added by hand. Returns whether anything changed.
 #[tauri::command]
@@ -181,15 +254,142 @@ async fn measure_sizes(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(true)
 }
 
+/// The PC Game Pass catalog in `language` (like "en-us"), looked up again once a day.
 #[tauri::command]
-async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Value>, String> {
+async fn gamepass_catalog(state: State<'_, AppState>, language: String) -> Result<Vec<Game>, String> {
+    let cached = {
+        let cache = state.cache.lock().unwrap();
+        let c = &cache.gamepass;
+        (c.format == gamepass::FORMAT && c.language == language && now() - c.at < gamepass::FRESH_SECS).then(|| c.games.clone())
+    };
+    if let Some(games) = cached {
+        return Ok(games);
+    }
+    match gamepass::fetch(&language).await {
+        Ok(catalog) => {
+            let games = catalog.games.clone();
+            let mut cache = state.cache.lock().unwrap();
+            cache.gamepass = catalog;
+            state.save_cache(&cache);
+            Ok(games)
+        }
+        Err(e) => {
+            log::warn(&e);
+            // Yesterday's catalog beats none.
+            let stale = state.cache.lock().unwrap().gamepass.games.clone();
+            if stale.is_empty() { Err(e) } else { Ok(stale) }
+        }
+    }
+}
+
+/// Installs a Game Pass game through Windows' Store installer; progress arrives as
+/// "install-progress" events.
+#[tauri::command]
+fn install_game(app: AppHandle, state: State<'_, AppState>, id: String, chosen: Option<Vec<String>>) -> Result<(), String> {
+    if id.starts_with(steam_install::ID_PREFIX) {
+        return steam_install::start(&app, &id);
+    }
+    let product = id.strip_prefix(gamepass::ID_PREFIX).ok_or("Only Game Pass games install from Mantel")?;
+    let packages = gamepass::packages(&state.cache.lock().unwrap().gamepass, product);
+    install::start(&app, &id, chosen.unwrap_or_else(|| vec![product.to_string()]).as_slice(), &packages)
+}
+
+#[tauri::command]
+async fn cancel_install(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    if id.starts_with(steam_install::ID_PREFIX) {
+        return steam_install::cancel(&id);
+    }
+    let product = id.strip_prefix(gamepass::ID_PREFIX).ok_or("Not an install from Mantel")?;
+    let packages = gamepass::packages(&state.cache.lock().unwrap().gamepass, product);
+    tauri::async_runtime::spawn_blocking(move || install::cancel(&packages)).await.map_err(|e| e.to_string())?
+}
+
+/// Installs under way, for a UI that just (re)loaded.
+#[tauri::command]
+fn installs() -> Vec<install::Progress> {
+    install::active()
+}
+
+#[tauri::command]
+async fn uninstall_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    if state.running.lock().unwrap().as_ref().is_some_and(|r| r.id == id) {
+        return Err("Close the game first".into());
+    }
+    let game = state.cache.lock().unwrap().library.iter().find(|g| g.id == id && g.installed).cloned().ok_or("Game not found — refresh the library")?;
+    tauri::async_runtime::spawn_blocking(move || uninstall::start(&app, &game)).await.map_err(|e| e.to_string())?
+}
+
+/// Whether a catalog game is on the player's Microsoft account; nothing when the Store can't say.
+#[tauri::command]
+async fn install_access(id: String) -> Option<bool> {
+    let product = id.strip_prefix(gamepass::ID_PREFIX)?.to_string();
+    tauri::async_runtime::spawn_blocking(move || install::on_account(&product)).await.ok().flatten()
+}
+
+#[tauri::command]
+async fn installs_under_way(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let busy = tauri::async_runtime::spawn_blocking(install::under_way).await.unwrap_or_default();
+    let cache = state.cache.lock().unwrap();
+    Ok(cache
+        .gamepass
+        .games
+        .iter()
+        .filter_map(|g| g.id.strip_prefix(gamepass::ID_PREFIX))
+        .filter(|product| gamepass::is_under_way(&cache.gamepass, product, &busy))
+        .map(String::from)
+        .chain(steam_install::under_way())
+        .collect())
+}
+
+/// A library game, or one from the Game Pass catalog.
+fn find_game(state: &AppState, id: &str) -> Option<Game> {
+    let cache = state.cache.lock().unwrap();
+    cache.library.iter().chain(&cache.gamepass.games).find(|g| g.id == id).cloned()
+}
+
+/// The game page's store details; `language` is Steam's name for it, like "french".
+#[tauri::command]
+async fn get_details(state: State<'_, AppState>, id: String, language: Option<String>) -> Result<Option<Value>, String> {
+    let language = language.unwrap_or_else(|| "english".into());
+    if let Some(product) = id.strip_prefix(xbox_store::ID_PREFIX) {
+        let catalog_language = state.cache.lock().unwrap().gamepass.language.clone();
+        let key = state.user.lock().unwrap().settings.steamgriddb_key.trim().to_string();
+        return Ok(xbox_store::details(xbox_store::checked(product)?, if catalog_language.is_empty() { "en-us" } else { &catalog_language }, &key).await);
+    }
+    if id.starts_with(gamepass::ID_PREFIX) {
+        let (details, name, hero) = {
+            let cache = state.cache.lock().unwrap();
+            let game = cache.gamepass.games.iter().find(|g| g.id == id);
+            (cache.gamepass.details.get(&id).cloned(), game.map(|g| g.name.clone()).unwrap_or_default(), game.and_then(|g| g.art.hero.first().cloned()))
+        };
+        let Some(mut d) = details else { return Ok(None) };
+        // The trailer and logo are looked up on first view, then kept with the catalog.
+        if d.get("trailer").is_none() || d.get("logo").is_none() {
+            let key = state.user.lock().unwrap().settings.steamgriddb_key.trim().to_string();
+            let (trailer, logo) = futures::join!(gamepass::pick_trailer(&d, &name), art::find_logo(&name, &key));
+            d["videos"] = gamepass::playable_videos(&d, trailer.as_deref(), hero.as_deref()).await.into();
+            d["trailer"] = trailer.into();
+            d["logo"] = logo.clone().into();
+            let mut cache = state.cache.lock().unwrap();
+            if let Some(game) = cache.gamepass.games.iter_mut().find(|g| g.id == id) {
+                game.art.logo = logo;
+            }
+            cache.gamepass.details.insert(id, d.clone());
+            state.save_cache(&cache);
+        }
+        return Ok(Some(d));
+    }
     let appid = snapshot(&state).into_iter().find(|g| g.id == id).and_then(|g| g.steam_app_id);
-    let Some(appid) = appid else { return Ok(None) };
+    // A game off the store's lists isn't kept: browsing shouldn't grow the cache.
+    let Some(appid) = appid else {
+        let Some(appid) = id.strip_prefix(steam_install::ID_PREFIX).and_then(|n| n.parse().ok()) else { return Ok(None) };
+        return Ok(art::steam_details(appid, &language).await);
+    };
     let cached = state.cache.lock().unwrap().details.get(&appid).cloned();
     // Details cached before trailers existed lack the key and are fetched again. Steam now and
     // then answers without the trailers, so a missing one is checked again once per run.
     static RECHECKED: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
-    let fresh = |d: &&Value| match d.get("trailer") {
+    let fresh = |d: &&Value| d.get("language").and_then(Value::as_str).unwrap_or("english") == language && d.get("videos").is_some() && match d.get("trailer") {
         None => false,
         Some(Value::Null) => {
             let mut rechecked = RECHECKED.lock().unwrap();
@@ -204,7 +404,7 @@ async fn get_details(state: State<'_, AppState>, id: String) -> Result<Option<Va
     if let Some(hit) = cached.as_ref().filter(fresh) {
         return Ok(Some(hit.clone()));
     }
-    let details = art::steam_details(appid).await;
+    let details = art::steam_details(appid, &language).await;
     if let Some(d) = &details {
         let mut cache = state.cache.lock().unwrap();
         cache.details.insert(appid, d.clone());
@@ -264,6 +464,18 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
 
 #[tauri::command]
 fn save_settings(state: State<'_, AppState>, settings: Settings) {
+    let new_key = state.user.lock().unwrap().settings.steamgriddb_key != settings.steamgriddb_key;
+    if new_key {
+        // Art found without SteamGridDB, or with another key, is looked up again.
+        let mut cache = state.cache.lock().unwrap();
+        cache.art.clear();
+        for details in cache.gamepass.details.values_mut() {
+            if let Some(details) = details.as_object_mut() {
+                details.remove("logo");
+            }
+        }
+        state.save_cache(&cache);
+    }
     let mut user = state.user.lock().unwrap();
     user.settings = settings;
     state.save_user(&user);
@@ -337,8 +549,71 @@ fn rename_custom_game(state: State<'_, AppState>, id: String, name: String) -> R
 }
 
 #[tauri::command]
-async fn list_dir(path: Option<String>) -> Result<pick::Listing, String> {
-    tauri::async_runtime::spawn_blocking(move || pick::list_dir(path.as_deref())).await.map_err(|e| e.to_string())?
+async fn list_dir(path: Option<String>, images: Option<bool>) -> Result<pick::Listing, String> {
+    tauri::async_runtime::spawn_blocking(move || pick::list_dir(path.as_deref(), images.unwrap_or(false))).await.map_err(|e| e.to_string())?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtChoices {
+    /// The image picked before, if any.
+    picked: Option<String>,
+    options: Vec<art::Choice>,
+    /// Whether a SteamGridDB key is set; without one there's nothing to choose from.
+    connected: bool,
+}
+
+/// SteamGridDB's covers, backgrounds or logos for a game (`kind`), to pick one from.
+#[tauri::command]
+async fn art_choices(state: State<'_, AppState>, id: String, kind: String) -> Result<ArtChoices, String> {
+    let game = snapshot(&state).into_iter().find(|g| g.id == id).ok_or("Game not found")?;
+    let (key, picked) = {
+        let user = state.user.lock().unwrap();
+        let picked = user.meta.get(&id).and_then(|m| m.art.slot(&kind)).and_then(|s| s.first().cloned());
+        (user.settings.steamgriddb_key.trim().to_string(), picked)
+    };
+    if key.is_empty() {
+        return Ok(ArtChoices { picked, options: Vec::new(), connected: false });
+    }
+    let options = art::choices(&key, &kind, game.steam_app_id, &game.name).await?;
+    Ok(ArtChoices { picked, options, connected: true })
+}
+
+/// Makes `src` the game's cover, background or logo: an https URL, or an image file, which is
+/// copied so it survives the original moving. None goes back to the stores' art.
+#[tauri::command]
+fn set_art(state: State<'_, AppState>, id: String, kind: String, src: Option<String>) -> Result<Vec<Game>, String> {
+    let dir = state.art_dir();
+    let src = match src {
+        Some(url) if url.starts_with("https://") => Some(url),
+        Some(file) => Some(copy_art(&dir, &id, &kind, &file)?),
+        None => None,
+    };
+    {
+        let mut user = state.user.lock().unwrap();
+        let slot = user.meta.entry(id).or_default().art.slot_mut(&kind).ok_or("Unknown kind of art")?;
+        // A copy nothing points at any more is just clutter.
+        for old in slot.drain(..).filter(|old| std::path::Path::new(old).starts_with(&dir)) {
+            let _ = std::fs::remove_file(old);
+        }
+        slot.extend(src);
+        state.save_user(&user);
+    }
+    Ok(snapshot(&state))
+}
+
+fn copy_art(dir: &std::path::Path, id: &str, kind: &str, file: &str) -> Result<String, String> {
+    let from = std::path::Path::new(file);
+    let ext = from.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if !pick::IMAGES.contains(&ext.as_str()) {
+        return Err("Pick a PNG, JPEG or WebP image".into());
+    }
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    // A new name each time, so the WebView doesn't show a cached earlier pick.
+    let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+    let to = dir.join(format!("{safe}-{kind}-{}.{ext}", now()));
+    std::fs::copy(from, &to).map_err(|e| format!("Couldn't copy {file}: {e}"))?;
+    Ok(to.to_string_lossy().to_string())
 }
 
 /// Shortcuts on the desktop and in the Start menu that aren't in the library yet.
@@ -454,6 +729,12 @@ async fn disconnect_account(app: AppHandle, state: State<'_, AppState>, service:
     Ok(accounts_snapshot(&state))
 }
 
+/// Pausing and resuming are Steam's to do.
+#[tauri::command]
+fn open_steam_downloads() -> Result<(), String> {
+    launcher::open_external("steam://open/downloads")
+}
+
 /// Opens a web page in the default browser; only https, so the UI can't run programs.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
@@ -465,8 +746,7 @@ fn open_url(url: String) -> Result<(), String> {
 
 #[tauri::command]
 fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let game = state.cache.lock().unwrap().library.iter().find(|g| g.id == id).cloned();
-    let game = game.ok_or("Game not found — refresh the library")?;
+    let game = find_game(&state, &id).ok_or("Game not found — refresh the library")?;
     launcher::launch(&app, &game)
 }
 
@@ -476,8 +756,8 @@ async fn switch_to_game(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-fn close_game(app: AppHandle) {
-    launcher::close(&app);
+async fn close_game(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || launcher::close(&app)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -538,13 +818,7 @@ pub fn run() {
     let moved = migrate::from_nova(&context.config().identifier);
     tauri::Builder::default()
         // Must come first: a second launch (e.g. from autostart) just refocuses us.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| launcher::to_front(app)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
@@ -563,7 +837,8 @@ pub fn run() {
                 let _ = app.autolaunch().enable();
             }
             let state = AppState::load(dir);
-            let dirs = state.cache.lock().unwrap().asset_dirs.clone();
+            let mut dirs = state.cache.lock().unwrap().asset_dirs.clone();
+            dirs.push(state.art_dir());
             let customs: Vec<_> = state.user.lock().unwrap().custom.iter().filter_map(|c| std::path::Path::new(&c.path).parent().map(|p| p.to_path_buf())).collect();
             app.manage(state);
             allow_assets(app.handle(), &dirs);
@@ -583,6 +858,15 @@ pub fn run() {
             add_custom_game,
             rename_custom_game,
             list_dir,
+            art_choices,
+            set_art,
+            gamepass_catalog,
+            install_game,
+            cancel_install,
+            installs,
+            installs_under_way,
+            install_access,
+            uninstall_game,
             app_suggestions,
             remove_custom_game,
             launch_game,
@@ -603,6 +887,14 @@ pub fn run() {
             xbox_sign_in,
             disconnect_account,
             open_url,
+            open_steam_downloads,
+            open_steam_store,
+            open_xbox_store,
+            xbox_store_home,
+            xbox_store_page,
+            resolve_steam_facts,
+            steam_store_home,
+            steam_store_page,
         ])
         .run(context)
         .expect("error while running Mantel");

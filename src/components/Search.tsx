@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
+import { t } from "../i18n";
 import { Layer, useInput } from "../input";
-import { launch, setFocus, useStore } from "../store";
+import { gamePassGames, isCatalog, launch, setFocus, useStore } from "../store";
 import { matches } from "../util";
 import { Cover } from "./Cover";
 import { useHints } from "./Hints";
@@ -10,6 +11,7 @@ import { useKeyboard } from "./Keyboard";
 export function Search() {
   const open = useStore((s) => s.overlay === "search");
   const games = useStore((s) => s.games);
+  const catalog = useStore((s) => s.catalog);
   const running = useStore((s) => s.running);
   const [query, setQuery] = useState("");
   const [zone, setZone] = useState<"keys" | "results">("keys");
@@ -17,10 +19,12 @@ export function Search() {
   const input = useRef<HTMLInputElement>(null);
   const rail = useRef<HTMLDivElement>(null);
 
-  const results = useMemo(
-    () => (query.trim() ? games.filter((g) => !g.hidden && matches(g, query)).slice(0, 24) : []),
-    [games, query],
-  );
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
+    const own = games.filter((g) => !g.hidden && matches(g, query));
+    const pass = gamePassGames(games, catalog).filter((g) => isCatalog(g) && matches(g, query));
+    return [...own, ...pass].slice(0, 24);
+  }, [games, catalog, query]);
   const i = Math.min(index, Math.max(0, results.length - 1));
   useScrollFocus(rail, `${zone}${i}`, { axis: "x", align: "center" });
 
@@ -69,10 +73,11 @@ export function Search() {
         case "up":
           return "edge";
         case "a":
-          if (g) {
-            close();
-            launch(g);
-          }
+          if (!g) return "silent";
+          // A Game Pass game opens its page, like on the Game Pass tab.
+          if (isCatalog(g)) return void useStore.setState({ overlay: null, detailsId: g.id });
+          close();
+          launch(g);
           return "silent";
         case "y":
           if (g) useStore.setState({ overlay: null, detailsId: g.id });
@@ -87,7 +92,9 @@ export function Search() {
   useHints(
     zone === "keys"
       ? [["a", "Type"], ["x", "Delete"], ["y", "Space"], ["b", "Close"]]
-      : [["a", "Play"], ["y", "Details"], ["b", "Close"]],
+      : results[i] && isCatalog(results[i])
+        ? [["a", "Details"], ["b", "Close"]]
+        : [["a", results[i]?.installed === false ? "Install" : "Play"], ["y", "Details"], ["b", "Close"]],
     Layer.overlay,
     open,
   );
@@ -104,14 +111,14 @@ export function Search() {
           ref={input}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search games"
+          placeholder={t("Search games")}
           spellCheck={false}
         />
         <span className="search-count">{query ? `${results.length}` : ""}</span>
       </div>
       <div className={`search-results ${zone === "results" ? "is-active" : ""}`}>
         {results.length === 0 ? (
-          <div className="search-empty">{query ? "No matches" : "Start typing a title — initials work too, like “rdr”"}</div>
+          <div className="search-empty">{query ? t("No matches") : t("Start typing a title — initials work too, like “rdr”")}</div>
         ) : (
           <div className="search-rail" ref={rail}>
             {results.map((g, n) => (
@@ -122,6 +129,7 @@ export function Search() {
                 running={running?.id === g.id}
                 showName={zone === "results" && n === i}
                 onClick={() => {
+                  if (isCatalog(g)) return useStore.setState({ overlay: null, detailsId: g.id });
                   close();
                   launch(g);
                 }}
