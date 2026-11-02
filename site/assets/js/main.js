@@ -232,17 +232,7 @@
     toast(`<span class="dot"></span><span>Downloading Mantel ${found.version}. If SmartScreen warns you, choose <b>More info → Run anyway</b>.</span>`);
   }));
 
-  // ---------- Controls: a pressed button lights its hint ----------
-
-  const hints = $$(".hints [data-pad]");
-  const timers = new Map();
-  function lightPad(index) {
-    hints.filter((li) => li.dataset.pad.split(" ").includes(String(index))).forEach((li) => {
-      li.classList.add("is-lit");
-      clearTimeout(timers.get(li));
-      timers.set(li, setTimeout(() => li.classList.remove("is-lit"), 420));
-    });
-  }
+  // ---------- Keyboard ----------
 
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -307,7 +297,6 @@
 
     pressed.forEach((on, i) => {
       if (!on || prev[i]) return;
-      lightPad(i);
       const active = document.activeElement;
       if (i === 0) {
         root.classList.add("pad");
