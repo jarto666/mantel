@@ -64,6 +64,7 @@
         "screenshot": [
           "https://playmantel.com/assets/img/home.jpg",
           "https://playmantel.com/assets/img/library.jpg",
+          "https://playmantel.com/assets/img/store.jpg",
           "https://playmantel.com/assets/img/details.jpg"
         ],
         "featureList": [
@@ -72,7 +73,10 @@
           "Control center for volume, brightness, closing games, restart and power off",
           "Times every session and brings in playtime from Steam and Xbox accounts",
           "Steam and Xbox achievements, with rarity and gamerscore",
+          "Xbox and Steam tabs with your games, the PC Game Pass catalog and store lists by genre",
+          "Installs Game Pass and Steam games with progress, speed and time left on the home screen",
           "Shows owned but not installed Steam and Xbox games",
+          "English, French, German, Spanish and Russian",
           "Plays a game's trailer, muted, behind it",
           "Can be the home app of the Windows full screen experience (Xbox mode)",
           "Minimizes while a game runs and comes back when it exits",
@@ -225,6 +229,7 @@
       <div class="stage-bg" aria-hidden="true">
         <div class="stage-art is-active" data-art="home" style="background-image: url(/assets/img/bg-home.jpg)"></div>
         <div class="stage-art" data-art="library" style="background-image: url(/assets/img/bg-library.jpg)"></div>
+        <div class="stage-art" data-art="store" style="background-image: url(/assets/img/bg-store.jpg)"></div>
         <div class="stage-art" data-art="details" style="background-image: url(/assets/img/bg-details.jpg)"></div>
         <div class="stage-light"></div>
         <div class="stage-shade"></div>
@@ -250,6 +255,7 @@
               <button class="glyph trigger" type="button" data-step="-1" aria-label="Previous screen" tabindex="-1">LT</button>
               <button class="tab" type="button" role="tab" id="tab-home" aria-controls="screen" aria-selected="true" data-screen="home" data-accent="#ff5468">Games</button>
               <button class="tab" type="button" role="tab" id="tab-library" aria-controls="screen" aria-selected="false" tabindex="-1" data-screen="library" data-accent="#f2cf2e">Library</button>
+              <button class="tab" type="button" role="tab" id="tab-store" aria-controls="screen" aria-selected="false" tabindex="-1" data-screen="store" data-accent="#ff8a5c">Stores</button>
               <button class="tab" type="button" role="tab" id="tab-details" aria-controls="screen" aria-selected="false" tabindex="-1" data-screen="details" data-accent="#38d6a6">Details</button>
               <button class="glyph trigger" type="button" data-step="1" aria-label="Next screen" tabindex="-1">RT</button>
               <span class="tab-line" aria-hidden="true"></span>
@@ -258,6 +264,7 @@
               <div class="screen-frame" id="screen" role="tabpanel" aria-labelledby="tab-home">
                 <img class="is-active" data-screen="home" src="/assets/img/home.webp" srcset="/assets/img/home-960.webp 960w, /assets/img/home.webp 1920w" sizes="(min-width: 1100px) 60vw, 100vw" width="1920" height="1080" alt="Mantel's Games screen: Hades II's art and logo with 45.2 hours played, a Play button, and a row of game covers below" fetchpriority="high">
                 <img data-screen="library" src="/assets/img/library.webp" srcset="/assets/img/library-960.webp 960w, /assets/img/library.webp 1920w" sizes="(min-width: 1100px) 60vw, 100vw" width="1920" height="1080" alt="Mantel's Library screen: a grid of game covers with filters for favorites, recent, most played, not installed and each store" loading="lazy">
+                <img data-screen="store" src="/assets/img/store.webp" srcset="/assets/img/store-960.webp 960w, /assets/img/store.webp 1920w" sizes="(min-width: 1100px) 60vw, 100vw" width="1920" height="1080" alt="Mantel's Steam tab showing the store: top sellers and new releases, with discounts on the covers." loading="lazy">
                 <img data-screen="details" src="/assets/img/details.webp" srcset="/assets/img/details-960.webp 960w, /assets/img/details.webp 1920w" sizes="(min-width: 1100px) 60vw, 100vw" width="1920" height="1080" alt="Mantel's game details screen for Hades II: playtime, Metacritic score, size on disk and Play, Favorite, Folder and Hide buttons" loading="lazy">
                 <div class="screen-gloss"></div>
                 <div class="shine"></div>
@@ -267,6 +274,7 @@
             <p class="screen-caption" aria-live="polite">
                 <span data-screen="home"><b>Games.</b> Your games on one shelf, with time played, when you last played and the size on disk.</span>
                 <span data-screen="library" hidden><b>Library.</b> Everything you have, filtered by favorites, recent, most played, not installed or store.</span>
+                <span data-screen="store" hidden><b>Stores.</b> Your games, the PC Game Pass catalog and each store's lists, by genre, on the Xbox and Steam tabs.</span>
                 <span data-screen="details" hidden><b>Details.</b> Play, favorite, open the game's folder or hide it.</span>
               </p>
           </div>
@@ -319,12 +327,12 @@
             <p class="step-text">Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices, along with each game's achievements.</p>
             <p class="step-where">Games · playtime</p>
           </article>
-          <article class="step" data-i="3" data-img="library" style="--z:2.0;--tx:-13.5%;--ty:0.0%">
-            <div class="step-frame" aria-hidden="true"><img src="/assets/img/library.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
+          <article class="step" data-i="3" data-img="store" style="--z:1.5;--tx:-4.0%;--ty:-9.0%">
+            <div class="step-frame" aria-hidden="true"><img src="/assets/img/store.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
             <p class="eyebrow"><b>04</b> <span class="sep">/</span> 06 <span class="sep">·</span> Your whole collection</p>
-            <h3 class="display">Owned, not installed</h3>
-            <p class="step-text">Sign in to Steam or Xbox to also see the games you own but haven't installed. Picking one opens its install page in Steam or the Xbox app.</p>
-            <p class="step-where">Library · filters</p>
+            <h3 class="display">Browse and install</h3>
+            <p class="step-text">The Xbox and Steam tabs hold your games, the PC Game Pass catalog and each store's lists by genre. Game Pass games install right in Mantel, Steam games through Steam's dialog, with progress on the home screen.</p>
+            <p class="step-where">Steam · store</p>
           </article>
           <article class="step" data-i="4" data-img="details" style="--z:2.3;--tx:-2.7%;--ty:-27.7%">
             <div class="step-frame" aria-hidden="true"><img src="/assets/img/details.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async"></div>
@@ -345,6 +353,7 @@
             <div class="tour-frame" style="--z:1.12;--tx:-6.0%;--ty:-12.0%">
               <img data-img="home" src="/assets/img/home.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async">
               <img data-img="library" class="is-active" src="/assets/img/library.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async">
+              <img data-img="store" src="/assets/img/store.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async">
               <img data-img="details" src="/assets/img/details.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async">
               <div class="screen-gloss"></div>
             </div>
