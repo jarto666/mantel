@@ -763,6 +763,17 @@ async fn xbox_minutes_batch(http: &reqwest::Client, auth: &str, xuid: &str, ids:
         .unwrap_or_default())
 }
 
+/// Title history links its art over plain http, which the page's content policy refuses, and at
+/// full size, a megabyte or more per cover.
+fn cover_url(image: &str) -> String {
+    let url = image.strip_prefix("http://").map_or_else(|| image.to_string(), |rest| format!("https://{rest}"));
+    if url.contains("store-images.") && !url.contains('?') {
+        format!("{url}?w=600")
+    } else {
+        url
+    }
+}
+
 /// Installed games gain account playtime; the rest open their page in the Xbox app to
 /// install, or the Microsoft Store when Live sent no store id.
 pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
@@ -782,7 +793,7 @@ pub fn merge_xbox(games: &mut Vec<Game>, titles: &[XboxTitle]) {
         g.installed = false;
         g.playtime_minutes = t.minutes;
         g.last_played = last;
-        g.art.cover.extend(t.image.clone());
+        g.art.cover.extend(t.image.as_deref().map(cover_url));
         g.achievements = t.achievements.clone();
         games.push(g);
     }
@@ -835,6 +846,13 @@ pub fn merge_steam(games: &mut Vec<Game>, owned: &[OwnedSteam]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn asks_for_covers_over_https_at_their_size() {
+        assert_eq!(cover_url("http://store-images.s-microsoft.com/image/apps.1.2"), "https://store-images.s-microsoft.com/image/apps.1.2?w=600");
+        assert_eq!(cover_url("https://store-images.microsoft.com/image/apps.1.2"), "https://store-images.microsoft.com/image/apps.1.2?w=600");
+        assert_eq!(cover_url("http://images-eds.xboxlive.com/image?url=abc"), "https://images-eds.xboxlive.com/image?url=abc");
+    }
 
     #[test]
     fn takes_steams_dates_near_1970_as_unknown() {

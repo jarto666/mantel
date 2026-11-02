@@ -48,6 +48,16 @@ export function size(bytes?: number | null): string {
   return gb >= 1 ? t("{n} GB", { n }) : t("{n} MB", { n: Math.round(bytes / 1024 ** 2) });
 }
 
+/** A price the Store gives as a number, in the player's format. */
+export function money(value: number, currency: string | null): string {
+  if (!value) return t("Free");
+  try {
+    return new Intl.NumberFormat(locale(), { style: "currency", currency: currency ?? "USD" }).format(value);
+  } catch {
+    return `${value} ${currency ?? ""}`.trim();
+  }
+}
+
 export function speedText(bytesPerSecond: number): string {
   return t("{n} MB/s", { n: (bytesPerSecond / 1024 ** 2).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
 }

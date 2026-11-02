@@ -24,10 +24,12 @@ TV PC.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts
   connected, brings in playtime from Steam and Xbox across all your devices.
 - **Browse the stores.** The Xbox and Steam tabs hold your games, the PC Game Pass catalog
-  and each store's lists, by genre, with shelves that open into full grids. Sign in to see
-  the games you own but haven't installed. Buying happens in the store itself.
-- **Install from the couch.** Game Pass games install right in Mantel through Windows' own
-  installer, Steam games through Steam's dialog. Progress, speed and time left show on the
+  and each store's lists, by genre, with shelves that open into full grids. Search reaches
+  both stores too. Sign in to see your Steam games and the Xbox games you've played, installed
+  or not. Buying happens in the store itself.
+- **Install from the couch.** Game Pass games and anything else on your Microsoft account
+  install right in Mantel through Windows' own installer, with a list of editions showing
+  what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the
   home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
 - **In your language.** English, French, German, Spanish and Russian.
 - **Achievements.** With an account connected, every Steam and Xbox game shows its
@@ -80,8 +82,9 @@ Mantel has no servers and sends no telemetry. It talks only to the services you 
 - **Xbox.** You sign in on Microsoft's own page and allow Mantel to read your Xbox profile.
   Mantel reads your play history, minutes played and achievements from Xbox Live.
 - **Store catalogs.** Microsoft's public Game Pass and Store catalogs and Steam's store, for
-  the lists to browse. No account is involved in reading them.
-- **Installing.** Game Pass installs go through Windows' own installer, under the Microsoft
+  the lists to browse and for search, which sends them what you type. No account is involved
+  in reading them.
+- **Installing.** Store installs go through Windows' own installer, under the Microsoft
   account signed in to Windows; Steam installs go through the Steam client.
 - **Artwork and trailers.** Steam's store, image and video servers, GOG's public API and,
   if you add a key, SteamGridDB.

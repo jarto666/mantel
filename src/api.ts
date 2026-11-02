@@ -1,4 +1,4 @@
-import type { AccountsStatus, Achievement, ArtChoices, ArtKind, Details, Game, InstallProgress, Listing, Power, Quick, Running, Settings, StoreHome, StorePage, StoreShelf, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, ArtChoices, ArtKind, Details, Editions, Game, InstallProgress, Listing, Power, Quick, Running, Settings, StoreHit, StoreHome, StorePage, StoreShelf, Suggestion } from "./types";
 import { mockApi } from "./mock";
 import { steamLanguage } from "./i18n";
 
@@ -76,6 +76,10 @@ export interface Api {
   steamStoreHome(): Promise<StoreHome>;
   steamStorePage(list: string, tag: number | null, start: number): Promise<StorePage>;
   openXboxStore(product: string): Promise<void>;
+  xboxEditions(id: string, language: string): Promise<Editions | null>;
+  editionOnAccount(id: string, parts: string[]): Promise<boolean | null>;
+  xboxStoreSearch(query: string, language: string): Promise<StoreHit[]>;
+  steamStoreSearch(query: string): Promise<Game[]>;
   xboxStoreHome(language: string): Promise<StoreShelf[]>;
   xboxStorePage(list: string, genre: string | null, page: number, language: string): Promise<StorePage>;
   readClipboard(): Promise<string>;
@@ -157,6 +161,10 @@ const tauriApi: Api = {
   steamStoreHome: () => call("steam_store_home", { language: steamLanguage() }),
   steamStorePage: (list, tag, start) => call("steam_store_page", { list, tag, start, language: steamLanguage() }),
   openXboxStore: (product) => call("open_xbox_store", { product }),
+  xboxEditions: (id, language) => call("xbox_editions", { id, language }),
+  editionOnAccount: (id, parts) => call("edition_on_account", { id, parts }),
+  xboxStoreSearch: (query, language) => call("xbox_store_search", { query, language }),
+  steamStoreSearch: (query) => call("steam_store_search", { query, language: steamLanguage() }),
   xboxStoreHome: (language) => call("xbox_store_home", { language }),
   xboxStorePage: (list, genre, page, language) => call("xbox_store_page", { list, genre, page, language }),
   async readClipboard() {

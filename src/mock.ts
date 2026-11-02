@@ -131,6 +131,9 @@ const storeSeeds: [string, number, string, number?][] = [
   ["Sid Meier's Civilization VI", 289070, "$5.99", 90],
   ["Terraria", 105600, "$4.99", 50],
 ];
+const xboxSeeds: [string, string, number][] = [["Cyberpunk 2077: Ultimate Edition", "CYBERULT0000", 1091500], ["Probably Stolen - Cyberpunk Shopkeeper Sim", "STOLEN000000", 4348910]];
+const xboxList = (): Game[] =>
+  xboxSeeds.map(([name, id, appid]) => ({ ...storeList[0], id: `msstore:${id}`, source: "xbox", sourceId: "", name, art: cdn(appid), steamAppId: null, price: "$31.99", discount: null, tags: ["store"] }));
 const storeList: Game[] = storeSeeds.map(([name, appid, price, discount]) => ({
   ...games[0],
   id: `steam:${appid}`,
@@ -194,7 +197,7 @@ export const mockApi: Api = {
     return false;
   },
   async getDetails(id) {
-    const g = games.find((x) => x.id === id) ?? catalog.find((x) => x.id === id) ?? storeList.find((x) => x.id === id);
+    const g = games.find((x) => x.id === id) ?? catalog.find((x) => x.id === id) ?? storeList.find((x) => x.id === id) ?? xboxList().find((x) => x.id === id);
     if (!g?.steamAppId) return null;
     await wait(250);
     return {
@@ -290,8 +293,8 @@ export const mockApi: Api = {
     };
   },
   async installGame(id) {
-    const game = catalog.find((g) => g.id === id);
-    if (!game) throw "Only Game Pass games install from Mantel";
+    const game = catalog.find((g) => g.id === id) ?? (id.startsWith("msstore:") ? { ...xboxList()[0], id, sourceId: "Mock.Game_abc", sizeBytes: 8 * 1024 ** 3 } : undefined);
+    if (!game) throw "Only Store games install from Mantel";
     installing.add(id);
     let percent = 0;
     const total = game.sizeBytes ?? 8 * 1024 ** 3;
@@ -456,11 +459,37 @@ export const mockApi: Api = {
     return { games: storeList.slice(start, start + 12), more: start + 12 < storeList.length };
   },
   async openXboxStore() {},
+  async xboxEditions(id) {
+    const product = id.replace("msstore:", "").replace("xbox:", "");
+    return {
+      game: "BASE00000000",
+      pfn: "Mock.Game_abc",
+      title: xboxList().find((g) => g.id === id)?.name ?? product,
+      editions: [
+        { id: "BASE00000000", title: "Standard Edition", price: 29.99, was: 59.99, currency: "USD", parts: [] },
+        { id: "DELUXE000000", title: "Deluxe Edition", price: 79.99, was: 79.99, currency: "USD", parts: ["BASE00000000", "ADDON0000000"] },
+      ],
+    };
+  },
+  async editionOnAccount(id) {
+    await new Promise((r) => setTimeout(r, 300));
+    return id === "BASE00000000";
+  },
+  async xboxStoreSearch(query) {
+    const q = query.toLowerCase();
+    return xboxList()
+      .filter((g) => g.name.toLowerCase().includes(q))
+      .map((game) => ({ game, price: 29.99, was: 59.99, currency: "USD" }));
+  },
+  async steamStoreSearch(query) {
+    const q = query.toLowerCase();
+    return storeList.filter((g) => g.source === "steam" && g.name.toLowerCase().includes(q));
+  },
   async xboxStoreHome() {
-    return [];
+    return [{ id: "top", title: "Top sellers", games: xboxList() }];
   },
   async xboxStorePage() {
-    return { games: [], more: false };
+    return { games: xboxList(), more: false };
   },
   async openUrl(url) {
     window.open(url, "_blank");

@@ -3,8 +3,8 @@ import { api } from "./api";
 import { errorText, locale, steamLanguage, t } from "./i18n";
 import { rumble } from "./input";
 import { setSoundEnabled, sound } from "./sound";
-import type { AccountsStatus, Game, InstallProgress, Running, Settings, StoreHome, StoreShelf } from "./types";
-import { accentFor, baseTitle, DEFAULT_ACCENT, SOURCE_NAME } from "./util";
+import type { AccountsStatus, Editions, Game, InstallProgress, Running, Settings, StoreHome, StoreShelf } from "./types";
+import { accentFor, baseTitle, DEFAULT_ACCENT, money, SOURCE_NAME } from "./util";
 
 export type View = "home" | "library" | "steam" | "gamepass" | "settings";
 export type Overlay = "menu" | "search" | null;
@@ -120,6 +120,16 @@ export const isCatalog = (game: Game) => game.id.startsWith("gamepass:");
 /** On a store's lists and not in the library: it opens in that store. */
 export const isStoreItem = (game: Game) => !!game.tags?.includes("store");
 
+/** The same game on Game Pass or in the library, which can install or play, for a store entry. */
+export function ownCopy(game: Game): Game {
+  const { games, catalog } = get();
+  if (game.source === "steam") return games.find((g) => g.id === game.id) ?? game;
+  const pass = catalog.find((c) => c.id === game.id.replace("msstore:", "gamepass:"));
+  if (pass) return gamePassGames(games, [pass])[0];
+  const family = game.sourceId?.toLowerCase();
+  return (family && games.find((g) => g.source === "xbox" && g.sourceId.toLowerCase() === family)) || game;
+}
+
 /** The Game Pass catalog with library games standing in for their entries, so what's
  * installed plays instead of offering an install. Bundles and editions come without a
  * package name, so the title decides for them. */
@@ -198,6 +208,35 @@ export async function xboxPage(list: string, genre: string | null, page: number)
   return found;
 }
 
+/** The stores' games by name, for search. Each store answers for itself: one being down hides only its own. */
+export async function searchStores(query: string): Promise<Game[]> {
+  const sources = get().settings?.sources;
+  const [xbox, steam] = await Promise.all([
+    sources?.xbox ? api.xboxStoreSearch(query, locale().toLowerCase()).catch(() => []) : [],
+    sources?.steam ? api.steamStoreSearch(query).catch(() => []) : [],
+  ]);
+  const games = [
+    ...xbox.map(({ game, price, was, currency }) => ({
+      ...game,
+      price: price === null ? null : money(price, currency),
+      discount: price !== null && was && was > price ? Math.round((1 - price / was) * 100) : null,
+    })),
+    ...steam,
+  ];
+  keepStoreGames(games);
+  return games;
+}
+
+/** Installs the game behind an edition: the library's copy of it if there is one, and its own entry if not. */
+export function installEdition(from: Game, found: Editions) {
+  const family = found.pfn.toLowerCase();
+  const copy = family ? get().games.find((g) => g.source === "xbox" && g.sourceId.toLowerCase() === family) : undefined;
+  const target = copy ?? { ...from, id: `msstore:${found.game}`, name: found.title, sourceId: found.pfn };
+  if (!copy) keepStoreGames([target]);
+  set({ detailsId: target.id });
+  if (!target.installed) void startInstall(target, true, [found.game]);
+}
+
 /** Settings, with this store's sign-in open. */
 export function openSignIn(store: "steam" | "xbox") {
   set({ view: "settings", detailsId: null, signInAsk: store });
@@ -215,11 +254,15 @@ export async function loadCatalog() {
 }
 
 const INSTALLING_KEY = "mantel.installing";
+const INSTALLING_STORE_KEY = "mantel.installingStore";
 
-/** Installs on their way, kept across runs: Windows carries on after Mantel closes. */
+/** Installs on their way, kept across runs: Windows carries on after Mantel closes. A store entry
+ *  is kept whole, as nothing else lists it on the next run. */
 function rememberInstalls() {
   try {
-    localStorage.setItem(INSTALLING_KEY, JSON.stringify(Object.keys(get().installs)));
+    const ids = Object.keys(get().installs);
+    localStorage.setItem(INSTALLING_KEY, JSON.stringify(ids));
+    localStorage.setItem(INSTALLING_STORE_KEY, JSON.stringify(ids.map((id) => get().storeGames[id]).filter((g) => g?.id.startsWith("msstore:"))));
   } catch {
     // Without storage the only loss is the notice in followInstalls.
   }
@@ -228,6 +271,14 @@ function rememberInstalls() {
 function rememberedInstalls(): string[] {
   try {
     return JSON.parse(localStorage.getItem(INSTALLING_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function rememberedStoreGames(): Game[] {
+  try {
+    return JSON.parse(localStorage.getItem(INSTALLING_STORE_KEY) ?? "[]");
   } catch {
     return [];
   }
@@ -243,6 +294,8 @@ async function followInstalls() {
   if (followed) return;
   followed = true;
   const before = rememberedInstalls();
+  const fromStores = rememberedStoreGames();
+  keepStoreGames(fromStores);
   const products = await api.installsUnderWay().catch(() => [] as string[]);
   const { games, catalog } = get();
   for (const game of gamePassGames(games, catalog)) {
@@ -251,9 +304,14 @@ async function followInstalls() {
   for (const game of games) {
     if (!game.installed && products.includes(game.id)) startInstall(game, true);
   }
+  for (const game of fromStores) {
+    if (products.includes(game.id)) startInstall(game, true, [game.id.replace("msstore:", "")]);
+  }
   for (const id of before) {
     const listed = catalog.find((g) => g.id === id);
-    const own = listed ? gamePassGames(games, [listed])[0] : games.find((g) => g.id === id);
+    const fromStore = fromStores.find((g) => g.id === id);
+    if (fromStore && products.includes(id)) continue;
+    const own = listed ? gamePassGames(games, [listed])[0] : fromStore ? ownCopy(fromStore) : games.find((g) => g.id === id);
     if (!own || isCatalog(own) || !own.installed) continue;
     set((s) => ({ justInstalled: [own.id, ...s.justInstalled] }));
     toast(t("{name} finished installing while Mantel was closed", { name: own.name }), "good");
@@ -402,6 +460,8 @@ export async function launch(game: Game) {
       toast(t("Opening {store} to install {name}", { store: sourceLabel(game), name: game.name }));
       return startInstall(game, true);
     }
+    // Its page says whether it's on the account, and installs it or opens the Xbox app.
+    if (game.source === "xbox" && !isCatalog(game)) return set({ detailsId: game.id });
     // The store's own installer takes it from here; nothing to launch or track yet.
     try {
       await api.launchGame(game.id);
@@ -600,7 +660,7 @@ async function installProgress(p: InstallProgress) {
   await rescanFresh();
   // The open page moves to the library's copy, which can play; until then it says "Installed".
   if (game && !isCatalog(game)) set((s) => ({ justInstalled: [game.id, ...s.justInstalled] }));
-  const own = game && gamePassGames(get().games, [game])[0];
+  const own = game && (isCatalog(game) ? gamePassGames(get().games, [game])[0] : ownCopy(game));
   if (own && own.id !== p.id) {
     set((s) => ({ justInstalled: [own.id, ...s.justInstalled], detailsId: s.detailsId === p.id ? own.id : s.detailsId }));
   }

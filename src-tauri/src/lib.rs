@@ -289,9 +289,11 @@ fn install_game(app: AppHandle, state: State<'_, AppState>, id: String, chosen: 
     if id.starts_with(steam_install::ID_PREFIX) {
         return steam_install::start(&app, &id);
     }
-    let product = id.strip_prefix(gamepass::ID_PREFIX).ok_or("Only Game Pass games install from Mantel")?;
-    let packages = gamepass::packages(&state.cache.lock().unwrap().gamepass, product);
-    install::start(&app, &id, chosen.unwrap_or_else(|| vec![product.to_string()]).as_slice(), &packages)
+    let product = store_product(&state, &id).ok_or("Only Store games install from Mantel")?;
+    let targets = chosen.unwrap_or_else(|| vec![product.clone()]);
+    // A catalog bundle's own packages; anywhere else, what was asked for.
+    let packages = if id.starts_with(gamepass::ID_PREFIX) { gamepass::packages(&state.cache.lock().unwrap().gamepass, &product) } else { targets.clone() };
+    install::start(&app, &id, &targets, &packages)
 }
 
 #[tauri::command]
@@ -299,8 +301,8 @@ async fn cancel_install(state: State<'_, AppState>, id: String) -> Result<(), St
     if id.starts_with(steam_install::ID_PREFIX) {
         return steam_install::cancel(&id);
     }
-    let product = id.strip_prefix(gamepass::ID_PREFIX).ok_or("Not an install from Mantel")?;
-    let packages = gamepass::packages(&state.cache.lock().unwrap().gamepass, product);
+    let product = store_product(&state, &id).ok_or("Not an install from Mantel")?;
+    let packages = install::started(&id).unwrap_or_else(|| gamepass::packages(&state.cache.lock().unwrap().gamepass, &product));
     tauri::async_runtime::spawn_blocking(move || install::cancel(&packages)).await.map_err(|e| e.to_string())?
 }
 
@@ -319,17 +321,48 @@ async fn uninstall_game(app: AppHandle, state: State<'_, AppState>, id: String) 
     tauri::async_runtime::spawn_blocking(move || uninstall::start(&app, &game)).await.map_err(|e| e.to_string())?
 }
 
-/// Whether a catalog game is on the player's Microsoft account; nothing when the Store can't say.
+/// Whether a Store game is on the player's Microsoft account; nothing when the Store can't say.
 #[tauri::command]
-async fn install_access(id: String) -> Option<bool> {
-    let product = id.strip_prefix(gamepass::ID_PREFIX)?.to_string();
-    tauri::async_runtime::spawn_blocking(move || install::on_account(&product)).await.ok().flatten()
+async fn install_access(state: State<'_, AppState>, id: String) -> Result<Option<bool>, String> {
+    let Some(product) = store_product(&state, &id) else { return Ok(None) };
+    tauri::async_runtime::spawn_blocking(move || install::on_account(&product)).await.map_err(|e| e.to_string())
+}
+
+/// A game's editions on sale, from any card of it. `id` is a store entry's, or a played game's.
+#[tauri::command]
+async fn xbox_editions(state: State<'_, AppState>, id: String, language: String) -> Result<Option<xbox_store::Editions>, String> {
+    let Some(product) = store_product(&state, &id) else { return Ok(None) };
+    Ok(xbox_store::editions(xbox_store::checked(&product)?, &language).await)
+}
+
+/// Whether an edition is on the account: its own licence, or every product inside it.
+#[tauri::command]
+async fn edition_on_account(id: String, parts: Vec<String>) -> Option<bool> {
+    tauri::async_runtime::spawn_blocking(move || match install::on_account(&id) {
+        Some(false) if !parts.is_empty() => parts.iter().try_fold(true, |all, part| Some(all && install::on_account(part)?)),
+        answer => answer,
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+#[tauri::command]
+async fn xbox_store_search(query: String, language: String) -> Result<Vec<xbox_store::SearchHit>, String> {
+    xbox_store::search(&query, &language).await
+}
+
+#[tauri::command]
+async fn steam_store_search(query: String, language: String) -> Result<Vec<Game>, String> {
+    steam_store::search(&query, &language).await
 }
 
 #[tauri::command]
 async fn installs_under_way(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let busy = tauri::async_runtime::spawn_blocking(install::under_way).await.unwrap_or_default();
     let cache = state.cache.lock().unwrap();
+    let played = cache.owned_xbox.iter().filter(|t| t.product_id.as_ref().is_some_and(|p| busy.contains(p))).map(|t| format!("xbox:{}", t.pfn));
+    let listed = busy.iter().map(|product| format!("{}{product}", xbox_store::ID_PREFIX));
     Ok(cache
         .gamepass
         .games
@@ -337,8 +370,20 @@ async fn installs_under_way(state: State<'_, AppState>) -> Result<Vec<String>, S
         .filter_map(|g| g.id.strip_prefix(gamepass::ID_PREFIX))
         .filter(|product| gamepass::is_under_way(&cache.gamepass, product, &busy))
         .map(String::from)
+        .chain(played)
+        .chain(listed)
         .chain(steam_install::under_way())
         .collect())
+}
+
+/// The Store product behind a game: in the id of a catalog or store entry, and in the play history
+/// for a played game. Other games don't install through Windows.
+fn store_product(state: &AppState, id: &str) -> Option<String> {
+    if let Some(product) = id.strip_prefix(gamepass::ID_PREFIX).or_else(|| id.strip_prefix(xbox_store::ID_PREFIX)) {
+        return Some(product.to_string());
+    }
+    let pfn = id.strip_prefix("xbox:")?;
+    state.cache.lock().unwrap().owned_xbox.iter().find(|t| t.pfn.eq_ignore_ascii_case(pfn))?.product_id.clone()
 }
 
 /// A library game, or one from the Game Pass catalog.
@@ -892,6 +937,10 @@ pub fn run() {
             open_xbox_store,
             xbox_store_home,
             xbox_store_page,
+            xbox_store_search,
+            xbox_editions,
+            edition_on_account,
+            steam_store_search,
             resolve_steam_facts,
             steam_store_home,
             steam_store_page,

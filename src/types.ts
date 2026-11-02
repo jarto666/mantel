@@ -74,6 +74,33 @@ export interface StorePage {
   more: boolean;
 }
 
+/** A way to buy a game, as the Store sells it where the player is. */
+export interface Edition {
+  id: string;
+  title: string;
+  /** Empty when it isn't on sale here. */
+  price: number | null;
+  was: number | null;
+  currency: string | null;
+  /** What's inside a bundle: having all of it is as good as having the bundle. */
+  parts: string[];
+}
+
+export interface Editions {
+  /** The product with the files, which is what installs: many editions have none of their own. */
+  game: string;
+  pfn: string;
+  title: string;
+  editions: Edition[];
+}
+
+export interface StoreHit {
+  game: Game;
+  price: number | null;
+  was: number | null;
+  currency: string | null;
+}
+
 export interface InstallProgress {
   id: string;
   state: "pending" | "downloading" | "installing" | "paused" | "canceling" | "done" | "canceled" | "error";

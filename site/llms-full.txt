@@ -23,8 +23,8 @@ Every release is built by GitHub Actions from the public source code.
 - **Works on first launch.** Mantel finds installed games on its own: no plugins, no per-store setup.
 - **Controller first.** Every screen works with the gamepad, the touchscreen or a keyboard. The control center (≡) sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices.
-- **Browse the stores.** The Xbox and Steam tabs hold your games, the PC Game Pass catalog and each store's lists, by genre, with shelves that open into full grids. Sign in to see the games you own but haven't installed. Buying happens in the store itself.
-- **Install from the couch.** Game Pass games install right in Mantel through Windows' own installer, Steam games through Steam's dialog. Progress, speed and time left show on the home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
+- **Browse the stores.** The Xbox and Steam tabs hold your games, the PC Game Pass catalog and each store's lists, by genre, with shelves that open into full grids. Search reaches both stores too. Sign in to see your Steam games and the Xbox games you've played, installed or not. Buying happens in the store itself.
+- **Install from the couch.** Game Pass games and anything else on your Microsoft account install right in Mantel through Windows' own installer, with a list of editions showing what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
 - **In your language.** English, French, German, Spanish and Russian.
 - **Achievements.** With an account connected, every Steam and Xbox game shows its progress, and its page lists each achievement with rarity and gamerscore.
 - **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it. Settings → Interface turns that off.

@@ -2,6 +2,7 @@ import { AnimatePresence, motion, type Variants } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Cover } from "../components/Cover";
 import { DOWNLOAD, Glyph, SourceIcon } from "../components/Glyph";
+import { GameName } from "../components/GameName";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
 import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
@@ -56,7 +57,7 @@ function Hero({ game, running, zone, btn, onPress }: { game: Game; running: bool
         {running && <span className="live"><span className="live-dot" />{t("Running")}</span>}
       </motion.div>
       <motion.div className="hero-title" variants={item}>
-        <Img srcs={game.art.logo} className="hero-logo" trim fallback={<h1 className="hero-name">{game.name}</h1>} />
+        <Img srcs={game.art.logo} className="hero-logo" trim fallback={<GameName name={game.name} />} />
       </motion.div>
       <motion.div className="hero-stats" variants={item}>
         {install ? (

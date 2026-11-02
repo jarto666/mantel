@@ -237,6 +237,18 @@ fn appid_in_logo(logo: &str) -> Option<u32> {
     rest.split('/').next()?.parse().ok()
 }
 
+/// The store's games by name. Add-ons match too, and drop out with everything else that isn't a game.
+pub async fn search(query: &str, language: &str) -> Result<Vec<Game>, String> {
+    const UNREACHABLE: &str = "Couldn't reach Steam";
+    let answer = get_json(client().get("https://store.steampowered.com/api/storesearch/").query(&[("term", query), ("l", language), ("cc", "US")])).await.ok_or(UNREACHABLE)?;
+    let ids = unique(answer.get("items").and_then(Value::as_array).into_iter().flatten().filter(|i| i.get("type").and_then(Value::as_str) == Some("app")).filter_map(|i| i.get("id")?.as_u64().map(|id| id as u32)));
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let names = genre_names(language).await.unwrap_or_default();
+    games_of(&ids, language, &names).await.ok_or_else(|| UNREACHABLE.to_string())
+}
+
 /// One page of a store list, all games if `tag` is None.
 pub async fn page(list: &str, tag: Option<u32>, start: u32, language: &str) -> Result<Page, String> {
     let mut query: Vec<(&str, String)> = vec![("json", "1".into()), ("category1", "998".into()), ("count", PAGE.to_string()), ("start", start.to_string()), ("l", language.into())];

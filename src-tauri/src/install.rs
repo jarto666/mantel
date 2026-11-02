@@ -24,6 +24,13 @@ pub struct Progress {
 
 /// Installs Mantel started or follows, by game id; finished ones drop out.
 static ACTIVE: Mutex<Vec<Progress>> = Mutex::new(Vec::new());
+/// The packages of each install started this run, to cancel the same ones.
+static STARTED: Mutex<Vec<(String, Vec<String>)>> = Mutex::new(Vec::new());
+
+/// The packages an install was started with.
+pub fn started(id: &str) -> Option<Vec<String>> {
+    STARTED.lock().unwrap().iter().find(|(known, _)| known == id).map(|(_, packages)| packages.clone())
+}
 
 /// Prints "<state> <percent> <downloaded> <total>" every moment until the install ends, or
 /// "error <hresult> <message>". A bundle installs as several packages, reported as one.
@@ -184,6 +191,11 @@ pub fn start(app: &AppHandle, id: &str, targets: &[String], packages: &[String])
         .spawn()
         .map_err(|e| format!("Couldn't start the installer: {e}"))?;
     let stdout = child.stdout.take().ok_or("no installer output")?;
+    {
+        let mut started = STARTED.lock().unwrap();
+        started.retain(|(known, _)| known != id);
+        started.push((id.to_string(), packages.to_vec()));
+    }
     crate::log::info(&format!("install {id} ({})", targets.join(" ")));
     publish(app, Progress { id: id.to_string(), state: "pending".into(), ..Default::default() });
     let (app, id) = (app.clone(), id.to_string());

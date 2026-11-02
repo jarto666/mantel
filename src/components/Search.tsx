@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
 import { t } from "../i18n";
 import { Layer, useInput } from "../input";
-import { gamePassGames, isCatalog, launch, setFocus, useStore } from "../store";
+import { gamePassGames, isCatalog, isStoreItem, launch, ownCopy, searchStores, setFocus, useStore } from "../store";
+import type { Game } from "../types";
 import { matches } from "../util";
 import { Cover } from "./Cover";
 import { useHints } from "./Hints";
@@ -19,12 +20,36 @@ export function Search() {
   const input = useRef<HTMLInputElement>(null);
   const rail = useRef<HTMLDivElement>(null);
 
+  // The stores answer after what's already here, once typing pauses.
+  const [hits, setHits] = useState<Game[]>([]);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const text = query.trim();
+    setHits([]);
+    setSearching(open && text.length >= 2);
+    if (!open || text.length < 2) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      void searchStores(text).then((found) => {
+        if (!live) return;
+        setHits(found);
+        setSearching(false);
+      });
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query, open]);
+
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const own = games.filter((g) => !g.hidden && matches(g, query));
     const pass = gamePassGames(games, catalog).filter((g) => isCatalog(g) && matches(g, query));
-    return [...own, ...pass].slice(0, 24);
-  }, [games, catalog, query]);
+    const seen = new Set([...own, ...pass].map((g) => g.id));
+    const stores = hits.map(ownCopy).filter((g) => !g.hidden && !seen.has(g.id) && seen.add(g.id));
+    return [...own, ...pass, ...stores].slice(0, 36);
+  }, [games, catalog, query, hits]);
   const i = Math.min(index, Math.max(0, results.length - 1));
   useScrollFocus(rail, `${zone}${i}`, { axis: "x", align: "center" });
 
@@ -74,8 +99,8 @@ export function Search() {
           return "edge";
         case "a":
           if (!g) return "silent";
-          // A Game Pass game opens its page, like on the Game Pass tab.
-          if (isCatalog(g)) return void useStore.setState({ overlay: null, detailsId: g.id });
+          // A Game Pass game or a store's opens its page, like on their tabs.
+          if (isCatalog(g) || isStoreItem(g)) return void useStore.setState({ overlay: null, detailsId: g.id });
           close();
           launch(g);
           return "silent";
@@ -92,7 +117,7 @@ export function Search() {
   useHints(
     zone === "keys"
       ? [["a", "Type"], ["x", "Delete"], ["y", "Space"], ["b", "Close"]]
-      : results[i] && isCatalog(results[i])
+      : results[i] && (isCatalog(results[i]) || isStoreItem(results[i]))
         ? [["a", "Details"], ["b", "Close"]]
         : [["a", results[i]?.installed === false ? "Install" : "Play"], ["y", "Details"], ["b", "Close"]],
     Layer.overlay,
@@ -118,7 +143,7 @@ export function Search() {
       </div>
       <div className={`search-results ${zone === "results" ? "is-active" : ""}`}>
         {results.length === 0 ? (
-          <div className="search-empty">{query ? t("No matches") : t("Start typing a title — initials work too, like “rdr”")}</div>
+          <div className="search-empty">{searching ? t("Searching the stores…") : query ? t("No matches") : t("Start typing a title — initials work too, like “rdr”")}</div>
         ) : (
           <div className="search-rail" ref={rail}>
             {results.map((g, n) => (
@@ -129,7 +154,7 @@ export function Search() {
                 running={running?.id === g.id}
                 showName={zone === "results" && n === i}
                 onClick={() => {
-                  if (isCatalog(g)) return useStore.setState({ overlay: null, detailsId: g.id });
+                  if (isCatalog(g) || isStoreItem(g)) return useStore.setState({ overlay: null, detailsId: g.id });
                   close();
                   launch(g);
                 }}

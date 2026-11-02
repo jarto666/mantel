@@ -1,7 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { api, toSrc } from "../api";
+import { EditionPicker } from "../components/EditionPicker";
 import { DOWNLOAD, SourceIcon } from "../components/Glyph";
+import { GameName } from "../components/GameName";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
 import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
@@ -9,13 +11,13 @@ import { AchievementList, TROPHY } from "../components/AchievementList";
 import { ArtPicker } from "../components/ArtPicker";
 import { PackagePicker } from "../components/PackagePicker";
 import { useScrollFocus } from "../hooks";
-import { errorText, t } from "../i18n";
+import { errorText, locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
-import { askCancel, checkAccess, gameById, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
+import { askCancel, checkAccess, gameById, installEdition, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
 import { TextPrompt } from "../components/TextPrompt";
 import { watchTrailer } from "../trailer";
-import type { Achievement, BundleItem, Details as Info, Game, InstallProgress, Video } from "../types";
+import type { Achievement, BundleItem, Details as Info, Editions, Game, InstallProgress, Video } from "../types";
 import { hours, installLabel, lastPlayed, placeholderHue, size } from "../util";
 
 interface Action {
@@ -63,14 +65,54 @@ function TrailerPlayer({ video, paused, onEnd }: { video: Video; paused: boolean
   return <video ref={el} playsInline poster={video.thumb ?? undefined} onEnded={onEnd} />;
 }
 
-function actionsFor(game: Game, running: boolean, install: InstallProgress | undefined, offAccount: boolean, beginInstall: (anyway?: boolean) => void, showAchievements: () => void, pickArt: () => void): Action[] {
-  if (isStoreItem(game)) {
+const OPEN_ICON = <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />;
+
+/** What the page knows about a Store game off the catalog: `found` is undefined while it asks, null if it can't install from here. */
+interface StoreGame {
+  found: Editions | null | undefined;
+  owned: Record<string, boolean | null>;
+  asking: boolean;
+  onAccount: boolean;
+}
+
+/** Any edition on the account means the game can install. The Store is asked one at a time. */
+function useStoreGame(id: string | null): StoreGame {
+  const [found, setFound] = useState<Editions | null | undefined>(undefined);
+  const [owned, setOwned] = useState<Record<string, boolean | null>>({});
+  useEffect(() => {
+    setFound(undefined);
+    setOwned({});
+    if (!id) return;
+    let live = true;
+    api
+      .xboxEditions(id, locale().toLowerCase())
+      .then(async (list) => {
+        if (!live) return;
+        setFound(list);
+        for (const edition of list?.editions ?? []) {
+          const answer = await api.editionOnAccount(edition.id, edition.parts).catch(() => null);
+          if (!live) return;
+          setOwned((o) => ({ ...o, [edition.id]: answer }));
+        }
+      })
+      .catch(() => live && setFound(null));
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  const editions = found?.editions ?? [];
+  const onAccount = editions.some((e) => owned[e.id]);
+  return { found, owned, onAccount, asking: id !== null && (found === undefined || (!onAccount && editions.some((e) => !(e.id in owned)))) };
+}
+
+function actionsFor(game: Game, running: boolean, install: InstallProgress | undefined, offAccount: boolean, store: StoreGame, showEditions: () => void, beginInstall: (anyway?: boolean) => void, showAchievements: () => void, pickArt: () => void): Action[] {
+  if (isStoreItem(game) && game.source === "steam") {
     return [{
       id: "store",
-      label: game.source === "steam" ? t("View on Steam") : t("Open in Xbox app"),
+      label: t("View on Steam"),
       primary: true,
-      icon: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
-      run: () => void (game.source === "steam" ? api.openSteamStore(game.steamAppId!) : api.openXboxStore(game.id.replace("msstore:", ""))).catch((e) => toast(errorText(e), "warn")),
+      icon: OPEN_ICON,
+      run: () => void api.openSteamStore(game.steamAppId!).catch((e) => toast(errorText(e), "warn")),
     }];
   }
   const close = () => useStore.setState({ detailsId: null });
@@ -114,6 +156,24 @@ function actionsFor(game: Game, running: boolean, install: InstallProgress | und
     if (game.tags?.includes("external")) return [{ ...xbox, primary: true }];
     if (offAccount) return [{ ...xbox, primary: true }, { ...list[0], primary: false, label: t("Install anyway"), run: () => beginInstall(true) }];
     return [{ ...list[0], label: t("Install"), run: () => beginInstall() }, xbox];
+  }
+  // Off the catalog, on a store's list or in the play history: the Store says what's on the account.
+  if (game.source === "xbox" && !game.installed) {
+    const xbox: Action = {
+      id: "xbox",
+      label: t("Open in Xbox app"),
+      icon: OPEN_ICON,
+      run: () => void (isStoreItem(game) ? api.openXboxStore(game.id.replace("msstore:", "")) : api.launchGame(game.id)).catch((e) => toast(errorText(e), "warn")),
+    };
+    const editions: Action[] = (store.found?.editions.length ?? 0) > 1 ? [{ id: "editions", label: t("Editions"), icon: <path d="M4 7h16M4 12h16M4 17h16" />, run: showEditions }] : [];
+    const found = store.found;
+    const main: Action[] = store.asking
+      ? [{ id: "play", label: t("Checking your account…"), primary: true, busy: true, icon: DOWNLOAD, run: () => {} }, ...editions]
+      : found && store.onAccount
+        ? [{ id: "play", label: t("Install"), primary: true, icon: DOWNLOAD, run: () => installEdition(game, found) }, ...editions, xbox]
+        : [{ ...xbox, primary: true }, ...editions, ...(found && !isStoreItem(game) ? [{ id: "play", label: t("Install anyway"), icon: DOWNLOAD, run: () => installEdition(game, found) }] : [])];
+    if (isStoreItem(game)) return main;
+    list.splice(0, 1, ...main);
   }
   if (game.achievements) {
     list.push({ id: "achievements", label: t("Achievements"), icon: TROPHY, run: showAchievements });
@@ -185,6 +245,8 @@ export function Details() {
   const [choosing, setChoosing] = useState<{ items: BundleItem[]; anyway: boolean } | null>(null);
   const uninstalling = useStore((s) => s.uninstalling !== null && s.uninstalling === detailsId);
   const offAccount = useStore((s) => detailsId !== null && s.access[detailsId] === false);
+  const [pickingEdition, setPickingEdition] = useState(false);
+  const storeGame = useStoreGame(game && game.source === "xbox" && !game.installed && !isCatalog(game) && !game.tags?.includes("external") ? game.id : null);
   const install = useStore((s) => (detailsId ? s.installs[detailsId] : undefined));
   const shots = useRef<HTMLDivElement>(null);
   const page = useRef<HTMLDivElement>(null);
@@ -208,6 +270,7 @@ export function Details() {
     setArmed(false);
     setPaused(false);
     setChoosing(null);
+    setPickingEdition(false);
     if (!detailsId) return;
     let live = true;
     api
@@ -262,7 +325,7 @@ export function Details() {
     if (details?.items?.length) setChoosing({ items: details.items, anyway });
     else startInstall(game, anyway);
   };
-  const actions = game ? actionsFor(game, running?.id === game.id, install, offAccount, beginInstall, () => setAchievements(true), () => setPickingArt(true)) : [];
+  const actions = game ? actionsFor(game, running?.id === game.id, install, offAccount, storeGame, () => setPickingEdition(true), beginInstall, () => setAchievements(true), () => setPickingArt(true)) : [];
   if (game?.installed && (game.source === "xbox" || game.source === "steam") && running?.id !== game.id) {
     actions.push({
       id: "uninstall",
@@ -366,11 +429,15 @@ export function Details() {
           {info?.genres?.slice(0, 3).map((g) => <span key={g}>{g}</span>)}
         </motion.div>
         <motion.div className="details-title" {...enter(0.1)}>
-          <Img srcs={game.art.logo} className="details-logo" trim fallback={<h1 className="hero-name">{game.name}</h1>} />
+          <Img srcs={game.art.logo} className="details-logo" trim fallback={<GameName name={game.name} />} />
         </motion.div>
 
         {isStoreItem(game) && (game.price || info?.metacritic) && <motion.div className="hero-stats" {...enter(0.16)}>
-          {game.price && <Stat value={t(game.price)} label={game.discount ? t("Price · {percent}% off", { percent: game.discount }) : t("Price")} />}
+          {storeGame.onAccount ? (
+            <Stat value={t("On your account")} label={sourceLabel(game)} />
+          ) : (
+            game.price && <Stat value={t(game.price)} label={game.discount ? t("Price · {percent}% off", { percent: game.discount }) : t("Price")} />
+          )}
           {info?.metacritic ? <Stat value={String(info.metacritic)} label="Metacritic" /> : null}
         </motion.div>}
         {!isCatalog(game) && !isStoreItem(game) && !install && <motion.div className="hero-stats" {...enter(0.16)}>
@@ -408,7 +475,7 @@ export function Details() {
         {isCatalog(game) && game.tags?.includes("external") ? (
           <p className="details-note is-info">{t("This game installs through its publisher's launcher. The Xbox app can start the install.")}</p>
         ) : (
-          isCatalog(game) && offAccount && !install && <p className="details-note">{t("This game isn't on your Microsoft account. Without an active Game Pass or a purchase it won't start after downloading.")}</p>
+          ((isCatalog(game) && offAccount) || (!isStoreItem(game) && storeGame.found && !storeGame.asking && !storeGame.onAccount)) && !install && <p className="details-note">{t("This game isn't on your Microsoft account. Without an active Game Pass or a purchase it won't start after downloading.")}</p>
         )}
         {info?.description && (
           <motion.p className="details-desc" {...enter(0.28)}>
@@ -494,6 +561,9 @@ export function Details() {
         />
       )}
 
+      {pickingEdition && storeGame.found && (
+        <EditionPicker found={storeGame.found} owned={storeGame.owned} onClose={() => setPickingEdition(false)} onInstall={() => installEdition(game, storeGame.found!)} />
+      )}
       {choosing && (
         <PackagePicker game={game} items={choosing.items} onClose={() => setChoosing(null)} onInstall={(chosen) => startInstall(game, choosing.anyway, chosen)} />
       )}

@@ -21,7 +21,7 @@
         "fullscreen": true,
         "decorations": false,
         "backgroundColor": "#06070b",
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disk-cache-size=268435456"
       }
     ],
     "security": {

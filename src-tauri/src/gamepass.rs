@@ -138,7 +138,7 @@ pub async fn fetch(language: &str) -> Result<Catalog, String> {
     Ok(catalog)
 }
 
-async fn products(http: &reqwest::Client, ids: &[String], market: &str, language: &str) -> Vec<Value> {
+pub(crate) async fn products(http: &reqwest::Client, ids: &[String], market: &str, language: &str) -> Vec<Value> {
     // Owned strings: a stream over borrowed chunks makes the command's future not Send.
     let batches: Vec<String> = ids.chunks(BATCH).map(|c| c.join(",")).collect();
     let (market, language) = (market.to_string(), language.to_string());
@@ -172,18 +172,18 @@ fn bundled(details: &Value) -> Vec<String> {
     details.get("bundled").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(String::from).collect()
 }
 
-fn product_title(p: &Value) -> String {
+pub(crate) fn product_title(p: &Value) -> String {
     p.pointer("/LocalizedProperties/0/ProductTitle").and_then(Value::as_str).unwrap_or_default().trim().to_string()
 }
 
 /// A product's packages, across its SKUs.
-fn all_packages(p: &Value) -> Vec<&Value> {
+pub(crate) fn all_packages(p: &Value) -> Vec<&Value> {
     let skus = p.get("DisplaySkuAvailabilities").and_then(Value::as_array).into_iter().flatten();
     skus.filter_map(|s| s.pointer("/Sku/Properties/Packages").and_then(Value::as_array)).flatten().collect()
 }
 
 /// Many products list their console packages next to the PC ones, often first.
-fn for_pc(package: &Value) -> bool {
+pub(crate) fn for_pc(package: &Value) -> bool {
     let platforms = package.get("PlatformDependencies").and_then(Value::as_array);
     platforms.is_none_or(|list| list.is_empty() || list.iter().any(|d| d.get("PlatformName").and_then(Value::as_str) != Some("Windows.Xbox")))
 }
@@ -253,7 +253,7 @@ pub fn is_under_way(catalog: &Catalog, product: &str, busy: &[String]) -> bool {
     }
 }
 
-fn parse(p: &Value, install: &str) -> Option<(Game, Value)> {
+pub(crate) fn parse(p: &Value, install: &str) -> Option<(Game, Value)> {
     let id = p.get("ProductId")?.as_str()?;
     let lp = p.get("LocalizedProperties")?.get(0)?;
     let name = lp.get("ProductTitle")?.as_str()?.trim();
