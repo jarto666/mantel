@@ -36,14 +36,14 @@ const seeds: Seed[] = [
   ["steam", "Hogwarts Legacy", 990080, 0, null],
   ["steam", "Ghost of Tsushima", 2215430, 2600, 33],
   ["steam", "Counter-Strike 2", 730, 21000, 4],
-  ["epic", "Alan Wake 2", null, 820, 18],
-  ["epic", "Fortnite", null, 4100, 9],
+  ["epic", "Death Stranding", 1190460, 820, 18],
+  ["epic", "Control", 870780, 4100, 9],
   ["gog", "Disco Elysium", 632470, 2400, 200],
   ["xbox", "Forza Horizon 5", 1551360, 3900, 5],
   ["xbox", "Starfield", 1716740, 1200, 70],
   ["xbox", "Indiana Jones and the Great Circle", 2677660, 760, 11],
   ["ubisoft", "Prince of Persia: The Lost Crown", 2751000, 540, 45],
-  ["custom", "Minecraft", null, 0, null],
+  ["custom", "Celeste", 504230, 0, null],
 ];
 
 /** Steam-style counts for some games, Xbox gamerscore (one without a total) for others. */
@@ -131,7 +131,7 @@ const storeSeeds: [string, number, string, number?][] = [
   ["Sid Meier's Civilization VI", 289070, "$5.99", 90],
   ["Terraria", 105600, "$4.99", 50],
 ];
-const xboxSeeds: [string, string, number][] = [["Cyberpunk 2077: Ultimate Edition", "CYBERULT0000", 1091500], ["Probably Stolen - Cyberpunk Shopkeeper Sim", "STOLEN000000", 4348910]];
+const xboxSeeds: [string, string, number][] = [["Cyberpunk 2077: Ultimate Edition", "CYBERULT0000", 1091500], ["Ori and the Will of the Wisps", "ORIWISPS0000", 1057090]];
 const xboxList = (): Game[] =>
   xboxSeeds.map(([name, id, appid]) => ({ ...storeList[0], id: `msstore:${id}`, source: "xbox", sourceId: "", name, art: cdn(appid), steamAppId: null, price: "$31.99", discount: null, tags: ["store"] }));
 const storeList: Game[] = storeSeeds.map(([name, appid, price, discount]) => ({
@@ -202,7 +202,9 @@ export const mockApi: Api = {
     await wait(250);
     return {
       description:
-        "Demo description: in the app this comes from the Steam store. Right now the interface is running in a browser with a sample library.",
+        g.name === "Hades II"
+          ? "Fight through the Underworld and beyond as its immortal princess, with a new mix of magic and weapons on every run."
+          : "A sample game, for trying the interface in a browser.",
       genres: ["Action", "RPG", "Adventure"],
       features: ["Single player", "Online co-op", "Cross-platform", "Controller support", "Cloud saves", "Achievements"],
       videos: [{ url: "https://cdn.trailers.xboxservices.com/none/manifest.mpd", thumb: g?.art.hero[0], title: "Official trailer" }],
@@ -211,7 +213,7 @@ export const mockApi: Api = {
         { id: "9MOCKADDON01", title: `${g.name}: Farewell`, kind: "addon", size: null },
         { id: "9MOCKADDON02", title: `${g.name}: Soundtrack`, kind: "addon", size: 300 * 1024 ** 2 },
       ] : undefined,
-      developers: ["Studio"],
+      developers: [g.name === "Hades II" ? "Supergiant Games" : "Sample Studio"],
       releaseDate: "2024",
       metacritic: 80 + (g.name.length % 15),
       screenshots: [...g.art.hero.slice(0, 1), ...g.art.icon],

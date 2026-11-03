@@ -18,7 +18,7 @@ Key facts:
 - Artwork comes from Steam and GOG, plus SteamGridDB with the user's own free key.
 - Privacy: no servers and no telemetry. Steam and Xbox sign-in happen on Steam's and Microsoft's own pages. All data stays on the PC in `%APPDATA%\com.playmantel.launcher\`.
 - Built with Tauri 2 (Rust) and React + TypeScript.
-- Compared with Playnite: Mantel is narrower, a single fullscreen controller-first home screen with no plugins. Compared with the Xbox full screen experience: Mantel is an independent app that treats every store the same and can replace its home app.
+- Compared with Winhanced: Mantel's interface is much simpler, with no telemetry and no background services or extra software. Winhanced adds performance tuning, an in-game overlay and remote play. Mantel is in active development and takes feature requests on GitHub. Compared with the Xbox full screen experience: Mantel is an independent app that treats every store the same and can replace its home app.
 - Not affiliated with Valve, Microsoft, ASUS, Lenovo, MSI, Epic Games, GOG or Ubisoft.
 
 ## Links

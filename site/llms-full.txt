@@ -80,9 +80,9 @@ Signing in is optional: it only adds your whole collection, playtime from other 
 
 Yes, for now. That's Microsoft Defender SmartScreen, and it warns about installers that aren't code-signed. Mantel's installer isn't code-signed yet, so choose More info → Run anyway. Signing will come through SignPath Foundation's free program for open source projects; the code signing policy (https://playmantel.com/code-signing) explains how it works. Every release is built by GitHub Actions from the public source code, so you can see exactly what goes into it.
 
-### How is it different from Playnite?
+### How is it different from Winhanced?
 
-Playnite is a mature, open-source library manager with a big plugin ecosystem and both a desktop and a fullscreen mode; you can make it do almost anything. Mantel is narrower on purpose: one controller-first home screen that finds games from the supported stores on first launch, with no plugins and no per-store setup. If you love tuning your setup, Playnite is great. If you want a handheld that boots straight into your games, try Mantel.
+Mantel does less on purpose. Its interface is much simpler, and we think it looks better too: open it, pick a game and play. It also stays out of your way: no telemetry, and no background services or extra software that change things on your handheld. If you want performance tuning, an in-game overlay and remote play in one app, Winhanced has them. Mantel is in active development. If you like what's there but miss something, open a feature request on GitHub and you'll get a quick reply.
 
 ### How is it different from the Xbox full screen experience on the ROG Xbox Ally?
 

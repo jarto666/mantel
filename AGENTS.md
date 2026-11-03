@@ -67,6 +67,7 @@ Mantel runs on a handheld next to games, and frame drops show.
 - Passwords, sign-ins, licences, purchases and system settings belong to the device's owner. Ask them to do it; never type credentials.
 - Move data aside rather than deleting it.
 - Never put a real library, account name or token in a screenshot, log, commit or issue. Public screenshots come from sample data.
+- Look at every public screenshot before it ships: all covers loaded, no placeholder cards, no demo text. New site images get a new `?v=` too, as `/assets` is cached for a week.
 
 ## Outside services
 
