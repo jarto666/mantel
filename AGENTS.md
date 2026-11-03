@@ -48,6 +48,7 @@ On the device, over the SSH alias `ally`:
 Known traps:
 
 - Editing `src/store.ts` with a dev build open leaves an empty UI until the page reloads.
+- The content policy in `tauri.conf.json` applies only to release builds. Anything the page fetches or shows from a new host works in a dev build and fails in a release, so add the host there and test it in a release build.
 - After a version bump, a local build keeps the old version until the build script reruns: `touch src-tauri/tauri.conf.json src-tauri/build.rs src-tauri/src/lib.rs`.
 - Reduced motion gives every property a tiny transition, so reading a size right after setting it returns the old value. An element measured that way needs `transition-property: none`.
 - In zsh, quote globs such as `'*.ts'`. A failed key-press command once launched a game on the device, so check the UI's state before sending input.
