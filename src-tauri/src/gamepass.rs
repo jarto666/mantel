@@ -243,6 +243,11 @@ fn complete_bundle(game: &mut Game, details: &mut Value, packages: &HashMap<Stri
     }
 }
 
+/// The catalog's entry for an installed package, if it has a page to show.
+pub fn entry_for_package<'a>(catalog: &'a Catalog, pfn: &str) -> Option<&'a Game> {
+    catalog.games.iter().find(|g| g.source_id.eq_ignore_ascii_case(pfn) && catalog.details.contains_key(&g.id))
+}
+
 /// Whether a catalog game is on its way, going by what Windows is installing. Bundles share
 /// packages like launchers, so it's the game's own packages that say.
 pub fn is_under_way(catalog: &Catalog, product: &str, busy: &[String]) -> bool {
@@ -441,6 +446,17 @@ pub fn install_uri() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_catalog_page_of_an_installed_package() {
+        let mut game = Game::new("xbox", "Studio.Game_abc", "Game", Launch::Uri { uri: String::new() });
+        game.id = format!("{ID_PREFIX}9ABC");
+        let mut catalog = Catalog { games: vec![game], ..Default::default() };
+        assert!(entry_for_package(&catalog, "studio.game_ABC").is_none(), "no page to show yet");
+        catalog.details.insert(format!("{ID_PREFIX}9ABC"), json!({}));
+        assert_eq!(entry_for_package(&catalog, "studio.game_ABC").map(|g| g.id.as_str()), Some("gamepass:9ABC"));
+        assert!(entry_for_package(&catalog, "Other.Game_abc").is_none());
+    }
 
     #[test]
     fn writes_release_dates() {

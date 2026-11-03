@@ -396,6 +396,21 @@ fn find_game(state: &AppState, id: &str) -> Option<Game> {
 #[tauri::command]
 async fn get_details(state: State<'_, AppState>, id: String, language: Option<String>) -> Result<Option<Value>, String> {
     let language = language.unwrap_or_else(|| "english".into());
+    // An Xbox game keeps its Store page once installed, so its trailers and text don't change.
+    // Steam's stands in below for what the Store has no page for.
+    let id = match id.strip_prefix("xbox:") {
+        Some(pfn) => gamepass::entry_for_package(&state.cache.lock().unwrap().gamepass, pfn).map_or_else(|| id.clone(), |g| g.id.clone()),
+        None => id,
+    };
+    if id.starts_with("xbox:") {
+        if let Some(product) = store_product(&state, &id).filter(|p| xbox_store::checked(p).is_ok()) {
+            let catalog_language = state.cache.lock().unwrap().gamepass.language.clone();
+            let key = state.user.lock().unwrap().settings.steamgriddb_key.trim().to_string();
+            if let Some(page) = xbox_store::details(&product, if catalog_language.is_empty() { "en-us" } else { &catalog_language }, &key).await {
+                return Ok(Some(page));
+            }
+        }
+    }
     if let Some(product) = id.strip_prefix(xbox_store::ID_PREFIX) {
         let catalog_language = state.cache.lock().unwrap().gamepass.language.clone();
         let key = state.user.lock().unwrap().settings.steamgriddb_key.trim().to_string();
