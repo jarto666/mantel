@@ -4,68 +4,80 @@ import { Cover } from "../components/Cover";
 import { Glyph, SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow } from "../hooks";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
-import { launch, setFocus, toggleFavorite, useStore } from "../store";
+import { launch, openSignIn, setFocus, toggleFavorite, useStore } from "../store";
 import type { Game, Source } from "../types";
 import { playtime, SOURCE_NAME } from "../util";
+
+/** A store whose games the library only shows in full after signing in. */
+type Account = "steam" | "xbox";
 
 interface Filter {
   id: string;
   label: string;
   source?: Source;
-  apply: (games: Game[]) => Game[];
+  games: Game[];
+  /** Stores to sign in to, as tiles after the games. */
+  signIn: Account[];
 }
 
-const BASE_FILTERS: Filter[] = [
-  { id: "all", label: "All", apply: (g) => g },
-  { id: "fav", label: "Favorites", apply: (g) => g.filter((x) => x.favorite) },
-  {
-    id: "recent",
-    label: "Recent",
-    apply: (g) => g.filter((x) => x.lastPlayed).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0)),
-  },
-  {
-    id: "most",
-    label: "Most played",
-    apply: (g) => g.filter((x) => x.playtimeMinutes > 0).sort((a, b) => b.playtimeMinutes - a.playtimeMinutes),
-  },
-];
+type Tile = { kind: "game"; game: Game } | { kind: "sign-in"; store: Account };
 
+/**
+ * Everything the player has, from every store: what's installed first, then picks, what's on
+ * the accounts and not installed, and each store on its own. The store tabs only sell.
+ */
 export function Library({ active }: { active: boolean }) {
   const games = useStore((s) => s.games);
   const running = useStore((s) => s.running);
+  const sources = useStore((s) => s.settings?.sources);
+  const steamIn = useStore((s) => !!s.accounts?.steam.connected);
+  const xboxIn = useStore((s) => !!s.accounts?.xboxGamertag);
   const visible = useMemo(() => games.filter((g) => !g.hidden), [games]);
   const installed = useMemo(() => visible.filter((g) => g.installed), [visible]);
 
   const filters = useMemo(() => {
-    const present = new Set(installed.map((g) => g.source));
-    const missing = visible.length - installed.length;
-    const bySource: Filter[] = (Object.keys(SOURCE_NAME) as Source[])
-      .filter((s) => present.has(s))
-      .map((s) => ({ id: s, label: SOURCE_NAME[s], source: s, apply: (g) => g.filter((x) => x.source === s) }));
-    const notInstalled: Filter[] = missing
-      ? [{ id: "uninstalled", label: "Not installed", apply: () => visible.filter((g) => !g.installed) }]
-      : [];
-    return [...BASE_FILTERS, ...notInstalled, ...(present.size > 1 ? bySource : [])];
-  }, [visible, installed]);
+    const name = (a: Game, b: Game) => a.name.localeCompare(b.name, locale());
+    const missing = visible.filter((g) => !g.installed).sort(name);
+    const signedOut: Account[] = [...(sources?.steam && !steamIn ? (["steam"] as const) : []), ...(sources?.xbox && !xboxIn ? (["xbox"] as const) : [])];
+    const stores = new Set<Source>([...visible.map((g) => g.source), ...signedOut]);
+    const list: Filter[] = [
+      { id: "installed", label: "Installed games", games: installed, signIn: [] },
+      { id: "fav", label: "Favorites", games: installed.filter((x) => x.favorite), signIn: [] },
+      { id: "recent", label: "Recent", games: installed.filter((x) => x.lastPlayed).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0)), signIn: [] },
+      { id: "most", label: "Most played", games: installed.filter((x) => x.playtimeMinutes > 0).sort((a, b) => b.playtimeMinutes - a.playtimeMinutes), signIn: [] },
+    ];
+    if (missing.length || signedOut.length) list.push({ id: "uninstalled", label: "Not installed", games: missing, signIn: signedOut });
+    // One store would only show the whole library again.
+    if (stores.size > 1)
+      for (const s of Object.keys(SOURCE_NAME) as Source[]) {
+        if (!stores.has(s)) continue;
+        const own = installed.filter((g) => g.source === s);
+        const rest = missing.filter((g) => g.source === s);
+        list.push({ id: s, label: SOURCE_NAME[s], source: s, games: [...own, ...rest], signIn: signedOut.filter((a) => a === s) });
+      }
+    return list;
+  }, [visible, installed, sources, steamIn, xboxIn]);
 
   const [filterIndex, setFilterIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<"l" | "r" | "u" | "d">("r");
   const f = Math.min(filterIndex, filters.length - 1);
-  const list = useMemo(() => filters[f].apply([...installed]), [filters, f, installed]);
-  const i = Math.min(index, Math.max(0, list.length - 1));
-  const game = list[i];
+  const filter = filters[f];
+  const tiles = useMemo<Tile[]>(() => [...filter.games.map((game) => ({ kind: "game" as const, game })), ...filter.signIn.map((store) => ({ kind: "sign-in" as const, store }))], [filter]);
+  const i = Math.min(index, Math.max(0, tiles.length - 1));
+  const tile = tiles[i] as Tile | undefined;
+  const game = tile?.kind === "game" ? tile.game : undefined;
 
   const track = useRef<HTMLDivElement>(null);
   const railOver = useOverflowing(track, `${f}:${filters.length}`);
   const grid = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const cols = useGridColumns(grid, filters[f].id);
+  const cols = useGridColumns(grid, filter.id);
   const end = useRef<HTMLDivElement>(null);
-  const shown = useWindow(list.length, i, cols, filters[f].id, end);
+  const shown = useWindow(tiles.length, i, cols, filter.id, end);
   useScrollFocus(scroller, `${f}:${i}`);
 
   useEffect(() => {
@@ -73,7 +85,7 @@ export function Library({ active }: { active: boolean }) {
   }, [active, game]);
 
   const pick = useHandler((g: Game) => {
-    const n = list.indexOf(g);
+    const n = tiles.findIndex((x) => x.kind === "game" && x.game === g);
     if (n === i) launch(g);
     else if (n >= 0) setIndex(n);
   });
@@ -93,7 +105,7 @@ export function Library({ active }: { active: boolean }) {
           setDir("l");
           return setIndex(i - 1);
         case "right":
-          if (i % cols === cols - 1 || i >= list.length - 1) return "edge";
+          if (i % cols === cols - 1 || i >= tiles.length - 1) return "edge";
           setDir("r");
           return setIndex(i + 1);
         case "up":
@@ -101,16 +113,17 @@ export function Library({ active }: { active: boolean }) {
           setDir("u");
           return setIndex(i - cols);
         case "down": {
-          const lastRow = Math.floor((list.length - 1) / cols);
+          const lastRow = Math.floor((tiles.length - 1) / cols);
           if (Math.floor(i / cols) >= lastRow) return "edge";
           setDir("d");
-          return setIndex(Math.min(i + cols, list.length - 1));
+          return setIndex(Math.min(i + cols, tiles.length - 1));
         }
         case "lt":
           return switchFilter(-1);
         case "rt":
           return switchFilter(1);
         case "a":
+          if (tile?.kind === "sign-in") return openSignIn(tile.store);
           if (!game) return "edge";
           launch(game);
           return "silent";
@@ -128,7 +141,9 @@ export function Library({ active }: { active: boolean }) {
     active,
   );
   useHints(
-    [["a", game && !game.installed ? "Install" : "Play"], ["y", "Details"], ["x", game?.favorite ? "Unfavorite" : "Favorite"], [["lt", "rt"], "Filter"], ["view", "Search"]],
+    tile?.kind === "sign-in"
+      ? [["a", "Sign in"], [["lt", "rt"], "Filter"], ["view", "Search"]]
+      : [["a", game && !game.installed ? "Install" : "Play"], ["y", "Details"], ["x", game?.favorite ? "Unfavorite" : "Favorite"], [["lt", "rt"], "Filter"], ["view", "Search"]],
     Layer.view,
     active,
   );
@@ -159,8 +174,8 @@ export function Library({ active }: { active: boolean }) {
                     }}
                   >
                     {flt.source && <SourceIcon source={flt.source} />}
-                    <span>{flt.id === "all" && n === f ? t("All games") : t(flt.label)}</span>
-                    {n === f && <span className="filter-count">{list.length}</span>}
+                    <span>{t(flt.label)}</span>
+                    {n === f && <span className="filter-count">{flt.games.length}</span>}
                   </motion.button>
                 ),
               )}
@@ -172,24 +187,29 @@ export function Library({ active }: { active: boolean }) {
         </div>
       </div>
       <div className="grid-scroll" ref={scroller}>
-        <div className="grid" ref={grid} key={filters[f].id} data-dir={dir}>
-          {list.slice(0, shown).map((g, n) => (
-            <Cover
-              key={g.id}
-              game={g}
-              focused={n === i}
-              running={running?.id === g.id}
-              lazy
-              onClick={pick}
-            />
-          ))}
+        <div className="grid" ref={grid} key={filter.id} data-dir={dir}>
+          {tiles.slice(0, shown).map((x, n) =>
+            x.kind === "game" ? (
+              <Cover key={x.game.id} game={x.game} focused={n === i} running={running?.id === x.game.id} lazy onClick={pick} />
+            ) : (
+              <div key={`sign-in:${x.store}`} className={`cover library-card store-tile ${n === i ? "is-focused" : ""}`} onClick={() => (n === i ? openSignIn(x.store) : setIndex(n))}>
+                <div className="cover-frame">
+                  <div className="library-card-inner store-tile-action">
+                    <SourceIcon source={x.store} />
+                    <span className="store-tile-text">{t("Sign in to see all your games")}</span>
+                    <span className="library-card-label">{SOURCE_NAME[x.store]}</span>
+                  </div>
+                </div>
+              </div>
+            ),
+          )}
         </div>
         <div ref={end} />
-        {list.length === 0 && (
+        {tiles.length === 0 && (
           <div className="grid-empty">
-            {filters[f].id === "fav"
+            {filter.id === "fav"
               ? t("Press X on any game to add it to favorites")
-              : filters[f].id === "recent" || filters[f].id === "most"
+              : filter.id === "recent" || filter.id === "most"
                 ? t("Play something and it will show up here")
                 : t("Nothing here")}
           </div>

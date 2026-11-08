@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, type Variants } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "../components/Cover";
 import { DOWNLOAD, Glyph, SourceIcon } from "../components/Glyph";
 import { GameName } from "../components/GameName";
@@ -158,6 +158,10 @@ export function Home({ active }: { active: boolean }) {
   const c = found >= 0 ? found : 0; // list.length = the library card
   const game: Game | undefined = list[c];
   const heroGame = useSettled(game, 70);
+  // A game focused again while its hero is still fading out would get that same element back,
+  // with its logo, stats and buttons stuck faded: every showing gets a key of its own.
+  const showing = useRef<{ id: string | null; n: number }>({ id: null, n: 0 });
+  if (heroGame && heroGame.id !== showing.current.id) showing.current = { id: heroGame.id, n: showing.current.n + 1 };
   const buttons = buttonsFor(game);
   const onItsWay = !!game && !game.installed;
 
@@ -275,7 +279,7 @@ export function Home({ active }: { active: boolean }) {
       <AnimatePresence mode="popLayout" initial={false}>
         {heroGame && (
           <Hero
-            key={heroGame.id}
+            key={`${heroGame.id}:${showing.current.n}`}
             game={heroGame}
             running={running?.id === heroGame.id}
             zone={zone}

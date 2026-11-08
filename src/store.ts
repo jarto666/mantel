@@ -346,8 +346,11 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
 let focusTimer = 0;
 /** Background art and accent follow focus, debounced so fast scrolling doesn't strobe. */
 export function setFocus(game: Game | null) {
-  if (!game || get().focusId === game.id) return;
+  if (!game) return;
+  // Back on the game the art already shows, before the move away from it landed: that move is off,
+  // or the art and trailer would stay on the other game while this one is selected.
   clearTimeout(focusTimer);
+  if (get().focusId === game.id) return;
   focusTimer = window.setTimeout(async () => {
     set({ focusId: game.id });
     const accent = await accentFor(game);
@@ -408,7 +411,10 @@ const SNOOZE = 24 * 3600_000;
 /** Offers a new version, unless "Later" was chosen less than a day ago. The banner then waits
  *  until setup and any game are out of the way; Settings shows the update either way. */
 async function checkForUpdate() {
-  const version = await api.checkUpdate().catch(() => null);
+  const version = await api.checkUpdate().catch((e) => {
+    api.log("warn", `update check: ${e}`);
+    return null;
+  });
   if (!version) return;
   set({ update: version });
   if (!snoozed()) set({ updateOffer: version });
@@ -447,6 +453,7 @@ export async function checkForUpdateNow() {
       toast(t("Mantel {version} is out", { version }), "good");
     }
   } catch (e) {
+    api.log("warn", `update check: ${e}`);
     toast(t("Couldn't check for updates: {error}", { error: errorText(e) }), "warn");
   } finally {
     set({ checkingUpdate: false });
@@ -473,6 +480,7 @@ export async function installUpdate() {
     // On Windows the installer has closed Mantel by now; sample data has nothing to restart into.
     if (!isTauri) setTimeout(() => set({ updating: null }), 1500);
   } catch (e) {
+    api.log("warn", `update: ${e}`);
     set({ updating: null });
     toast(t("Update failed: {error}", { error: errorText(e) }), "warn");
   }

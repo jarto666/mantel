@@ -4,7 +4,7 @@ import { Cover } from "../components/Cover";
 import { Glyph } from "../components/Glyph";
 import { useHints, type Hint } from "../components/Hints";
 import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow } from "../hooks";
-import { locale, t } from "../i18n";
+import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
 import { launch, setFocus, useStore } from "../store";
@@ -32,62 +32,22 @@ export interface Mode {
   pager?: Pager;
 }
 
-/** One side of a store: what the player has, or what the store has. */
-export interface Section {
-  id: string;
-  label: string;
-  count?: number;
-  modes: Mode[];
-  /** The download mark on games that aren't installed; off where everything is to install. */
-  installMark?: boolean;
-}
-
 /** Covers on a shelf; a tile past them opens the whole list. */
 const SHELF_SHOWN = 12;
-/** Genres with fewer games than this don't get a filter of their own. */
-const MIN_GENRE = 4;
 
 type Tile = { kind: "game"; game: Game } | { kind: "all" } | { kind: "action" };
 
+/** Each game once: two store entries can stand for the same game the player has. */
+export function uniqueGames(games: Game[]): Game[] {
+  const seen = new Set<string>();
+  return games.filter((g) => !seen.has(g.id) && !!seen.add(g.id));
+}
+
 function tilesOf(shelf: Shelf): Tile[] {
-  const tiles: Tile[] = shelf.games.slice(0, SHELF_SHOWN).map((game) => ({ kind: "game", game }));
+  const tiles: Tile[] = uniqueGames(shelf.games).slice(0, SHELF_SHOWN).map((game) => ({ kind: "game", game }));
   if (shelf.pager || shelf.games.length > SHELF_SHOWN) tiles.push({ kind: "all" });
   if (shelf.action) tiles.push({ kind: "action" });
   return tiles;
-}
-
-/** The games a store knows the player has: picks, everything, and by genre. */
-export function myGames(id: string, games: Game[], action?: Shelf["action"]): Section {
-  const name = (a: Game, b: Game) => a.name.localeCompare(b.name, locale());
-  const installed = games.filter((g) => g.installed).sort(name);
-  const rest = games.filter((g) => !g.installed).sort(name);
-  const byName = [...installed, ...rest];
-  // With a handful of games these would only show the same few again.
-  const picks: Shelf[] =
-    games.length < MIN_GENRE
-      ? []
-      : [
-          { id: "recent", title: "Recently played", games: games.filter((g) => g.lastPlayed).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0)) },
-          { id: "most", title: "Most played", games: games.filter((g) => g.playtimeMinutes > 0).sort((a, b) => b.playtimeMinutes - a.playtimeMinutes) },
-        ];
-  const shelves: Shelf[] = [{ id: "installed", title: "Installed games", games: installed, action }, ...picks, { id: "rest", title: "Not installed", games: rest }];
-  return {
-    id,
-    label: "My games",
-    count: games.length,
-    installMark: true,
-    modes: [{ id: "featured", label: "Featured", shelves: shelves.filter((s) => s.games.length || s.action) }, { id: "all", label: "All games", games: byName }, ...genreModes(byName)],
-  };
-}
-
-/** A filter per genre, the biggest first. */
-export function genreModes(games: Game[]): Mode[] {
-  const count = new Map<string, number>();
-  for (const g of games) for (const genre of g.genres ?? []) count.set(genre, (count.get(genre) ?? 0) + 1);
-  return [...count]
-    .filter(([, n]) => n >= MIN_GENRE)
-    .sort((a, b) => b[1] - a[1])
-    .map(([genre]) => ({ id: genre, label: genre, games: games.filter((g) => g.genres?.includes(genre)) }));
 }
 
 /** Pages of a list, kept per list so that coming back to it doesn't start over. */
@@ -127,7 +87,7 @@ function usePages(key: string, pager: Pager | undefined) {
   return { games: page?.games ?? [], more: page?.more ?? false, busy: page?.busy ?? !!pager, failed: page?.failed ?? false, load };
 }
 
-function ShelfRow({ shelf, focused, col, runningId, installMark, onPick }: { shelf: Shelf; focused: boolean; col: number; runningId?: string; installMark?: boolean; onPick: (n: number) => void }) {
+function ShelfRow({ shelf, focused, col, runningId, onPick }: { shelf: Shelf; focused: boolean; col: number; runningId?: string; onPick: (n: number) => void }) {
   const rail = useRef<HTMLDivElement>(null);
   useScrollFocus(rail, `${focused}:${col}`, { axis: "x" });
   const tiles = tilesOf(shelf);
@@ -141,7 +101,7 @@ function ShelfRow({ shelf, focused, col, runningId, installMark, onPick }: { she
       <div className="gp-rail" ref={rail}>
         {tiles.map((tile, n) =>
           tile.kind === "game" ? (
-            <Cover key={tile.game.id} game={tile.game} focused={focused && n === col} running={runningId === tile.game.id} lazy installMark={!!installMark} storeMark={false} onClick={pickCover} />
+            <Cover key={tile.game.id} game={tile.game} focused={focused && n === col} running={runningId === tile.game.id} lazy installMark={false} storeMark={false} onClick={pickCover} />
           ) : (
             <div key={tile.kind} className={`cover library-card store-tile ${focused && n === col ? "is-focused" : ""}`} onClick={() => onPick(n)}>
               <div className="cover-frame">
@@ -172,25 +132,23 @@ function ShelfRow({ shelf, focused, col, runningId, installMark, onPick }: { she
 }
 
 /**
- * A store's games: picks on shelves that open into full lists, then everything and each genre as
- * grids, for what the player has and for what the store has. Installed games play; the rest open
- * their page.
+ * A store: picks on shelves that open into full lists, then everything and each genre as grids.
+ * What the player already has lives in the library; here games that are installed play and the
+ * rest open their page.
  */
-export function Browse({ active, sections, own }: { active: boolean; sections: Section[]; own?: (game: Game) => Game }) {
+export function Browse({ active, label, modes, own }: { active: boolean; label: string; modes: Mode[]; own?: (game: Game) => Game }) {
   const running = useStore((s) => s.running);
-  const [sectionId, setSectionId] = useState<string | null>(null);
-  const section = sections.find((s) => s.id === sectionId) ?? sections[0];
-  const [modeOf, setModeOf] = useState<Record<string, number>>({});
-  const m = Math.min(modeOf[section.id] ?? 0, section.modes.length - 1);
-  const mode = section.modes[m];
+  const [modeIndex, setModeIndex] = useState(0);
+  const m = Math.min(modeIndex, modes.length - 1);
+  const mode = modes[m];
   /** A shelf opened into its full list. */
   const [opened, setOpened] = useState<Shelf | null>(null);
 
   const listing = opened ?? (mode.shelves ? null : mode);
-  const shelvesKey = `${section.id}:${mode.id}`;
+  const shelvesKey = mode.id;
   const listKey = `${shelvesKey}:${opened?.id ?? ""}`;
   const pages = usePages(listKey, listing?.pager);
-  const fromPages = useMemo(() => (listing?.pager ? (own ? pages.games.map(own) : pages.games) : null), [listing, pages.games, own]);
+  const fromPages = useMemo(() => (listing?.pager ? uniqueGames(own ? pages.games.map(own) : pages.games) : null), [listing, pages.games, own]);
   const grid = listing ? fromPages ?? listing.games ?? [] : null;
 
   // Shelves: which one, and the place on each.
@@ -199,7 +157,7 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
   const [cols, setCols] = useState<Record<string, number>>({});
   const r = Math.min(rowOf[shelvesKey] ?? 0, Math.max(0, shelves.length - 1));
   const shelf = shelves[r] as Shelf | undefined;
-  const colKey = (s: Shelf) => `${section.id}:${s.id}`;
+  const colKey = (s: Shelf) => `${mode.id}:${s.id}`;
   const tiles = shelf ? tilesOf(shelf) : [];
   const c = shelf ? Math.min(cols[colKey(shelf)] ?? 0, Math.max(0, tiles.length - 1)) : 0;
   const tile = grid ? undefined : tiles[c];
@@ -227,24 +185,14 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
     if (nearEnd && pages.more && !pages.busy) pages.load();
   }, [nearEnd, pages]);
 
-  const toSection = (next: Section) => {
-    setSectionId(next.id);
-    setOpened(null);
-    setIndex(0);
-  };
-  const switchSection = () => {
-    const n = sections.indexOf(section);
-    if (sections.length < 2) return "edge" as const;
-    toSection(sections[(n + 1) % sections.length]);
-  };
   const toMode = (n: number) => {
-    setModeOf((s) => ({ ...s, [section.id]: n }));
+    setModeIndex(n);
     setOpened(null);
     setIndex(0);
   };
   const switchMode = (d: number) => {
     const next = m + d;
-    if (next < 0 || next >= section.modes.length) return "edge" as const;
+    if (next < 0 || next >= modes.length) return "edge" as const;
     toMode(next);
   };
   const setCol = (n: number) => shelf && setCols((s) => ({ ...s, [colKey(shelf)]: n }));
@@ -267,8 +215,6 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
           return switchMode(-1);
         case "rt":
           return switchMode(1);
-        case "x":
-          return switchSection();
         case "b":
           if (!opened) return false;
           setOpened(null);
@@ -313,18 +259,16 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
     active,
   );
 
-  const other = sections.length > 1 ? sections[(sections.indexOf(section) + 1) % sections.length] : null;
   const hints: Hint[] = [];
   if (game?.installed) hints.push(["a", "Play"], ["y", "Details"]);
   else if (game) hints.push(["a", "Details"]);
   else if (tile) hints.push(["a", "Select"]);
   hints.push([["lt", "rt"], "Filter"]);
-  if (other) hints.push(["x", other.label]);
   if (opened) hints.push(["b", "Back"]);
   else hints.push(["view", "Search"]);
   useHints(hints, Layer.view, active);
 
-  const rail: Mode[] = opened ? [{ id: opened.id, label: opened.title, games: grid ?? [] }] : section.modes;
+  const rail: Mode[] = opened ? [{ id: opened.id, label: opened.title, games: grid ?? [] }] : modes;
   const railAt = opened ? 0 : m;
   const track = useRef<HTMLDivElement>(null);
   const railOver = useOverflowing(track, `${listKey}:${rail.length}`);
@@ -332,15 +276,7 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
   return (
     <main className="library gamepass">
       <div className="library-head">
-        <div className="library-eyebrow store-sections">
-          {sections.length > 1 && <Glyph b="x" size={0.85} />}
-          {sections.map((s) => (
-            <button key={s.id} className={`store-section ${s === section ? "is-active" : ""}`} onClick={() => toSection(s)}>
-              {t(s.label)}
-              {s === section && s.count ? <span className="store-section-count">{s.count}</span> : null}
-            </button>
-          ))}
-        </div>
+        <div className="library-eyebrow">{label}</div>
         <div className="filter-rail">
           <Glyph b="lt" />
           <div className={`filter-track ${railOver ? "is-overflowing" : ""}`} ref={track}>
@@ -379,7 +315,6 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
               focused={n === r}
               col={n === r ? c : cols[colKey(s)] ?? 0}
               runningId={running?.id}
-              installMark={section.installMark}
               onPick={(k) => {
                 const picked = tilesOf(s)[k];
                 if (n === r && k === c) return picked.kind === "game" ? open(picked.game) : activate(s, picked.kind);
@@ -395,7 +330,7 @@ export function Browse({ active, sections, own }: { active: boolean; sections: S
           <div className="grid-scroll" ref={gridBox} key={listKey}>
             <div className="grid" ref={gridEl}>
               {grid.slice(0, shown).map((g, n) => (
-                <Cover key={g.id} game={g} focused={n === i} running={running?.id === g.id} lazy installMark={!!section.installMark} storeMark={false} onClick={pickInGrid} />
+                <Cover key={g.id} game={g} focused={n === i} running={running?.id === g.id} lazy installMark={false} storeMark={false} onClick={pickInGrid} />
               ))}
             </div>
             <div ref={end} />

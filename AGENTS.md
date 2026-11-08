@@ -13,7 +13,7 @@ Nobody should have to ask for these.
 
 - **Translations.** Every new UI string is English source through `t()`, and goes into `src/locales/{fr,de,es,ru}.ts` in the same change. Fixed backend errors show through `errorText`, so they are translated too. Keep each language's existing tone and typography.
 - **A controller path.** Every screen works with a controller alone: focus visible, hints correct, B goes back. Focus rings and shadows must not be clipped by a scroll box or a mask.
-- **The same behaviour in every store.** Xbox and Steam offer the same sections and actions: My games, Store, filters, search, install, and telling what you own. Where a store can't do something, the page says what to do instead, and the release notes mention it.
+- **The same behaviour in every store.** Xbox and Steam offer the same things: their games in the Library, with a sign-in tile when signed out; a store tab with filters; search, install, and telling what you own. Where a store can't do something, the page says what to do instead, and the release notes mention it.
 - **Tests** for logic that can be tested, next to the code, the way the existing Rust tests are.
 - **Docs when users would notice.** README, `site/index.html`, `site/llms.txt` and `site/llms-full.txt`. A new outside host also goes in `site/privacy.html`.
 
