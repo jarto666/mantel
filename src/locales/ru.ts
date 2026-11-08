@@ -14,6 +14,8 @@ export const ru: Catalog = {
   "You're on the latest version": "У вас последняя версия",
   "Couldn't check for updates: {error}": "Не удалось проверить обновления: {error}",
   "Update failed: {error}": "Ошибка обновления: {error}",
+  "GitHub isn't answering": "GitHub не отвечает",
+  "the download stopped": "загрузка остановилась",
   "Library updated: 1 game": "Библиотека обновлена: 1 игра",
   "Library updated: {n} games": {
     one: "Библиотека обновлена: {n} игра",

@@ -14,6 +14,8 @@ export const fr: Catalog = {
   "You're on the latest version": "Vous avez la dernière version",
   "Couldn't check for updates: {error}": "Impossible de rechercher les mises à jour : {error}",
   "Update failed: {error}": "Échec de la mise à jour : {error}",
+  "GitHub isn't answering": "GitHub ne répond pas",
+  "the download stopped": "le téléchargement s’est arrêté",
   "Library updated: 1 game": "Bibliothèque actualisée : 1 jeu",
   "Library updated: {n} games": { one: "Bibliothèque actualisée : {n} jeu", other: "Bibliothèque actualisée : {n} jeux" },
   "1 new game found": "1 nouveau jeu trouvé",

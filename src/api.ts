@@ -111,6 +111,14 @@ export interface FullScreenMode {
 
 let pendingUpdate: import("@tauri-apps/plugin-updater").Update | null = null;
 
+// GitHub can take the connection and then never answer, and the updater has no deadline of its
+// own: the check would spin forever, and the update screen, where nothing can be pressed, stay up.
+const CHECK_TIMEOUT = 20_000;
+/** The whole download. It has to be set: without it the download inherits the check's. */
+const DOWNLOAD_TIMEOUT = 15 * 60_000;
+/** No bytes for this long, and the update screen gives up long before DOWNLOAD_TIMEOUT. */
+const DOWNLOAD_STALL = 30_000;
+
 const tauriApi: Api = {
   getLibrary: (rescan) => call("get_library", { rescan }),
   resolveArt: () => call("resolve_art"),
@@ -196,23 +204,47 @@ const tauriApi: Api = {
   },
   async checkUpdate() {
     const { check } = await import("@tauri-apps/plugin-updater");
-    pendingUpdate = await check();
+    const started = Date.now();
+    try {
+      pendingUpdate = await check({ timeout: CHECK_TIMEOUT });
+    } catch (e) {
+      // The updater's text for a timeout names the URL and not the reason.
+      if (Date.now() - started >= CHECK_TIMEOUT - 1000) throw "GitHub isn't answering";
+      throw e;
+    }
     return pendingUpdate?.version ?? null;
   },
   async installUpdate(onProgress, beforeInstall) {
-    if (!pendingUpdate) return;
+    const update = pendingUpdate;
+    if (!update) return;
     let downloaded = 0;
     let total: number | null = null;
-    await pendingUpdate.download((e) => {
-      if (e.event === "Started") total = e.data.contentLength ?? null;
-      else if (e.event === "Progress") downloaded += e.data.chunkLength;
-      // All of it is in, whatever the server said the size would be: the installer is next.
-      else total = downloaded;
-      onProgress(downloaded, total);
+    await new Promise<void>((resolve, reject) => {
+      // Rust goes on until DOWNLOAD_TIMEOUT; what it brings after this is simply not used.
+      let stall = 0;
+      const wait = () => {
+        clearTimeout(stall);
+        stall = window.setTimeout(() => reject("the download stopped"), DOWNLOAD_STALL);
+      };
+      wait();
+      update
+        .download(
+          (e) => {
+            wait();
+            if (e.event === "Started") total = e.data.contentLength ?? null;
+            else if (e.event === "Progress") downloaded += e.data.chunkLength;
+            // All of it is in, whatever the server said the size would be: the installer is next.
+            else total = downloaded;
+            onProgress(downloaded, total);
+          },
+          { timeout: DOWNLOAD_TIMEOUT },
+        )
+        .then(resolve, reject)
+        .finally(() => clearTimeout(stall));
     });
     await beforeInstall();
     // On Windows the installer closes the app itself and starts the new version.
-    await pendingUpdate.install();
+    await update.install();
     const { relaunch } = await import("@tauri-apps/plugin-process");
     await relaunch();
   },

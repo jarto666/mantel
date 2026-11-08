@@ -14,6 +14,8 @@ export const de: Catalog = {
   "You're on the latest version": "Mantel ist auf dem neuesten Stand",
   "Couldn't check for updates: {error}": "Suche nach Updates fehlgeschlagen: {error}",
   "Update failed: {error}": "Update fehlgeschlagen: {error}",
+  "GitHub isn't answering": "GitHub antwortet nicht",
+  "the download stopped": "der Download ist stehen geblieben",
   "Library updated: 1 game": "Bibliothek aktualisiert: 1 Spiel",
   "Library updated: {n} games": "Bibliothek aktualisiert: {n} Spiele",
   "1 new game found": "1 neues Spiel gefunden",
