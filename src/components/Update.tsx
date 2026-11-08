@@ -44,7 +44,8 @@ function Offer({ version }: { version: string }) {
   useHints([["a", "Select"], ["dpad", "Move"], ["b", "Later"]], Layer.modal);
 
   return (
-    <motion.div className="update-offer" initial={{ opacity: 0, y: -24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.45, ease }}>
+    // Leaves by fading where it is: moving it up as well read as a jump just before it went.
+    <motion.div className="update-offer" initial={{ opacity: 0, y: -24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.2 } }} transition={{ duration: 0.45, ease }}>
       <img src={logo} alt="" className="update-offer-logo" />
       <div className="update-offer-text">
         <div className="eyebrow">{t("New version")}</div>

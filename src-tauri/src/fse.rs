@@ -8,9 +8,10 @@ const FAMILY: &str = "PlayMantel.Mantel_0rky18wm4wsg6";
 /// Where Windows keeps the player's home app, as an app user model id.
 #[cfg(windows)]
 const GAMING: &str = r"Software\Microsoft\Windows\CurrentVersion\GamingConfiguration";
-/// Mantel's own key: the home app Mantel replaced, which the uninstaller puts back (home-app.ps1).
+/// The home app Mantel replaced, which the uninstaller puts back (home-app.ps1). Not under
+/// Software\playmantel: that is the installer's own key, and cases don't count in the registry.
 #[cfg(windows)]
-const OURS: &str = r"Software\PlayMantel";
+const OURS: &str = r"Software\Mantel";
 #[cfg(windows)]
 const UNLOCK: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock";
 
@@ -222,7 +223,7 @@ fn elevate(window: isize) -> Result<(), String> {
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let (verb, file, args) = (wide("runas"), wide(&exe.to_string_lossy()), wide(DEVELOPER_MODE_ARG));
+    let (verb, file, args) = (wide("runas"), wide(&exe.to_string_lossy()), wide(&format!("{DEVELOPER_MODE_ARG} {window}")));
     // ShellExecute wants COM, on a thread of its own as in launcher::open_uri.
     let outcome = std::thread::spawn(move || unsafe {
         CoInitializeEx(std::ptr::null(), (COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) as u32);
@@ -260,17 +261,24 @@ fn elevate(window: isize) -> Result<(), String> {
 }
 
 /// The elevated run: sets the value Windows' own Developer Mode switch sets. 0 on success.
+/// Windows gave this process the foreground with the prompt; left alone, it goes to whatever
+/// window is next when this one exits (Steam, once), so it goes back to Mantel's `window`.
 #[cfg(windows)]
-pub fn turn_on_developer_mode() -> i32 {
+pub fn turn_on_developer_mode(window: isize) -> i32 {
     use windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE;
-    match reg::set_number(HKEY_LOCAL_MACHINE, UNLOCK, "AllowDevelopmentWithoutDevLicense", 1) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+    let code = match reg::set_number(HKEY_LOCAL_MACHINE, UNLOCK, "AllowDevelopmentWithoutDevLicense", 1) {
         Ok(()) => 0,
         Err(_) => 1,
+    };
+    if window != 0 {
+        unsafe { SetForegroundWindow(window as _) };
     }
+    code
 }
 
 #[cfg(not(windows))]
-pub fn turn_on_developer_mode() -> i32 {
+pub fn turn_on_developer_mode(_window: isize) -> i32 {
     1
 }
 

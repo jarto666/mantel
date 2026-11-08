@@ -17,7 +17,8 @@ try {
   if ($Remove) {
     # Mantel's setup kept the home app it replaced; "" or a package that's gone means Windows' default.
     $gaming = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GamingConfiguration'
-    $ours = 'HKCU:\Software\PlayMantel'
+    # Mantel's own key: Software\playmantel belongs to the installer.
+    $ours = 'HKCU:\Software\Mantel'
     $current = (Get-ItemProperty $gaming -ErrorAction SilentlyContinue).GamingHomeApp
     if ($current -like "${name}_*") {
       $before = (Get-ItemProperty $ours -ErrorAction SilentlyContinue).PreviousHomeApp
@@ -29,7 +30,9 @@ try {
         Say 'home app back to the default'
       }
     }
-    Remove-Item $ours -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-ItemProperty $ours PreviousHomeApp -ErrorAction SilentlyContinue
+    $left = Get-Item $ours -ErrorAction SilentlyContinue
+    if ($left -and -not $left.Property -and -not $left.SubKeyCount) { Remove-Item $ours -ErrorAction SilentlyContinue }
     # Registering adds a hidden bookkeeping folder that would keep the uninstaller from removing ours.
     Remove-Item $public, (Join-Path $PSScriptRoot 'microsoft.system.package.metadata') -Recurse -Force -ErrorAction SilentlyContinue
     Say 'unregistered'

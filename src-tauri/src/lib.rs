@@ -883,7 +883,10 @@ async fn make_home_app(app: AppHandle) -> Result<fse::Mode, String> {
     let window = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map_or(0, |h| h.0 as isize);
     #[cfg(not(windows))]
     let window = 0;
-    tauri::async_runtime::spawn_blocking(move || fse::make_home(window, &dir, &version)).await.map_err(|e| e.to_string())?
+    let made = tauri::async_runtime::spawn_blocking(move || fse::make_home(window, &dir, &version)).await.map_err(|e| e.to_string())?;
+    // After Windows' prompt, yes or no, Mantel is where the player was.
+    launcher::to_front(&app);
+    made
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
