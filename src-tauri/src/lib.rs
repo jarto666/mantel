@@ -34,7 +34,7 @@ fn snapshot(state: &AppState) -> Vec<Game> {
     let user = state.user.lock().unwrap();
     let mut games = cache.library.clone();
     library::apply_meta(&mut games, &user, &cache.art);
-    for g in games.iter_mut().filter(|g| g.source == "steam") {
+    for g in games.iter_mut() {
         cache.steam_facts.apply(g);
     }
     for g in games.iter_mut().filter(|g| g.size_bytes.is_none()) {
@@ -157,13 +157,15 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(true)
 }
 
-/// Asks Steam about the library's Steam games: genres, and art for those the plain addresses miss.
-/// Returns whether anything changed.
+/// Asks Steam about the library's Steam games, and the other games that matched a Steam page:
+/// genres, and art for those the plain addresses miss. Returns whether anything changed.
 #[tauri::command]
 async fn resolve_steam_facts(state: State<'_, AppState>, language: String) -> Result<bool, String> {
     let (todo, names_stale) = {
         let cache = state.cache.lock().unwrap();
-        (cache.steam_facts.missing(&cache.library), cache.steam_facts.language != language)
+        let steam = cache.library.iter().filter(|g| g.source == "steam").filter_map(|g| g.steam_app_id);
+        let matched = cache.library.iter().filter_map(|g| cache.art.get(&g.id)?.steam_app_id);
+        (cache.steam_facts.missing(steam.chain(matched)), cache.steam_facts.language != language)
     };
     if todo.is_empty() && !names_stale {
         return Ok(false);

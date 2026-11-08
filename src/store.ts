@@ -499,7 +499,8 @@ export async function rescan(quiet = false) {
     else if (shown(games) > before && before > 0 && (followed || !rememberedInstalls().length)) toast(shown(games) - before === 1 ? t("1 new game found") : t("{n} new games found", { n: shown(games) - before }), "good");
     if (await api.resolveArt()) set({ games: await api.getLibrary(false) });
     if (await api.measureSizes()) set({ games: await api.getLibrary(false) });
-    if (get().settings?.sources.steam && (await api.resolveSteamFacts().catch(() => false))) set({ games: await api.getLibrary(false) });
+    // Games from other stores that matched a Steam page get its art too, Steam turned on or not.
+    if (get().games.some((g) => g.steamAppId) && (await api.resolveSteamFacts().catch(() => false))) set({ games: await api.getLibrary(false) });
     set({ accounts: await api.accountsStatus() });
     await loadCatalog();
     void loadSteamStore();
