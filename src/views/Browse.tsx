@@ -37,8 +37,14 @@ const SHELF_SHOWN = 12;
 
 type Tile = { kind: "game"; game: Game } | { kind: "all" } | { kind: "action" };
 
+/** Each game once: two store entries can stand for the same game the player has. */
+export function uniqueGames(games: Game[]): Game[] {
+  const seen = new Set<string>();
+  return games.filter((g) => !seen.has(g.id) && !!seen.add(g.id));
+}
+
 function tilesOf(shelf: Shelf): Tile[] {
-  const tiles: Tile[] = shelf.games.slice(0, SHELF_SHOWN).map((game) => ({ kind: "game", game }));
+  const tiles: Tile[] = uniqueGames(shelf.games).slice(0, SHELF_SHOWN).map((game) => ({ kind: "game", game }));
   if (shelf.pager || shelf.games.length > SHELF_SHOWN) tiles.push({ kind: "all" });
   if (shelf.action) tiles.push({ kind: "action" });
   return tiles;
@@ -142,7 +148,7 @@ export function Browse({ active, label, modes, own }: { active: boolean; label: 
   const shelvesKey = mode.id;
   const listKey = `${shelvesKey}:${opened?.id ?? ""}`;
   const pages = usePages(listKey, listing?.pager);
-  const fromPages = useMemo(() => (listing?.pager ? (own ? pages.games.map(own) : pages.games) : null), [listing, pages.games, own]);
+  const fromPages = useMemo(() => (listing?.pager ? uniqueGames(own ? pages.games.map(own) : pages.games) : null), [listing, pages.games, own]);
   const grid = listing ? fromPages ?? listing.games ?? [] : null;
 
   // Shelves: which one, and the place on each.

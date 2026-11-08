@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { locale, t } from "../i18n";
 import { gamePassGames, useStore, xboxPage } from "../store";
 import type { Game } from "../types";
-import { Browse, type Mode, type Pager, type Shelf } from "./Browse";
+import { Browse, uniqueGames, type Mode, type Pager, type Shelf } from "./Browse";
 
 /** The store's genres by their English names, which is how its lists are filtered. */
 const STORE_GENRES = ["Action & adventure", "Shooter", "Role playing", "Racing & flying", "Strategy", "Simulation", "Sports", "Fighting", "Platformer", "Puzzle & trivia", "Family & kids", "Card & board"];
@@ -28,8 +28,10 @@ export function GamePass({ active }: { active: boolean }) {
   }, [games, catalog, all]);
 
   const modes = useMemo<Mode[]>(() => {
-    const tagged = (tag: string) => all.filter((g) => g.tags?.includes(tag));
-    const byName = [...all].sort((a, b) => a.name.localeCompare(b.name, locale()));
+    // Two catalog entries can lead to the same installed game.
+    const games = uniqueGames(all);
+    const tagged = (tag: string) => games.filter((g) => g.tags?.includes(tag));
+    const byName = [...games].sort((a, b) => a.name.localeCompare(b.name, locale()));
     const pass: Shelf[] = [
       { id: "new", title: "Recently added", games: tagged("new") },
       { id: "leaving", title: "Leaving soon", games: tagged("leaving") },
