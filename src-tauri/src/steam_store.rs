@@ -42,22 +42,20 @@ pub struct Facts {
 }
 
 impl Facts {
+    /// A game from another store that matched a Steam page keeps the genres its own store gave.
     pub fn apply(&self, game: &mut Game) {
         let Some(app) = game.steam_app_id.and_then(|id| self.apps.get(&id)) else { return };
-        game.genres = app.genres.iter().filter_map(|tag| self.names.get(tag).cloned()).collect();
+        if game.source == "steam" || game.genres.is_empty() {
+            game.genres = app.genres.iter().filter_map(|tag| self.names.get(tag).cloned()).collect();
+        }
         // New games' art has a hash in its path, so the plain addresses in front of it can miss.
         game.art.extend(&app.art);
     }
 
-    /// Library games Steam hasn't been asked about lately.
-    pub fn missing(&self, games: &[Game]) -> Vec<u32> {
+    /// Of these Steam apps, the ones Steam hasn't been asked about lately.
+    pub fn missing(&self, ids: impl IntoIterator<Item = u32>) -> Vec<u32> {
         let t = now();
-        let mut todo: Vec<u32> = games
-            .iter()
-            .filter(|g| g.source == "steam")
-            .filter_map(|g| g.steam_app_id)
-            .filter(|id| self.apps.get(id).is_none_or(|a| t - a.at > FRESH_SECS))
-            .collect();
+        let mut todo: Vec<u32> = ids.into_iter().filter(|id| self.apps.get(id).is_none_or(|a| t - a.at > FRESH_SECS)).collect();
         todo.sort_unstable();
         todo.dedup();
         todo
@@ -277,6 +275,29 @@ mod tests {
     fn finds_the_app_in_a_search_logo() {
         assert_eq!(appid_in_logo("https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/4115450/aef06490/capsule_sm_120.jpg?t=1"), Some(4115450));
         assert_eq!(appid_in_logo("https://shared.fastly.steamstatic.com/store_item_assets/steam/bundles/123/x/capsule.jpg"), None);
+    }
+
+    #[test]
+    fn hashed_art_reaches_games_from_other_stores() {
+        use crate::model::Launch;
+        let hashed = format!("{ASSETS}steam/apps/7/abc/library_capsule.jpg?t=9");
+        let mut facts = Facts { names: HashMap::from([(19, "Action".to_string())]), ..Default::default() };
+        facts.apps.insert(7, AppFacts { at: now(), genres: vec![19], art: Art { cover: vec![hashed.clone()], ..Default::default() } });
+
+        let mut xbox = Game::new("xbox", "Studio.Game", "Game", Launch::Uri { uri: String::new() });
+        xbox.steam_app_id = Some(7);
+        xbox.genres = vec!["Shooter".into()];
+        facts.apply(&mut xbox);
+        assert_eq!(xbox.art.cover, [hashed.clone()]);
+        assert_eq!(xbox.genres, ["Shooter"], "its own store's genres stay");
+
+        let mut steam = Game::new("steam", "7", "Game", Launch::Uri { uri: String::new() });
+        steam.steam_app_id = Some(7);
+        steam.genres = vec!["Shooter".into()];
+        facts.apply(&mut steam);
+        assert_eq!(steam.genres, ["Action"]);
+
+        assert_eq!(facts.missing([7, 8, 8, 3]), [3, 8]);
     }
 
     #[test]
