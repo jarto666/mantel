@@ -4,8 +4,17 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let enabled = true;
 
+/** How long after the player's last input the speakers stay held. */
+const AWAKE_FOR = 2 * 60_000;
+/** Far below hearing, but not zero, which is all Chromium checks for. */
+const HUM_LEVEL = 1e-4;
+let hum: ConstantSourceNode | null = null;
+let humStop = 0;
+
 export function setSoundEnabled(on: boolean) {
   enabled = on;
+  if (on) keepSoundAwake();
+  else stopHum();
 }
 
 /** Creating the context costs ~100 ms; do it up front instead of on the first key press. */
@@ -15,7 +24,34 @@ export function warmUpSound() {
   master = ctx.createGain();
   master.gain.value = 0.9;
   master.connect(ctx.destination);
+  keepSoundAwake();
 }
+
+function stopHum() {
+  clearTimeout(humStop);
+  hum?.stop();
+  hum?.disconnect();
+  hum = null;
+}
+
+/**
+ * After half a minute of silence Chromium lets go of the speakers, and the first sound after that
+ * comes late while it takes them back. A signal too quiet to hear holds them while the player is
+ * around; it stops a while after the last input, and while Mantel is out of sight, so that
+ * Windows can still sleep.
+ */
+export function keepSoundAwake() {
+  if (!enabled || !ctx || document.hidden) return;
+  clearTimeout(humStop);
+  humStop = window.setTimeout(stopHum, AWAKE_FOR);
+  if (hum) return;
+  hum = ctx.createConstantSource();
+  hum.offset.value = HUM_LEVEL;
+  hum.connect(ctx.destination);
+  hum.start();
+}
+
+document.addEventListener("visibilitychange", () => (document.hidden ? stopHum() : keepSoundAwake()));
 
 function audio(): [AudioContext, GainNode] | null {
   if (!enabled) return null;

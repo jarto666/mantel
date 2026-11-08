@@ -1,6 +1,6 @@
 // Gamepad + keyboard input, routed to a priority stack of handlers.
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { sound } from "./sound";
+import { keepSoundAwake, sound } from "./sound";
 
 export type Action =
   | "up" | "down" | "left" | "right"
@@ -66,6 +66,7 @@ export const idleFor = () => Date.now() - lastInput;
 
 const markActivity = () => {
   lastInput = Date.now();
+  keepSoundAwake();
 };
 
 /** Called before routing any input; returning true swallows it (e.g. to wake the screen). */
@@ -74,7 +75,7 @@ export function setWakeHandler(fn: () => boolean) {
 }
 
 export function dispatch(action: Action, repeat = false) {
-  lastInput = Date.now();
+  markActivity();
   if (wake()) return;
   const ordered = [...entries].sort((p, q) => q.priority - p.priority || q.seq - p.seq);
   for (const e of ordered) {
