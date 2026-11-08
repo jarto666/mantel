@@ -346,8 +346,11 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
 let focusTimer = 0;
 /** Background art and accent follow focus, debounced so fast scrolling doesn't strobe. */
 export function setFocus(game: Game | null) {
-  if (!game || get().focusId === game.id) return;
+  if (!game) return;
+  // Back on the game the art already shows, before the move away from it landed: that move is off,
+  // or the art and trailer would stay on the other game while this one is selected.
   clearTimeout(focusTimer);
+  if (get().focusId === game.id) return;
   focusTimer = window.setTimeout(async () => {
     set({ focusId: game.id });
     const accent = await accentFor(game);
