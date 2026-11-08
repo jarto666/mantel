@@ -23,10 +23,11 @@ TV PC.
   games, restarts or powers off the device.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts
   connected, brings in playtime from Steam and Xbox across all your devices.
-- **Browse the stores.** The Xbox and Steam tabs hold your games, the PC Game Pass catalog
-  and each store's lists, by genre, with shelves that open into full grids. Search reaches
-  both stores too. Sign in to see your Steam games and the Xbox games you've played, installed
-  or not. Buying happens in the store itself.
+- **One library, two stores.** The Library holds everything you have from every store,
+  installed or not, with a filter for each store. Sign in to see all your Steam games and the
+  Xbox games you've played. The Xbox tab is the PC Game Pass catalog and the Microsoft Store,
+  the Steam tab the Steam store, each with lists by genre and shelves that open into full
+  grids. Search reaches both stores too. Buying happens in the store itself.
 - **Install from the couch.** Game Pass games and anything else on your Microsoft account
   install right in Mantel through Windows' own installer, with a list of editions showing
   what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the
@@ -102,7 +103,7 @@ user (DPAPI); `cache.json` can be deleted at any time. Settings → Accounts sig
 | A | Play |
 | B | Back |
 | Y | Game details |
-| X | Favorite; on the Xbox and Steam tabs, switches between Game Pass, My games and Store |
+| X | Favorite |
 | LB / RB | Games ↔ Library ↔ Xbox ↔ Steam ↔ Settings |
 | LT / RT | Filters |
 | View (⧉) | Search |
