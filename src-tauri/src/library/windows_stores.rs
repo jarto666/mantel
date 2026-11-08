@@ -80,9 +80,13 @@ struct AppxGame {
     location: String,
     app_id: Option<String>,
     display: Option<String>,
+    /// Depends on a main package: an add-on, not a game.
+    #[serde(default)]
+    optional: bool,
 }
 
-/// Packages that ship a MicrosoftGame.config are GDK games (Game Pass, Xbox app, Store).
+/// Packages that ship a MicrosoftGame.config are GDK games (Game Pass, Xbox app, Store), or their
+/// add-ons: DLC and content packs ship one too, and say which game they belong to.
 const XBOX_QUERY: &str = r#"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'SilentlyContinue'
@@ -91,7 +95,8 @@ $out = foreach ($p in Get-AppxPackage) {
   if (-not $loc -or -not (Test-Path -LiteralPath (Join-Path $loc 'MicrosoftGame.config'))) { continue }
   $m = Get-AppxPackageManifest -Package $p.PackageFullName
   $app = @($m.Package.Applications.Application)[0]
-  [pscustomobject]@{ family = $p.PackageFamilyName; location = $loc; appId = $app.Id; display = $m.Package.Properties.DisplayName }
+  $main = [bool]$m.Package.Dependencies.MainPackageDependency
+  [pscustomobject]@{ family = $p.PackageFamilyName; location = $loc; appId = $app.Id; display = $m.Package.Properties.DisplayName; optional = $main }
 }
 ConvertTo-Json -InputObject @($out) -Compress
 "#;
@@ -116,6 +121,10 @@ pub fn scan_xbox() -> Scan {
     for pkg in found {
         let loc = PathBuf::from(&pkg.location);
         let visuals = read_shell_visuals(&loc.join("MicrosoftGame.config"));
+        // A content pack has a name and art of its own, and would show up as one more game.
+        if pkg.optional || visuals.content_pack {
+            continue;
+        }
         let name = [visuals.name.clone(), pkg.display.clone()]
             .into_iter()
             .flatten()
@@ -147,6 +156,8 @@ pub fn scan_xbox() -> Scan {
 
 #[derive(Default)]
 struct ShellVisuals {
+    /// DLC or a content pack: the config names the game it belongs to.
+    content_pack: bool,
     name: Option<String>,
     executables: Vec<String>,
     square480: Option<String>,
@@ -156,9 +167,17 @@ struct ShellVisuals {
 }
 
 fn read_shell_visuals(path: &Path) -> ShellVisuals {
-    let Ok(text) = std::fs::read_to_string(path) else { return ShellVisuals::default() };
+    std::fs::read_to_string(path).map(|text| parse_config(&text)).unwrap_or_default()
+}
+
+/// Elements only DLC configs have: the base game's package and Store ID, and the device the DLC
+/// is built for.
+const DLC_ONLY: [&str; 3] = ["MainPackageDependency", "AllowedProducts", "TargetDeviceFamilyForDLC"];
+
+fn parse_config(text: &str) -> ShellVisuals {
     let Ok(doc) = roxmltree::Document::parse(text.trim_start_matches('\u{feff}')) else { return ShellVisuals::default() };
-    let Some(node) = doc.descendants().find(|n| n.has_tag_name("ShellVisuals")) else { return ShellVisuals::default() };
+    let content_pack = doc.descendants().any(|n| DLC_ONLY.contains(&n.tag_name().name()));
+    let Some(node) = doc.descendants().find(|n| n.has_tag_name("ShellVisuals")) else { return ShellVisuals { content_pack, ..Default::default() } };
     let attr = |name: &str| node.attribute(name).map(String::from);
     let executables = doc
         .descendants()
@@ -166,6 +185,7 @@ fn read_shell_visuals(path: &Path) -> ShellVisuals {
         .filter_map(|n| n.attribute("Name").map(String::from))
         .collect();
     ShellVisuals {
+        content_pack,
         name: attr("DefaultDisplayName"),
         executables,
         square480: attr("Square480x480Logo"),
@@ -187,6 +207,56 @@ fn folder_name(loc: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Shaped like Microsoft's sample DLC config for the GDK.
+    const CONTENT_PACK: &str = r##"<?xml version="1.0" encoding="utf-8"?>
+<Game configVersion="1">
+  <Identity Name="Studio.ShooterContentPack1" Publisher="CN=Studio" Version="1.0.0.0"/>
+  <ShellVisuals DefaultDisplayName="Shooter - Content Pack 1" PublisherDisplayName="Studio"
+                StoreLogo="StoreLogo.png" Square150x150Logo="Logo.png" Square44x44Logo="Small.png"
+                Description="Maps" BackgroundColor="#000040" SplashScreenImage="Splash.png"/>
+  <StoreId>9PMD021RZT4Z</StoreId>
+  <AllowedProducts>
+    <AllowedProduct>9NBLGGH4PNC7</AllowedProduct>
+  </AllowedProducts>
+  <DesktopRegistration>
+    <MainPackageDependency Name="Studio.Shooter"/>
+    <ProcessorArchitecture>x64</ProcessorArchitecture>
+  </DesktopRegistration>
+</Game>"##;
+
+    const GAME: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<Game configVersion="1">
+  <Identity Name="Studio.Shooter" Publisher="CN=Studio" Version="1.0.0.0"/>
+  <ExecutableList>
+    <Executable Name="shooter.exe" Id="Game"/>
+  </ExecutableList>
+  <ShellVisuals DefaultDisplayName="Shooter" PublisherDisplayName="Studio" Square480x480Logo="Cover.png"
+                Square150x150Logo="Logo.png" StoreLogo="StoreLogo.png" SplashScreenImage="Splash.png"/>
+  <StoreId>9NBLGGH4PNC7</StoreId>
+  <RelatedProducts>
+    <RelatedProduct>9PMD021RZT4Z</RelatedProduct>
+  </RelatedProducts>
+</Game>"#;
+
+    #[test]
+    fn tells_a_content_pack_from_a_game() {
+        let pack = parse_config(CONTENT_PACK);
+        assert!(pack.content_pack);
+        assert_eq!(pack.name.as_deref(), Some("Shooter - Content Pack 1"));
+
+        let game = parse_config(GAME);
+        assert!(!game.content_pack);
+        assert_eq!(game.name.as_deref(), Some("Shooter"));
+        assert_eq!(game.executables, ["shooter.exe"]);
+        assert_eq!(game.square480.as_deref(), Some("Cover.png"));
+    }
+
+    #[test]
+    fn a_dlc_without_visuals_is_still_a_content_pack() {
+        assert!(parse_config(r#"<Game configVersion="1"><TargetDeviceFamilyForDLC>PC</TargetDeviceFamilyForDLC></Game>"#).content_pack);
+        assert!(!parse_config("not xml").content_pack);
+    }
 
     #[test]
     fn tells_a_launcher_from_a_game() {
