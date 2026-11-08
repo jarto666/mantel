@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "./api";
+import { api, isTauri } from "./api";
 import { errorText, locale, steamLanguage, t } from "./i18n";
 import { rumble } from "./input";
 import { setSoundEnabled, sound } from "./sound";
@@ -8,6 +8,14 @@ import { accentFor, baseTitle, DEFAULT_ACCENT, money, SOURCE_NAME } from "./util
 
 export type View = "home" | "library" | "steam" | "gamepass" | "settings";
 export type Overlay = "menu" | "search" | null;
+
+export interface Updating {
+  version: string;
+  downloaded: number;
+  total: number | null;
+  /** Seconds left before Mantel closes for the installer, once the download is in. */
+  restartIn: number | null;
+}
 
 export interface Toast {
   id: number;
@@ -77,6 +85,12 @@ interface State {
   update: string | null;
   /** The Settings button's check for updates is running. */
   checkingUpdate: boolean;
+  /** The step of the first-run setup on screen, or null when it's closed. */
+  setupStep: number | null;
+  /** A newer release to offer once, as soon as nothing is in the way; null after an answer. */
+  updateOffer: string | null;
+  /** The update being downloaded and installed, for the screen that shows it. */
+  updating: Updating | null;
 }
 
 export const useStore = create<State>(() => ({
@@ -108,6 +122,9 @@ export const useStore = create<State>(() => ({
   version: "",
   update: null,
   checkingUpdate: false,
+  setupStep: null,
+  updateOffer: null,
+  updating: null,
 }));
 
 const set = useStore.setState;
@@ -344,35 +361,75 @@ export async function boot() {
   set({ settings, games: cached, loaded: true, running });
   api.installs().then((list) => set({ installs: Object.fromEntries(list.map((p) => [p.id, p])) }), () => {});
   api.appVersion().then((version) => set({ version }));
-  // Installing can't make Mantel the home app, only offer it, and Windows doesn't say so.
-  api
-    .fullScreenMode()
-    .then((m) => m.offered && !m.home && firstTime("mantel.homeAppHint") && toast(t("Mantel can be the home app of Xbox mode: see Settings"), "good"))
-    .catch(() => {});
+  // The library scan carries on behind it, so setup can show what it found.
+  if (!setupDone()) set({ setupStep: 0 });
+  // Development only: ?setup=2 opens setup at that step, for screenshots and design work.
+  const devStep = import.meta.env.DEV ? new URLSearchParams(location.search).get("setup") : null;
+  if (devStep !== null) set({ setupStep: Math.max(0, Math.min(3, Number(devStep) || 0)) });
   await rescan(true);
-  // Release builds only: a dev build would "update" itself into the installed release.
-  if (import.meta.env.PROD) {
-    setTimeout(checkForUpdate, 20_000);
+  // A dev build would "update" itself into the installed release, unless it was built to take a
+  // test feed (tools/ally.sh build-dev update-test). Sample data offers one with ?mockUpdate.
+  if (updatesHere()) {
+    setTimeout(checkForUpdate, 4_000);
     setInterval(checkForUpdate, 6 * 3600_000);
   }
 }
 
-/** True the first time `key` is asked for on this PC; false when storage is unavailable. */
-function firstTime(key: string): boolean {
+const updatesHere = () => import.meta.env.PROD || !!import.meta.env.VITE_UPDATE_TEST || !isTauri;
+
+const SETUP_KEY = "mantel.setupDone";
+
+/** Whether setup ran on this PC; true when storage is unavailable, so it can't come back every start. */
+function setupDone(): boolean {
   try {
-    if (localStorage.getItem(key)) return false;
-    localStorage.setItem(key, "1");
+    return !!localStorage.getItem(SETUP_KEY);
+  } catch {
     return true;
+  }
+}
+
+/** First-run setup, from the start: Settings offers it again. */
+export function openSetup() {
+  set({ setupStep: 0, overlay: null, detailsId: null });
+}
+
+export function closeSetup() {
+  set({ setupStep: null });
+  try {
+    localStorage.setItem(SETUP_KEY, "1");
+  } catch {
+    // It shows again next time, which beats not showing at all.
+  }
+}
+
+const SNOOZE_KEY = "mantel.updateLater";
+const SNOOZE = 24 * 3600_000;
+
+/** Offers a new version, unless "Later" was chosen less than a day ago. The banner then waits
+ *  until setup and any game are out of the way; Settings shows the update either way. */
+async function checkForUpdate() {
+  const version = await api.checkUpdate().catch(() => null);
+  if (!version) return;
+  set({ update: version });
+  if (!snoozed()) set({ updateOffer: version });
+}
+
+function snoozed(): boolean {
+  try {
+    return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) ?? 0) < SNOOZE;
   } catch {
     return false;
   }
 }
 
-async function checkForUpdate() {
-  const version = await api.checkUpdate().catch(() => null);
-  if (!version || version === get().update) return;
-  set({ update: version });
-  toast(t("Mantel {version} is ready to install from Settings", { version }), "good");
+/** "Later": no offer for a day, whatever version comes out meanwhile. */
+export function dismissUpdateOffer() {
+  set({ updateOffer: null });
+  try {
+    localStorage.setItem(SNOOZE_KEY, String(Date.now()));
+  } catch {
+    // Then it asks again next start, which is still only once a run.
+  }
 }
 
 /** The Settings button: unlike the background check, it always says how it went. */
@@ -383,10 +440,11 @@ export async function checkForUpdateNow() {
     const version = await api.checkUpdate();
     if (!version) toast(t("You're on the latest version"), "good");
     // A dev build would "update" itself into the installed release, so it only says so.
-    else if (!import.meta.env.PROD) toast(`Dev build: release ${version} is out`);
+    else if (!updatesHere()) toast(`Dev build: release ${version} is out`);
     else {
+      // Settings' own row turns into the update, right where the player is looking.
       set({ update: version });
-      toast(t("Mantel {version} is ready to install from Settings", { version }), "good");
+      toast(t("Mantel {version} is out", { version }), "good");
     }
   } catch (e) {
     toast(t("Couldn't check for updates: {error}", { error: errorText(e) }), "warn");
@@ -397,8 +455,27 @@ export async function checkForUpdateNow() {
 
 export async function installUpdate() {
   if (get().running) return toast(t("Close the game first, then update"), "warn");
-  toast(t("Installing the update. Mantel will restart"));
-  await api.installUpdate().catch((e) => toast(t("Update failed: {error}", { error: errorText(e) }), "warn"));
+  const version = get().update ?? "";
+  set({ updateOffer: null, updating: { version, downloaded: 0, total: null, restartIn: null } });
+  const patch = (p: Partial<Updating>) => set((s) => ({ updating: s.updating && { ...s.updating, ...p } }));
+  try {
+    await api.installUpdate(
+      (downloaded, total) => patch({ downloaded, total }),
+      // A few seconds' warning: the window is about to close, and it isn't a crash.
+      async () => {
+        for (let n = 3; n > 0; n--) {
+          patch({ restartIn: n });
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        patch({ restartIn: 0 });
+      },
+    );
+    // On Windows the installer has closed Mantel by now; sample data has nothing to restart into.
+    if (!isTauri) setTimeout(() => set({ updating: null }), 1500);
+  } catch (e) {
+    set({ updating: null });
+    toast(t("Update failed: {error}", { error: errorText(e) }), "warn");
+  }
 }
 
 export async function rescan(quiet = false) {

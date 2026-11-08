@@ -4,11 +4,12 @@ import { SourceIcon } from "../components/Glyph";
 import { useHints } from "../components/Hints";
 import { AddGame } from "../components/AddGame";
 import { KeyFlow } from "../components/KeyFlow";
-import { AccountFlow } from "../components/AccountFlow";
+import { AccountFlow, steamCopy, xboxCopy } from "../components/AccountFlow";
+import { HomeAppFlow } from "../components/HomeApp";
 import { useScrollFocus } from "../hooks";
 import { Layer, useInput } from "../input";
 import { errorText, LANGUAGES, t } from "../i18n";
-import { checkForUpdateNow, installUpdate, loadCatalog, rescan, saveSettings, setHidden, toast, useStore } from "../store";
+import { checkForUpdateNow, installUpdate, loadCatalog, openSetup, rescan, saveSettings, setHidden, toast, useStore } from "../store";
 import { sound } from "../sound";
 import type { AccountsStatus, Settings as S, Source } from "../types";
 
@@ -18,7 +19,7 @@ type Row =
   | { kind: "button"; id: string; label: string; sub?: string; value?: string; icon?: Icon; soon?: boolean; run: () => void };
 
 type Icon = Source | "ea" | "battlenet" | "art";
-type Flow = "steam" | "xbox" | "sgdb" | "add" | null;
+type Flow = "steam" | "xbox" | "sgdb" | "add" | "home" | null;
 type Category = "library" | "accounts" | "interface" | "system";
 
 const CATEGORIES: [Category, string, React.ReactNode][] = [
@@ -270,6 +271,13 @@ export function Settings({ active }: { active: boolean }) {
       value: settings.minimizeOnLaunch,
       set: (v) => patch({ minimizeOnLaunch: v }),
     },
+    {
+      kind: "button",
+      id: "setup",
+      label: t("Run setup again"),
+      sub: t("Language, accounts and how the handheld starts, step by step"),
+      run: openSetup,
+    },
     ...(mode?.supported
       ? ([
           { kind: "group", label: t("Xbox mode") },
@@ -279,14 +287,10 @@ export function Settings({ active }: { active: boolean }) {
             label: t("Home app"),
             sub: mode.home
               ? t("Xbox mode starts in Mantel, and Home in Game Bar comes back to it")
-              : mode.offered
-                ? t("Pick Mantel under Home app in Windows Settings to start Xbox mode in Mantel")
-                : t("Turn on Developer Mode in Windows, then reinstall Mantel, to start Xbox mode in Mantel"),
-            value: mode.home ? "Mantel" : mode.offered ? t("Choose") : t("Unavailable"),
-            run: () =>
-              mode.offered
-                ? void api.powerAction("home-app-settings").catch((e) => toast(errorText(e), "warn"))
-                : toast(t("Windows offers Mantel as the home app only in Developer Mode for now"), "warn"),
+              : t("Start Xbox mode in Mantel, and come back to it with Home in Game Bar"),
+            value: mode.home ? "Mantel" : t("Set up"),
+            // Once it's Mantel, Windows' own page is where to pick another app.
+            run: () => (mode.home ? void api.powerAction("home-app-settings").catch((e) => toast(errorText(e), "warn")) : setFlow("home")),
           },
         ] as Row[])
       : []),
@@ -384,42 +388,13 @@ export function Settings({ active }: { active: boolean }) {
           </div>
         </div>
         {flow === "add" && <AddGame onClose={() => setFlow(null)} />}
-        {flow === "steam" && (
-          <AccountFlow
-            copy={{
-              service: "Steam",
-              connectedAs: steam?.connected ? steam.user ?? t("Steam account") : null,
-              status: steam?.connected ? (steam.owned === 1 ? t("Connected · 1 game") : t("Connected · {n} games", { n: steam.owned })) : t("Not signed in"),
-              intro: {
-                connected: t("Mantel sees every game you own and your playtime from all devices. Games you haven't installed are under Library → Not installed."),
-                signedOut: t("Adds every game you own, installed or not, and playtime from all your devices. You sign in on Steam's own page: Mantel never sees your password, and email Steam Guard codes work."),
-              },
-              steps: [t("A Steam window opens above Mantel"), t("Sign in and enter the code Steam emails you"), t("The window closes by itself when you're in")],
-              signInLabel: t("Sign in with Steam"),
-              signIn: api.steamSignIn,
-              disconnect: "steam",
+        {(flow === "steam" || flow === "xbox") && <AccountFlow copy={(flow === "steam" ? steamCopy : xboxCopy)(accounts)} onChange={setAccounts} onClose={() => setFlow(null)} />}
+        {flow === "home" && (
+          <HomeAppFlow
+            onClose={() => {
+              setFlow(null);
+              api.fullScreenMode().then(setMode).catch(() => {});
             }}
-            onChange={setAccounts}
-            onClose={() => setFlow(null)}
-          />
-        )}
-        {flow === "xbox" && (
-          <AccountFlow
-            copy={{
-              service: "Xbox",
-              connectedAs: accounts?.xboxGamertag ?? null,
-              status: accounts?.xboxGamertag ? t("Signed in as {gamertag}", { gamertag: accounts.xboxGamertag }) : t("Not signed in"),
-              intro: {
-                connected: t("Mantel sees your Xbox play history and minutes played. PC games you've played but haven't installed are under Library → Not installed."),
-                signedOut: t("Brings in your Xbox play history and minutes played, and lists PC games you've played but haven't installed. You sign in on Microsoft's own page: Mantel never sees your password."),
-              },
-              steps: [t("A Microsoft window opens above Mantel"), t("Sign in and allow Mantel to see your Xbox profile"), t("The window closes by itself when you're in")],
-              signInLabel: t("Sign in with Microsoft"),
-              signIn: api.xboxSignIn,
-              disconnect: "xbox",
-            }}
-            onChange={setAccounts}
-            onClose={() => setFlow(null)}
           />
         )}
         {flow === "sgdb" && (

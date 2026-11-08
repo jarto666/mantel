@@ -1,4 +1,5 @@
 import { siEpicgames, siGogdotcom, siSteam, siUbisoft } from "simple-icons";
+import { useInputDevice } from "../input";
 import type { Source } from "../types";
 
 /** Goes in a stroked 24-unit svg. */
@@ -6,9 +7,19 @@ export const DOWNLOAD = <path d="M12 3.5v12M6.75 10.25 12 15.5l5.25-5.25M4.5 20.
 
 export type Button = "a" | "b" | "x" | "y" | "lb" | "rb" | "lt" | "rt" | "menu" | "view" | "dpad" | "stick";
 
-/** Controller face buttons in the dark-cap, coloured-letter style of modern pads. */
+/** The keyboard's stand-in for each button (input.ts maps them). */
+const KEY_CAP: Record<Button, string> = {
+  a: "Enter", b: "Esc", x: "F", y: "I", lb: "Q", rb: "E", lt: "PgUp", rt: "PgDn",
+  menu: "Tab", view: "/", dpad: "←↑↓→", stick: "←↑↓→",
+};
+
+/** Controller face buttons in the dark-cap, coloured-letter style of modern pads; key caps
+ *  instead while the player is on a keyboard. */
 export function Glyph({ b, size = 1 }: { b: Button; size?: number }) {
   const style = { "--g": size } as React.CSSProperties;
+  if (useInputDevice() === "keys") {
+    return <span className={`glyph key ${b}`} style={style}>{KEY_CAP[b]}</span>;
+  }
   if (b === "a" || b === "b" || b === "x" || b === "y") {
     return (
       <span className={`glyph face ${b}`} style={style}>

@@ -17,6 +17,7 @@ mod system;
 mod uninstall;
 mod vdf;
 
+pub use fse::{turn_on_developer_mode, DEVELOPER_MODE_ARG};
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
 
@@ -872,6 +873,19 @@ fn power_action(app: AppHandle, action: String) -> Result<(), String> {
     system::action(&app, &action)
 }
 
+/// Setup's and Settings' "Make Mantel the home app": Windows may ask the player for permission.
+#[tauri::command]
+async fn make_home_app(app: AppHandle) -> Result<fse::Mode, String> {
+    let dir = app.path().resource_dir().map_err(|e| e.to_string())?;
+    let version = app.package_info().version.to_string();
+    // Windows shows its prompt over this window rather than behind it.
+    #[cfg(windows)]
+    let window = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map_or(0, |h| h.0 as isize);
+    #[cfg(not(windows))]
+    let window = 0;
+    tauri::async_runtime::spawn_blocking(move || fse::make_home(window, &dir, &version)).await.map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
@@ -941,6 +955,7 @@ pub fn run() {
             set_muted,
             set_brightness,
             full_screen_mode,
+            make_home_app,
             client_log,
             accounts_status,
             steam_sign_in,

@@ -1,7 +1,11 @@
 import { useEffect, useId } from "react";
 import { create } from "zustand";
 import { t } from "../i18n";
+import { dispatch, type Action } from "../input";
 import { Glyph, type Button } from "./Glyph";
+
+/** What clicking a hint presses. Directions and pairs have no single press. */
+const PRESS: Partial<Record<Button, Action>> = { a: "a", b: "b", x: "x", y: "y", lb: "lb", rb: "rb", lt: "lt", rt: "rt", menu: "menu", view: "view" };
 
 /** A button, or a pair that do the same thing in opposite directions. */
 export type Hint = [Button | [Button, Button], string];
@@ -30,12 +34,22 @@ export function HintBar() {
   if (!top) return null;
   return (
     <div className="hintbar" key={JSON.stringify(top.items)}>
-      {top.items.map(([b, label]) => (
-        <span className="hint" key={String(b) + label}>
-          {(Array.isArray(b) ? b : [b]).map((one) => <Glyph key={one} b={one} />)}
-          {t(label)}
-        </span>
-      ))}
+      {top.items.map(([b, label]) => {
+        const glyphs = (Array.isArray(b) ? b : [b]).map((one) => <Glyph key={one} b={one} />);
+        // With a mouse or a finger, a hint is the button it names: Back, Close, Skip.
+        const action = Array.isArray(b) ? undefined : PRESS[b];
+        return action ? (
+          <button className="hint is-pressable" key={String(b) + label} onClick={() => dispatch(action)}>
+            {glyphs}
+            {t(label)}
+          </button>
+        ) : (
+          <span className="hint" key={String(b) + label}>
+            {glyphs}
+            {t(label)}
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -30,8 +30,20 @@ let catalog: Catalog = {};
 let plurals = new Intl.PluralRules("en-US");
 
 function systemLanguage(): string {
+  return windowsLanguage() ?? "en";
+}
+
+/** The language Windows is in, when Mantel has it. */
+export function windowsLanguage(): string | null {
   const l = navigator.language.slice(0, 2).toLowerCase();
-  return l in CATALOGS ? l : "en";
+  return l in CATALOGS ? l : null;
+}
+
+/** A string in a language other than the interface's, such as setup's greeting in the language
+ *  the player is looking at. */
+export function tIn(id: string, text: string): string {
+  const entry = CATALOGS[id]?.[text] ?? text;
+  return typeof entry === "string" ? entry : entry.other;
 }
 
 /** Switches the interface to a language id, or "" for Windows' own. Returns the one in use. */

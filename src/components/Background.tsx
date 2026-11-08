@@ -59,7 +59,7 @@ function Trailer() {
   const enabled = useStore((s) => s.settings?.trailers ?? false);
   // Where a game has the screen to itself: Home, Game Pass, and its own page.
   const onStage = useStore((s) => s.view === "home" || s.view === "gamepass" || s.detailsId !== null);
-  const covered = useStore((s) => s.overlay !== null || s.launching !== null || s.watching);
+  const covered = useStore((s) => s.overlay !== null || s.launching !== null || s.watching || s.setupStep !== null);
   const running = useStore((s) => s.running !== null);
   const hidden = usePageHidden();
   const video = useRef<HTMLVideoElement>(null);

@@ -55,9 +55,12 @@ export interface Api {
   setVolume(level: number): Promise<void>;
   setMuted(muted: boolean): Promise<void>;
   setBrightness(level: number): Promise<void>;
-  powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "home-app-settings" | "quit"): Promise<void>;
+  powerAction(action: "shutdown" | "restart" | "desktop" | "fullscreen" | "home-app-settings" | "developer-settings" | "quit"): Promise<void>;
   /** Windows' full screen experience (Xbox mode): whether it's on and whether we can toggle it. */
   fullScreenMode(): Promise<FullScreenMode>;
+  /** Makes Mantel the home app of Xbox mode, turning on Developer Mode first if needed: Windows
+   *  then asks the player for permission. Rejects with a fixed English reason. */
+  makeHomeApp(): Promise<FullScreenMode>;
   getAutostart(): Promise<boolean>;
   setAutostart(on: boolean): Promise<void>;
   on(event: GameEvent, cb: (payload: unknown) => void): () => void;
@@ -86,8 +89,10 @@ export interface Api {
   appVersion(): Promise<string>;
   /** The version of a newer release, or null when up to date. */
   checkUpdate(): Promise<string | null>;
-  /** Installs the release found by checkUpdate and restarts into it. */
-  installUpdate(): Promise<void>;
+  /** Downloads the release found by checkUpdate, reporting bytes as they come, waits for
+   *  `beforeInstall`, then installs it and restarts into it: on Windows the installer closes
+   *  Mantel itself. */
+  installUpdate(onProgress: (downloaded: number, total: number | null) => void, beforeInstall: () => Promise<void>): Promise<void>;
 }
 
 export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout" | "install-progress" | "game-uninstalled";
@@ -96,10 +101,12 @@ export interface FullScreenMode {
   supported: boolean;
   active: boolean;
   canSwitch: boolean;
-  /** Windows lists Mantel among home apps (installed with Developer Mode on). */
+  /** Windows lists Mantel among home apps: its package is registered, which needs Developer Mode. */
   offered: boolean;
-  /** The user picked Mantel as the home app. */
+  /** Mantel is the home app. */
   home: boolean;
+  /** Windows' Developer Mode, without which it won't take Mantel as the home app. */
+  developerMode: boolean;
 }
 
 let pendingUpdate: import("@tauri-apps/plugin-updater").Update | null = null;
@@ -139,6 +146,7 @@ const tauriApi: Api = {
   setBrightness: (level) => call("set_brightness", { level }),
   powerAction: (action) => call("power_action", { action }),
   fullScreenMode: () => call("full_screen_mode"),
+  makeHomeApp: () => call("make_home_app"),
   async getAutostart() {
     const { isEnabled } = await import("@tauri-apps/plugin-autostart");
     return isEnabled();
@@ -191,10 +199,20 @@ const tauriApi: Api = {
     pendingUpdate = await check();
     return pendingUpdate?.version ?? null;
   },
-  async installUpdate() {
+  async installUpdate(onProgress, beforeInstall) {
     if (!pendingUpdate) return;
+    let downloaded = 0;
+    let total: number | null = null;
+    await pendingUpdate.download((e) => {
+      if (e.event === "Started") total = e.data.contentLength ?? null;
+      else if (e.event === "Progress") downloaded += e.data.chunkLength;
+      // All of it is in, whatever the server said the size would be: the installer is next.
+      else total = downloaded;
+      onProgress(downloaded, total);
+    });
+    await beforeInstall();
     // On Windows the installer closes the app itself and starts the new version.
-    await pendingUpdate.downloadAndInstall();
+    await pendingUpdate.install();
     const { relaunch } = await import("@tauri-apps/plugin-process");
     await relaunch();
   },

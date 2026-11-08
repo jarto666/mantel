@@ -44,6 +44,7 @@ On the device, over the SSH alias `ally`:
 | `tools/ally.sh deploy [dev]` | Copies the build to `C:\Mantel` and restarts it on the Ally's screen |
 | `tools/ally.sh tunnel` | Forwards port 9222 to the Mac |
 | `tools/ally.sh logs` | Follows `mantel.log` |
+| `tools/ally.sh build-dev update-test [quiet]` | Dev build that calls itself 0.0.1, so it's offered the latest release and installs it as players do; `quiet` runs the installer without its window. Run the UI with `VITE_UPDATE_TEST=1`. Installing replaces the Ally's Mantel with that release |
 
 Known traps:
 

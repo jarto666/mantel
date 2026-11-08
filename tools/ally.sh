@@ -2,7 +2,9 @@
 # Dev loop against the Ally over SSH (host alias "ally" in ~/.ssh/config).
 #
 #   tools/ally.sh build-dev   Windows build that loads the UI from this Mac (live reload)
-#                             and exposes WebView DevTools on the Ally's localhost:9222
+#                             and exposes WebView DevTools on the Ally's localhost:9222;
+#                             `build-dev update-test [quiet]` calls itself 0.0.1, so it's offered
+#                             the latest release and installs it the way players get it
 #   tools/ally.sh build       release build with the UI baked in
 #   tools/ally.sh deploy [dev] copy the build to C:\Mantel and restart it on the Ally's screen
 #   tools/ally.sh start       (re)start the deployed Mantel on the Ally's screen
@@ -53,22 +55,36 @@ run_in_session() {
 case "${1:-}" in
   build-dev)
     ip=$(mac_ip)
-    config=$(python3 - "$ip" <<'EOF'
+    # `update-test`: version 0.0.1, so the latest release on GitHub is an update for it. A fake
+    # feed can't stand in: the updater checks that the signature was made for the version offered.
+    config=$(python3 - "$ip" "${2:-}" "${3:-passive}" <<'EOF'
 import json, sys
+ip, test, mode = sys.argv[1:4]
 base = json.load(open("src-tauri/tauri.conf.json"))
 win = dict(base["app"]["windows"][0], title="Mantel Dev")
 win["additionalBrowserArgs"] += " --remote-debugging-port=9222"
-print(json.dumps({
+config = {
     "productName": "Mantel Dev",
-    "build": {"devUrl": f"http://{sys.argv[1]}:1420"},
+    "build": {"devUrl": f"http://{ip}:1420"},
     "app": {"windows": [win]},
-}))
+}
+if test == "update-test":
+    config["version"] = "0.0.1"
+    config["plugins"] = {"updater": {"windows": {"installMode": mode}}}
+print(json.dumps(config))
 EOF
 )
+    # The version is baked in by the build script, which reruns only when these change.
+    [[ "${2:-}" == update-test ]] && touch src-tauri/tauri.conf.json src-tauri/build.rs
     # No `custom-protocol` feature: the exe loads devUrl instead of embedded assets.
     (cd src-tauri && TAURI_CONFIG="$config" cargo xwin build --release --target $TARGET --features tauri/devtools)
     cp "$OUT" release/MantelDev.exe
-    echo "Built release/MantelDev.exe (UI from http://$ip:1420). Run: TAURI_DEV_HOST=$ip npm run dev"
+    if [[ "${2:-}" == update-test ]]; then
+      echo "Built release/MantelDev.exe as 0.0.1: it's offered the latest release (installer: ${3:-passive})."
+      echo "Run: VITE_UPDATE_TEST=1 TAURI_DEV_HOST=$ip npm run dev. Installing replaces the Ally's Mantel with that release."
+    else
+      echo "Built release/MantelDev.exe (UI from http://$ip:1420). Run: TAURI_DEV_HOST=$ip npm run dev"
+    fi
     ;;
   build)
     npm run build:win
@@ -112,7 +128,7 @@ EOF
     run_in_session 'Add-AppxPackage -Register C:\Mantel\AppxManifest.xml; Get-AppxPackage PlayMantel.MantelDev | Format-List PackageFullName, InstallLocation, Status'
     ;;
   *)
-    sed -n '2,13p' "$0"
+    sed -n '2,15p' "$0"
     exit 1
     ;;
 esac
