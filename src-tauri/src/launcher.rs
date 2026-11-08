@@ -96,12 +96,16 @@ const SPLASH_WAIT: Duration = Duration::from_secs(600);
 /// How long a game gets to quit by itself, saving as it goes, before it's terminated.
 const CLOSE_GRACE: Duration = Duration::from_secs(5);
 
+/// How long a terminated game may take to disappear: a big one takes a moment to let go of
+/// its memory.
+const KILL_WAIT: Duration = Duration::from_secs(3);
+
 /// Set by [`close`] once the game is gone, so its session ends without the usual grace.
 static CLOSED: Mutex<Option<String>> = Mutex::new(None);
 
 /// Closes the running game: asks its windows to close, as Alt+F4 would, then terminates
-/// whatever is left. Anti-cheat and games running as administrator can refuse the second
-/// step, which is when this returns an error.
+/// whatever is left. Anti-cheat can refuse the second step, and a game stuck inside Windows
+/// can outlive it; that's when this returns an error.
 pub fn close(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let Some(running) = state.running.lock().unwrap().clone() else { return Ok(()) };
@@ -132,13 +136,19 @@ pub fn close(app: &AppHandle) -> Result<(), String> {
         left = alive(&mut sys);
     }
     if !left.is_empty() {
-        for pid in &left {
-            if let Some(p) = sys.process(sysinfo::Pid::from_u32(*pid)) {
-                p.kill();
+        for &pid in &left {
+            if let Err(e) = terminate(&sys, pid) {
+                crate::log::warn(&format!("close {}: couldn't end process {pid}: {e}", running.id));
             }
         }
-        std::thread::sleep(Duration::from_millis(500));
-        left = alive(&mut sys);
+        let deadline = Instant::now() + KILL_WAIT;
+        loop {
+            std::thread::sleep(Duration::from_millis(250));
+            left = alive(&mut sys);
+            if left.is_empty() || Instant::now() >= deadline {
+                break;
+            }
+        }
     }
     if !left.is_empty() {
         crate::log::warn(&format!("close {}: {} processes refused to quit", running.id, left.len()));
@@ -258,12 +268,48 @@ fn focus_window_of(pids: &[u32]) -> bool {
 }
 
 /// What Alt+F4 sends. Games save and quit on it, or ask to confirm; it needs no rights over
-/// the process, so it reaches games whose anti-cheat blocks terminating them.
+/// the process, so it reaches games whose anti-cheat blocks terminating them. Windows keeps it
+/// from the windows of a game running as administrator, which then gets terminated.
 #[cfg(windows)]
 fn ask_to_close(pids: &[u32]) {
+    use windows_sys::Win32::Foundation::GetLastError;
     use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
     for hwnd in main_windows(pids) {
-        unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };
+        if unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) } == 0 {
+            crate::log::info(&format!("close: a window didn't take the request (error {})", unsafe { GetLastError() }));
+        }
+    }
+}
+
+/// Ends a process, as Task Manager does. Not sysinfo's kill: that runs taskkill, which asks for
+/// more than the right to terminate and so is refused for a game running as administrator,
+/// while the right to terminate alone is granted for the player's own processes, elevated too.
+#[cfg(windows)]
+fn terminate(_sys: &System, pid: u32) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError};
+    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    unsafe {
+        let process = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        if process.is_null() {
+            return Err(format!("no access (error {})", GetLastError()));
+        }
+        let ended = TerminateProcess(process, 1) != 0;
+        let error = GetLastError();
+        CloseHandle(process);
+        if ended {
+            Ok(())
+        } else {
+            Err(format!("error {error}"))
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn terminate(sys: &System, pid: u32) -> Result<(), String> {
+    match sys.process(sysinfo::Pid::from_u32(pid)) {
+        Some(p) if p.kill() => Ok(()),
+        Some(_) => Err("refused".into()),
+        None => Ok(()),
     }
 }
 
@@ -503,4 +549,21 @@ fn open_uri(uri: &str) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let cmd = "xdg-open";
     std::process::Command::new(cmd).arg(uri).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminates_a_process() {
+        #[cfg(windows)]
+        let mut child = std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
+        #[cfg(not(windows))]
+        let mut child = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        let mut sys = System::new();
+        refresh(&mut sys);
+        assert_eq!(terminate(&sys, child.id()), Ok(()));
+        assert!(!child.wait().unwrap().success());
+    }
 }
