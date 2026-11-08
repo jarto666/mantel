@@ -181,6 +181,8 @@ let running: Running | null = null;
 let steamKey = "";
 let xboxTag: string | null = null;
 let autostart = false;
+/** As on the Ally: Xbox mode, Developer Mode off, so setup has the home app to offer. */
+const fullScreen = { supported: true, active: false, canSwitch: false, offered: false, home: false, developerMode: false };
 const listeners = new Map<GameEvent, Set<(p: unknown) => void>>();
 const emit = (e: GameEvent, payload: unknown) => listeners.get(e)?.forEach((cb) => cb(payload));
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -188,7 +190,10 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const mockApi: Api = {
   async getLibrary(rescan) {
     if (rescan) await wait(900);
-    return structuredClone(games);
+    // ?mockGames=none, or a list such as ?mockGames=epic,gog: a PC with fewer stores, for empty states.
+    const only = new URLSearchParams(location.search).get("mockGames");
+    const kept = only === null ? games : games.filter((g) => only.split(",").includes(g.source));
+    return structuredClone(kept);
   },
   async resolveArt() {
     return false;
@@ -415,7 +420,13 @@ export const mockApi: Api = {
     console.info("[mock] power action", action);
   },
   async fullScreenMode() {
-    return { supported: false, active: false, canSwitch: false, offered: false, home: false };
+    return { ...fullScreen };
+  },
+  async makeHomeApp() {
+    // Stands in for Windows' permission prompt.
+    await wait(1800);
+    Object.assign(fullScreen, { developerMode: true, offered: true, home: true });
+    return { ...fullScreen };
   },
   async getAutostart() {
     return autostart;
@@ -503,9 +514,18 @@ export const mockApi: Api = {
     return "0.1.0";
   },
   async checkUpdate() {
-    return null;
+    // ?mockUpdate shows the update offer and the update screen in the browser.
+    return new URLSearchParams(location.search).has("mockUpdate") ? "0.4.0" : null;
   },
-  async installUpdate() {},
+  async installUpdate(onProgress, beforeInstall) {
+    const total = 96 * 1024 ** 2;
+    for (let step = 0; step <= 40; step++) {
+      onProgress(Math.round((total * step) / 40), total);
+      await wait(75);
+    }
+    await beforeInstall();
+    await wait(600);
+  },
   log(level, message) {
     console[level === "error" ? "error" : level === "warn" ? "warn" : "info"]("[mantel]", message);
   },

@@ -58,7 +58,8 @@
       },
       "nsis": {
         "installMode": "currentUser",
-        "installerHooks": "msix/hooks.nsh"
+        "installerHooks": "msix/hooks.nsh",
+        "sidebarImage": "installer/sidebar.bmp"
       }
     },
     "createUpdaterArtifacts": true
@@ -70,7 +71,7 @@
         "https://github.com/jarto666/mantel/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

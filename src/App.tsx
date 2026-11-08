@@ -8,6 +8,7 @@ import { LaunchOverlay } from "./components/LaunchOverlay";
 import { QuickMenu } from "./components/QuickMenu";
 import { Search } from "./components/Search";
 import { Toasts } from "./components/Toasts";
+import { UpdateOffer, UpdateScreen } from "./components/Update";
 import { tabOrder, timeText, TopBar, useClock } from "./components/TopBar";
 import { isTauri } from "./api";
 import { usePageHidden } from "./hooks";
@@ -21,6 +22,7 @@ import { GamePass } from "./views/GamePass";
 import { Home } from "./views/Home";
 import { Library } from "./views/Library";
 import { Settings } from "./views/Settings";
+import { Setup } from "./views/Setup";
 import { Steam } from "./views/Steam";
 
 const AMBIENT_AFTER = 30_000;
@@ -102,7 +104,11 @@ export function App() {
   // Pauses CSS motion while a game is in front, so Mantel costs nothing in the background.
   const idle = usePageHidden();
   const launching = useStore((s) => s.launching);
-  const ambient = useAmbient(view === "home" && !detailsId && !overlay && !launching);
+  const setup = useStore((s) => s.setupStep !== null);
+  // The screensaver shows the games' art; with none (Home's empty state) there's nothing to show.
+  const hasGames = useStore((s) => s.games.some((g) => g.installed && !g.hidden) || Object.keys(s.installs).length > 0);
+  const updateShown = useStore((s) => s.updateOffer !== null || s.updating !== null);
+  const ambient = useAmbient(view === "home" && !detailsId && !overlay && !launching && !setup && hasGames && !updateShown);
 
   useEffect(() => {
     startInput();
@@ -150,7 +156,7 @@ export function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div key={lang} className={`app view-${view} ${detailsId ? "has-page" : ""} ${idle ? "is-idle" : ""} ${ambient ? "is-ambient" : ""}`}>
+    <div key={lang} className={`app view-${view} ${detailsId ? "has-page" : ""} ${idle ? "is-idle" : ""} ${ambient ? "is-ambient" : ""} ${setup ? "has-setup" : ""}`}>
       <Boundary>
       <Background mode={bgMode} />
       <TopBar />
@@ -174,6 +180,9 @@ export function App() {
       <SearchOverlay />
       <LaunchOverlay />
       <CancelPrompt />
+      <Setup />
+      <UpdateOffer />
+      <UpdateScreen />
       {ambient && <AmbientCaption />}
       <Toasts />
       <HintBar />

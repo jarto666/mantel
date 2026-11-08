@@ -20,6 +20,18 @@
   unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
 }
 
+/* Setup's poster face, as on playmantel.com: the condensed width of Google Sans Flex. Latin
+   only, for the wordmark and numbers. */
+@font-face {
+  font-family: "Mantel Display";
+  font-style: normal;
+  font-display: block;
+  font-weight: 1 1000;
+  font-stretch: 25% 151%;
+  src: url("@fontsource-variable/google-sans-flex/files/google-sans-flex-latin-wdth-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF;
+}
+
 @property --accent {
   syntax: "<color>";
   inherits: true;
@@ -238,6 +250,11 @@ img { display: block; }
 .glyph.face.x { color: #55a8ff; }
 .glyph.face.y { color: #ffd23f; }
 .glyph.round svg { width: 58%; height: 58%; }
+.glyph.key { height: calc(1.55rem * var(--g)); min-width: calc(1.7rem * var(--g)); padding: 0 calc(0.45rem * var(--g)); border-radius: calc(0.42rem * var(--g)); font-size: calc(0.72rem * var(--g)); font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), inset 0 calc(-0.12rem * var(--g)) 0 rgba(255, 255, 255, 0.08); }
+.glyph.key.a { color: #7fdc5a; }
+.glyph.key.b { color: #ff6461; }
+.glyph.key.x { color: #55a8ff; }
+.glyph.key.y { color: #ffd23f; }
 .glyph.bumper, .glyph.trigger { height: calc(1.45rem * var(--g)); padding: 0 calc(0.5rem * var(--g)); font-size: calc(0.7rem * var(--g)); font-weight: 700; letter-spacing: 0.04em; }
 .glyph.bumper { border-radius: calc(0.5rem * var(--g)) calc(0.5rem * var(--g)) calc(0.3rem * var(--g)) calc(0.3rem * var(--g)); }
 .glyph.trigger { height: calc(1.65rem * var(--g)); border-radius: calc(0.85rem * var(--g)) calc(0.85rem * var(--g)) calc(0.32rem * var(--g)) calc(0.32rem * var(--g)); }
@@ -258,6 +275,8 @@ img { display: block; }
   animation: fadeIn 0.4s ease both;
 }
 .hint { display: flex; align-items: center; gap: 0.6rem; }
+.hint.is-pressable { margin: -0.4rem -0.6rem; padding: 0.4rem 0.6rem; border-radius: 0.8rem; color: inherit; font-weight: inherit; transition: background 0.2s, color 0.2s; }
+.hint.is-pressable:hover { background: var(--glass); color: var(--ink); }
 .hint .glyph { --g: 1.15; }
 
 .toasts { position: absolute; z-index: 70; top: 7rem; right: 4.5rem; display: flex; flex-direction: column; align-items: flex-end; gap: 0.6rem; pointer-events: none; }
@@ -773,6 +792,201 @@ img { display: block; }
 .keyflow-step.is-focused { background: #fff; color: #07080c; }
 .keyflow-step.danger.is-focused { background: var(--bad); color: #fff; }
 .keyflow-error { margin-top: 1.2rem; padding: 0.9rem 1.2rem; border-radius: 0.8rem; background: rgba(255, 91, 87, 0.14); color: #ffb3b0; font-size: 1.05rem; line-height: 1.4; }
+.keyflow-note { margin-top: 1.4rem; font-size: 1rem; line-height: 1.45; color: var(--ink-3); }
+
+/* ---------- First-run setup ---------------------------------------------- */
+
+/* The site's look: the player's own covers far back, the poster face for the big words, and
+   words with a line under them for choices, like Mantel's tabs. Opaque, so nothing under it paints. */
+.setup {
+  --accent: #ff5468;
+  --glow: color-mix(in oklab, #ff5468 70%, transparent);
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  background: var(--bg);
+}
+.app.has-setup :is(.view, .bg, .topbar) { visibility: hidden; }
+.setup-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.setup-wall { position: absolute; right: -10rem; top: -8rem; width: 110rem; height: 90rem; perspective: 140rem; animation: fadeIn 1.4s ease both; -webkit-mask-image: radial-gradient(60% 55% at 60% 40%, #000 30%, transparent 80%); mask-image: radial-gradient(60% 55% at 60% 40%, #000 30%, transparent 80%); }
+.setup-wall-grid { display: grid; grid-template-columns: repeat(8, 12rem); gap: 1.4rem; opacity: 0.17; transform: rotateY(-26deg) rotateX(12deg) rotateZ(-4deg) translateZ(-10rem); transform-origin: 30% 50%; }
+.setup-wall-img { width: 12rem; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.9rem; filter: saturate(0.7); }
+.setup-poster { position: absolute; right: -1.5rem; top: 6rem; font-family: "Mantel Display", var(--font); font-size: 33rem; font-stretch: 58%; font-weight: 900; line-height: 0.8; text-transform: uppercase; background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 15%, rgba(255, 255, 255, 0.018) 55%, transparent 85%); -webkit-background-clip: text; background-clip: text; color: transparent; animation: fadeIn 1.4s ease both; }
+.setup-light { position: absolute; inset: 0; background: radial-gradient(60rem 42rem at 82% -8%, color-mix(in oklab, var(--accent) 24%, transparent), transparent 70%), radial-gradient(55rem 40rem at -6% 108%, color-mix(in oklab, #ff8a5b 10%, transparent), transparent 70%); }
+.setup-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5, 6, 10, 0.94) 0%, rgba(5, 6, 10, 0.6) 45%, rgba(5, 6, 10, 0.25) 100%), linear-gradient(0deg, var(--bg) 0%, rgba(5, 6, 10, 0.85) 28%, rgba(5, 6, 10, 0) 58%); }
+
+.setup-top { position: absolute; z-index: 2; top: 3.4rem; left: var(--pad-x); right: var(--pad-x); display: flex; align-items: center; }
+.setup-brand { display: flex; align-items: center; gap: 0.8rem; font-size: 1.45rem; font-weight: 680; letter-spacing: -0.02em; }
+.setup-brand img { width: 2.2rem; height: 2.2rem; border-radius: 0.55rem; }
+.setup-steps { margin-left: auto; display: flex; gap: 2.6rem; list-style: none; }
+.setup-steps li { position: relative; padding-bottom: 0.8rem; font-size: 1.12rem; font-weight: 600; color: var(--ink-3); transition: color 0.4s; }
+.setup-steps li.is-done { color: var(--ink-2); }
+.setup-steps li.is-current { color: var(--ink); }
+.setup-steps li::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 0.24rem; border-radius: 9px; background: var(--accent); box-shadow: 0 0 1rem var(--glow); transform: scaleX(0); transform-origin: left; transition: transform 0.6s var(--ease); }
+.setup-steps li.is-current::after { transform: scaleX(1); }
+
+/* Every step anchors at the same place, so moving between them moves nothing. */
+.setup-step { position: absolute; inset: 0; z-index: 1; padding: 13rem var(--pad-x) 0; }
+.setup-step .eyebrow { margin-top: 3.4rem; }
+.setup-title { margin: 1rem 0 1.4rem; font-size: 5.4rem; font-weight: 650; letter-spacing: -0.045em; line-height: 0.98; text-wrap: balance; }
+.setup-intro { max-width: 52rem; font-size: 1.38rem; line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
+
+/* The poster face from playmantel.com: condensed, heavy, fading out at the bottom. */
+.setup-mark, .setup-num {
+  font-family: "Mantel Display", var(--font);
+  font-stretch: 58%;
+  font-weight: 900;
+  line-height: 0.8;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fff 30%, rgba(255, 255, 255, 0.55) 62%, rgba(255, 255, 255, 0.08) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.setup-hello { margin-top: 3.6rem; height: 2.2rem; font-size: 1.6rem; font-weight: 560; letter-spacing: -0.01em; color: var(--ink-2); }
+.setup-hello span { display: inline-block; }
+.setup-mark { margin: 0.5rem 0 0 -0.6rem; font-size: 21rem; }
+.setup-langs { display: flex; gap: 3.4rem; margin-top: 4.4rem; list-style: none; }
+.setup-langs li { position: relative; }
+.setup-langs small { position: absolute; left: 0; top: calc(100% + 0.7rem); font-size: 0.82rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+.setup-later { margin-top: 4.6rem; font-size: 1.15rem; color: var(--ink-3); }
+
+/* A choice as a word with a line under it: the line grows in under the one in focus. */
+.setup-lang, .setup-action { position: relative; display: inline-flex; align-items: center; gap: 0.7rem; padding-bottom: 0.9rem; color: var(--ink-3); transition: color 0.2s; }
+.setup-lang::after, .setup-action::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 0.28rem; border-radius: 9px; background: var(--accent); box-shadow: 0 0 1.2rem var(--glow); transform: scaleX(0); transform-origin: left; transition: transform 0.35s var(--ease); }
+.setup-lang.is-focused, .setup-action.is-focused { color: var(--ink); }
+.setup-lang.is-focused::after, .setup-action.is-focused::after { transform: scaleX(1); }
+.setup-lang { font-size: 2.1rem; font-weight: 600; letter-spacing: -0.02em; }
+.setup-lang.is-chosen:not(.is-focused) { color: var(--ink-2); }
+.setup-actions { position: absolute; right: var(--pad-x); bottom: 6rem; display: flex; gap: 3rem; }
+.setup-action { font-size: 1.5rem; font-weight: 650; }
+.setup-action .spinner { border-top-color: currentColor; }
+
+/* Games: the count in the poster face, then every store, found or not. */
+.setup-head { margin-top: 0.5rem; min-height: 9.2rem; display: flex; align-items: flex-end; }
+.setup-head .setup-title { margin: 0; }
+.setup-count { display: flex; align-items: flex-end; gap: 1.8rem; }
+/* The gradient paints only inside the box, and digits rise above a 0.78 line: room above, taken back. */
+.setup-num { font-size: 11.5rem; line-height: 0.78; padding: 0.14em 0.05em 0 0; margin-top: -0.14em; }
+.setup-what { max-width: 11ch; text-wrap: balance; padding-bottom: 0.3rem; font-size: 2.2rem; font-weight: 620; line-height: 1.05; letter-spacing: -0.03em; }
+.setup-step.is-games .setup-intro { margin-top: 1.6rem; }
+.setup-stores { position: absolute; left: var(--pad-x); right: var(--pad-x); bottom: 10rem; list-style: none; }
+.setup-stores li + li .setup-store { border-top: 0; }
+.setup-store {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2rem 16rem 9rem 10rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.6rem;
+  height: 4.2rem;
+  padding: 0 1.6rem;
+  border-top: 1px solid var(--stroke);
+  border-bottom: 1px solid var(--stroke);
+  color: var(--ink-2);
+  text-align: left;
+  transition: background 0.25s;
+}
+.setup-store .source-icon { width: 2rem; height: 2rem; }
+.setup-store b { font-size: 1.5rem; font-weight: 640; letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }
+.setup-store-count { font-size: 1.15rem; }
+.setup-tag { margin-left: 0.8rem; padding: 0.25rem 0.65rem; border-radius: 99px; vertical-align: 0.2em; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.04em; color: var(--good); background: color-mix(in oklab, var(--good) 14%, transparent); }
+.setup-note { overflow: hidden; font-size: 1.1rem; color: var(--ink-3); white-space: nowrap; text-overflow: ellipsis; }
+.setup-minis { display: flex; height: 3.6rem; align-items: center; }
+.setup-mini { width: 2.4rem; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.3rem; margin-right: -0.8rem; box-shadow: 0 0 0 0.15rem var(--bg); }
+.setup-state { display: flex; align-items: center; gap: 0.55rem; font-size: 1.12rem; font-weight: 650; color: var(--ink-3); white-space: nowrap; }
+.setup-state.is-good { color: var(--good); }
+.setup-state.is-do { color: var(--ink-2); }
+.setup-store.is-empty { color: var(--ink-3); }
+.setup-store.is-empty b { color: var(--ink-2); }
+.setup-store.is-focused { background: linear-gradient(90deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02)); color: var(--ink); }
+.setup-store.is-focused::before { content: ""; position: absolute; left: 0; top: 0.9rem; bottom: 0.9rem; width: 0.26rem; border-radius: 9px; background: var(--accent); box-shadow: 0 0 1rem var(--glow); }
+.setup-store.is-focused .setup-note { color: var(--ink-2); }
+.setup-store.is-focused .setup-state.is-do { color: var(--ink); }
+
+/* Start and Play: plain words, a status, and the summary as the same quiet table. */
+.setup-howto { margin-top: 2.4rem; display: grid; gap: 1rem; list-style: none; counter-reset: step; }
+.setup-howto li { position: relative; max-width: 50rem; padding-left: 2.6rem; font-size: 1.22rem; line-height: 1.45; color: var(--ink-2); counter-increment: step; }
+.setup-howto li::before { content: counter(step); position: absolute; left: 0; top: -0.3rem; font-family: "Mantel Display", var(--font); font-stretch: 58%; font-weight: 900; font-size: 1.9rem; line-height: 1; color: var(--ink-3); }
+.setup-status { display: flex; align-items: center; gap: 0.7rem; margin-top: 2.4rem; font-size: 1.15rem; font-weight: 600; color: var(--ink-3); }
+.setup-status::before { content: ""; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: currentColor; }
+.setup-status.is-ok { color: var(--good); }
+.setup-status.is-ok::before { box-shadow: 0 0 0.8rem var(--good); }
+.setup-aside { margin-top: 0.8rem; max-width: 50rem; font-size: 1.05rem; line-height: 1.45; color: var(--ink-3); }
+.setup-error { max-width: 50rem; }
+/* Play: a game's title screen, over the art of the game played last. */
+.setup-step.is-done { display: flex; align-items: center; justify-content: center; padding: 0; text-align: center; }
+.setup-hero { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+.setup-hero-img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; animation: hero-drift 18s ease-in-out infinite alternate; }
+@keyframes hero-drift { to { transform: scale(1.08) translate3d(-2.5%, 1.2%, 0); } }
+.setup-hero::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 62% 58% at 50% 54%, rgba(5, 6, 10, 0.42), rgba(5, 6, 10, 0.92) 100%), linear-gradient(0deg, var(--bg) 0%, rgba(5, 6, 10, 0) 42%); }
+.setup-final { display: flex; flex-direction: column; align-items: center; margin-top: 3rem; }
+.setup-final .eyebrow { margin: 0 0 1.4rem; color: var(--ink-2); }
+.setup-final .setup-mark { margin: 0; font-size: 26rem; }
+/* Each letter carries the poster gradient, and a glint that crosses them one after another. */
+.setup-mark.is-title { position: relative; background: none; color: var(--ink); }
+.setup-letter {
+  display: inline-block;
+  padding-top: 0.1em;
+  margin-top: -0.1em;
+  background:
+    linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.95) 50%, transparent 62%) 160% 0 / 300% 100% no-repeat,
+    linear-gradient(180deg, #fff 30%, rgba(255, 255, 255, 0.55) 62%, rgba(255, 255, 255, 0.08) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: glint 5s calc(2.4s + var(--k) * 0.07s) ease-in-out infinite;
+}
+@keyframes glint {
+  0% { background-position: 160% 0, 0 0; }
+  30%, 100% { background-position: -60% 0, 0 0; }
+}
+.setup-press { margin-top: 4.4rem; font-size: 1.9rem; font-weight: 650; letter-spacing: 0.01em; color: var(--ink); }
+.setup-press-pulse { display: inline-flex; align-items: center; gap: 0.9rem; animation: press 2.2s 2s ease-in-out infinite; }
+@keyframes press { 50% { opacity: 0.4; } }
+/* Light behind the title that breathes, and sparks rising through the art. */
+.setup-glow { position: absolute; z-index: -1; left: 50%; top: 52%; width: 110rem; height: 56rem; margin: -28rem 0 0 -55rem; background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 34%, transparent), transparent); opacity: 0.45; pointer-events: none; animation: breathe 4.5s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: 0.85; } }
+.setup-embers { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.setup-embers i { position: absolute; left: var(--x); bottom: -2rem; width: var(--s); height: var(--s); border-radius: 50%; background: color-mix(in oklab, var(--accent) 45%, #fff); box-shadow: 0 0 0.8rem color-mix(in oklab, var(--accent) 70%, transparent); opacity: 0; animation: ember var(--t) var(--d) linear infinite; }
+@keyframes ember {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  12% { opacity: 0.75; }
+  80% { opacity: 0.3; }
+  100% { transform: translate3d(3rem, -75vh, 0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .setup-embers { display: none; } }
+/* A on the last step: the light flares out from the title, as a game's launch does. */
+.setup-flash { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.95), color-mix(in oklab, var(--accent) 55%, transparent) 28%, transparent 62%); animation: launch-flash 0.75s ease-out both; }
+@keyframes launch-flash {
+  0% { opacity: 0; transform: scale(0.6); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+/* ---------- Updates ---------------------------------------------------- */
+
+/* The offer: one card under the top bar, asking once; the same text actions as setup. */
+.update-offer { position: absolute; z-index: 55; top: 7.4rem; left: 50%; width: 72rem; margin-left: -36rem; display: flex; align-items: center; gap: 2rem; padding: 1.8rem 2.4rem 1.8rem 2rem; border-radius: 1.6rem; background: rgba(14, 15, 22, 0.95); box-shadow: 0 2rem 4rem -1rem rgba(0, 0, 0, 0.85), inset 0 0 0 1px var(--stroke), 0 0 5rem -1.5rem var(--glow); }
+.update-offer-logo { flex: none; width: 3.6rem; height: 3.6rem; border-radius: 0.9rem; }
+.update-offer-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.update-offer-text b { font-size: 1.7rem; font-weight: 650; letter-spacing: -0.02em; }
+.update-offer-text span { font-size: 1.08rem; color: var(--ink-3); }
+.update-offer-actions { flex: none; display: flex; gap: 2.4rem; }
+.update-offer .setup-action { font-size: 1.3rem; padding-bottom: 0.7rem; }
+/* The update itself: the version in the poster face and the download filling a line. */
+.update-screen { --accent: #ff5468; --glow: color-mix(in oklab, #ff5468 70%, transparent); position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; background: var(--bg); text-align: center; }
+.update-center { position: relative; display: flex; flex-direction: column; align-items: center; }
+.update-version { margin: 1.4rem 0 3.4rem; }
+.update-version .setup-num { font-size: 16rem; }
+.update-bar { position: relative; width: 52rem; height: 0.45rem; border-radius: 99px; overflow: hidden; background: var(--ink-4); }
+.update-bar span { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); box-shadow: 0 0 1rem var(--glow); transform: scaleX(0); transform-origin: left; transition: transform 0.3s linear; }
+.update-bar.is-unknown span { right: 70%; animation: update-sweep 1.2s ease-in-out infinite; transform: none; }
+@keyframes update-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.update-center p { margin-top: 1.6rem; font-size: 1.25rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.update-center p.is-countdown { font-size: 1.6rem; font-weight: 650; color: var(--ink); }
 
 /* Add a game: tabs, where we are, and a scrolling list of rows. */
 .keyflow-card.addgame { width: 66rem; height: min(56rem, 86vh); display: flex; flex-direction: column; }
@@ -950,4 +1164,7 @@ img { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  /* The root's size is read on resize (useRem): with even that tiny transition it reads the old
+     one, and Home's shelf spaces its covers for the old size. */
+  html { transition-property: none !important; }
 }

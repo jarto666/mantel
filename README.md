@@ -44,9 +44,11 @@ TV PC.
 ## Install
 
 Download `Mantel_x.y.z_x64-setup.exe` from
-[Releases](https://github.com/jarto666/mantel/releases) and run it. Turn on Settings →
-*Start with Windows* to boot the handheld straight into Mantel. New versions show up in
-Settings, one button to install.
+[Releases](https://github.com/jarto666/mantel/releases) and run it. On first start, a short
+setup asks for your language, signs you in to Steam and Xbox if you like, and makes Mantel
+start with the handheld: as the home app of Xbox mode, or with Windows. Settings → System →
+*Run setup again* brings it back. When a new version is out, Mantel offers it as it starts:
+one button installs it, with the download on screen, and Mantel restarts by itself.
 
 The installer isn't code-signed yet, so Windows may show "Windows protected your PC":
 choose *More info → Run anyway*. Signing will come through SignPath Foundation; see the
@@ -55,11 +57,11 @@ choose *More info → Run anyway*. Signing will come through SignPath Foundation
 ### As the home app of Xbox mode
 
 Windows' full screen experience (Xbox mode) boots into a *home app* instead of the desktop.
-With Developer Mode on (Settings → System → Advanced → For developers) before you install,
-Mantel shows up there: Settings → Gaming → Full screen experience → Home app. The handheld
-then starts in Mantel, the Home button in Game Bar returns to it, and Mantel's menu (≡)
-switches between Xbox mode and the desktop. Without Developer Mode, Windows doesn't offer
-Mantel there yet.
+Mantel's setup, or Settings → System → *Home app*, makes Mantel that app with one button.
+Windows takes a home app from outside the Store only in Developer Mode, so Mantel turns it
+on first, and Windows asks you to allow that once. The handheld then starts in Mantel, the
+Home button in Game Bar returns to it, and Mantel's menu (≡) switches between Xbox mode and
+the desktop. Uninstalling Mantel gives Xbox mode back the home app it had before.
 
 ## Where games come from
 

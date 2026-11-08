@@ -264,11 +264,10 @@ export function Home({ active }: { active: boolean }) {
     );
   }
 
-  // Keep the focused card in the second slot so the previous one peeks in from the left.
-  const anchor = Math.min(c, 1);
+  // The focused card sits first, under the hero; the edge of the previous one peeks in from the left.
   const step = (CARD_W + GAP) * rem;
   const extra = CARD_W * (FOCUS_SCALE - 1) * rem;
-  const xOf = (i: number) => (i - c + anchor) * step + (i > c ? extra : 0);
+  const xOf = (i: number) => (i - c) * step + (i > c ? extra : 0);
 
   return (
     <main className={`home zone-${zone}`}>
@@ -292,16 +291,19 @@ export function Home({ active }: { active: boolean }) {
       </div>
 
       <div className="shelf" data-dir={dir > 0 ? "r" : "l"}>
-        <motion.div className="shelf-glow" animate={{ x: anchor * step }} transition={spring.rail} />
+        <motion.div className="shelf-glow" animate={{ x: 0 }} transition={spring.rail} />
         {[...list, null].map((g, i) => {
           const focused = i === c;
-          const hidden = i < c - anchor || xOf(i) > 125 * rem;
+          // Only the edge of the previous card shows, dimmed, so the shelf shows it goes on that way.
+          const peek = i === c - 1;
+          const hidden = i < c - 1 || xOf(i) > 125 * rem;
+          const opacity = hidden ? 0 : peek ? (zone === "hub" ? 0.2 : 0.4) : zone === "hub" && !focused ? 0.45 : 1;
           return (
             <motion.div
               key={g?.id ?? "library"}
               className="shelf-slot"
               initial={false}
-              animate={{ x: xOf(i), scale: focused ? FOCUS_SCALE : 1, opacity: hidden ? 0 : zone === "hub" && !focused ? 0.45 : 1 }}
+              animate={{ x: xOf(i), scale: focused ? FOCUS_SCALE : 1, opacity }}
               transition={spring.rail}
             >
               {g ? (

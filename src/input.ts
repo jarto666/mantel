@@ -1,5 +1,5 @@
 // Gamepad + keyboard input, routed to a priority stack of handlers.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { sound } from "./sound";
 
 export type Action =
@@ -16,7 +16,7 @@ export type Result = void | boolean | "edge" | "silent";
 export type Handler = (action: Action, repeat: boolean) => Result;
 
 /** Base shell < view < page (details) < overlay (menus, search, launch). */
-export const Layer = { base: 0, view: 10, page: 20, overlay: 30, modal: 40 } as const;
+export const Layer = { base: 0, view: 10, page: 20, overlay: 30, setup: 35, modal: 40, update: 50 } as const;
 
 interface Entry {
   seq: number;
@@ -89,6 +89,29 @@ export function dispatch(action: Action, repeat = false) {
   }
 }
 
+// ---- Which device -------------------------------------------------------
+
+/** What the player last pressed: button hints show that device's buttons. A pad until a key. */
+export type Device = "pad" | "keys";
+let device: Device = "pad";
+const deviceListeners = new Set<() => void>();
+
+function setDevice(d: Device) {
+  if (device === d) return;
+  device = d;
+  for (const cb of deviceListeners) cb();
+}
+
+export function useInputDevice(): Device {
+  return useSyncExternalStore(
+    (cb) => {
+      deviceListeners.add(cb);
+      return () => deviceListeners.delete(cb);
+    },
+    () => device,
+  );
+}
+
 // ---- Gamepad -------------------------------------------------------------
 
 const BUTTONS: [number, Action][] = [
@@ -140,6 +163,7 @@ function poll(t: number) {
     const h = held.get(action);
     if (!h) {
       held.set(action, { since: t, last: t });
+      setDevice("pad");
       dispatch(action, false);
     } else if (REPEATS.has(action) && t - h.since > FIRST_REPEAT) {
       const rate = t - h.since > 1600 ? REPEAT_FAST : REPEAT_SLOW;
@@ -176,6 +200,7 @@ function onKey(e: KeyboardEvent) {
   const action = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (!action) return;
   e.preventDefault();
+  setDevice("keys");
   if (e.repeat && !REPEATS.has(action)) return;
   dispatch(action, e.repeat);
 }
