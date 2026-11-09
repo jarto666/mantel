@@ -113,7 +113,7 @@ export function App() {
   useEffect(() => {
     startInput();
     requestIdleCallback(() => warmUpSound());
-    setBackgroundInput(() => !useStore.getState().running);
+    setBackgroundInput(() => !useStore.getState().running.length);
     if (isTauri) import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setFocus()).catch(() => {});
     const off = wireEvents();
     boot().catch((e) => toast(t("Startup failed: {error}", { error: String(e) }), "warn"));

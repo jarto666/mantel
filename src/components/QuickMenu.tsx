@@ -140,6 +140,8 @@ function SliderRow({
 export function QuickMenu() {
   const open = useStore((s) => s.overlay === "menu");
   const running = useStore((s) => s.running);
+  // The game card selected right now: its page when open, nothing in Settings.
+  const selected = useStore((s) => s.detailsId ?? (s.view === "settings" ? null : s.selectedId));
   const install = useStore((s) => Object.values(s.installs)[0]);
   const now = useClock();
   const [index, setIndex] = useState(0);
@@ -189,9 +191,11 @@ export function QuickMenu() {
     api.setMuted(!quick.muted).catch((e) => toast(errorText(e), "warn"));
   };
 
-  const game = gameById(running?.id ?? null);
+  // Like a card's own menu: "Close game" is there only when the selected game is running.
+  const run = running.find((r) => r.id === selected);
+  const game = gameById(run?.id ?? null);
   const items: Item[] = [
-    ...(game ? [{ id: "close", label: t("Close game"), danger: true, confirm: true, run: () => closeRunning() }] : []),
+    ...(game ? [{ id: "close", label: t("Close game"), danger: true, confirm: true, run: () => closeRunning(game.id) }] : []),
     ...(install ? [{ id: "install", label: installLabel(install), run: () => useStore.setState({ detailsId: install.id }) }] : []),
     { id: "search", label: t("Search"), run: () => useStore.setState({ overlay: "search" }) },
     { id: "rescan", label: t("Refresh library"), run: () => rescan() },
@@ -270,7 +274,7 @@ export function QuickMenu() {
     open,
   );
 
-  const minutes = running ? Math.max(0, Math.floor((now.getTime() / 1000 - running.startedAt) / 60)) : 0;
+  const minutes = run ? Math.max(0, Math.floor((now.getTime() / 1000 - run.startedAt) / 60)) : 0;
 
   return (
     <div className={`cc-wrap ${open ? "is-open" : ""}`} onClick={(e) => e.target === e.currentTarget && close()}>

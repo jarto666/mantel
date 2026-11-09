@@ -14,7 +14,7 @@ import { useScrollFocus } from "../hooks";
 import { errorText, locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
-import { askCancel, checkAccess, gameById, installEdition, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
+import { askCancel, checkAccess, closeRunning, gameById, installEdition, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
 import { TextPrompt } from "../components/TextPrompt";
 import { watchTrailer } from "../trailer";
 import type { Achievement, BundleItem, Details as Info, Editions, Game, InstallProgress, Video } from "../types";
@@ -227,6 +227,7 @@ export function Details() {
   const detailsId = useStore((s) => s.detailsId);
   const games = useStore((s) => s.games);
   const running = useStore((s) => s.running);
+  const closing = useStore((s) => !!s.detailsId && s.closing.includes(s.detailsId));
   const renaming = useStore((s) => s.renaming);
   const game = detailsId ? games.find((g) => g.id === detailsId) ?? gameById(detailsId) : null;
   const open = !!game;
@@ -325,8 +326,24 @@ export function Details() {
     if (details?.items?.length) setChoosing({ items: details.items, anyway });
     else startInstall(game, anyway);
   };
-  const actions = game ? actionsFor(game, running?.id === game.id, install, offAccount, storeGame, () => setPickingEdition(true), beginInstall, () => setAchievements(true), () => setPickingArt(true)) : [];
-  if (game?.installed && (game.source === "xbox" || game.source === "steam") && running?.id !== game.id) {
+  const actions = game ? actionsFor(game, running.some((r) => r.id === game.id), install, offAccount, storeGame, () => setPickingEdition(true), beginInstall, () => setAchievements(true), () => setPickingArt(true)) : [];
+  // A running game closes from its own page; uninstalling waits until it's closed.
+  if (game?.installed && running.some((r) => r.id === game.id)) {
+    actions.splice(1, 0, {
+      id: "quit",
+      label: closing ? t("Closing…") : armed ? t("Press A again") : t("Close game"),
+      icon: <path d="M6 6l12 12M18 6 6 18" />,
+      armed: armed && !closing,
+      busy: closing,
+      run: () => {
+        if (closing) return;
+        if (!armed) return setArmed(true);
+        setArmed(false);
+        closeRunning(game.id);
+      },
+    });
+  }
+  if (game?.installed && (game.source === "xbox" || game.source === "steam") && !running.some((r) => r.id === game.id)) {
     actions.push({
       id: "uninstall",
       label: uninstalling ? t("Uninstalling…") : armed ? t("Press A again") : t("Uninstall"),
@@ -460,7 +477,7 @@ export function Details() {
               onClick={() => {
                 setZone("actions");
                 setAi(n);
-                if (act.id !== "uninstall") setArmed(false);
+                if (act.id !== "uninstall" && act.id !== "quit") setArmed(false);
                 act.run();
               }}
             >

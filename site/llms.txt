@@ -7,7 +7,7 @@ Mantel is built on and for the ROG Xbox Ally X and should work on any 64-bit Win
 Key facts:
 
 - Finds installed games on first launch, with no plugins and no per-store setup.
-- Every screen works with a gamepad, the touchscreen or a keyboard. The control center sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device.
+- Every screen works with a gamepad, the touchscreen or a keyboard. The control center sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device. Several games and programs can run at once; each one closes from its own card.
 - Times every play session; with Steam or Xbox accounts connected it also brings in playtime from all devices, shows achievements (rarity, gamerscore) and lists owned games that aren't installed.
 - The Library holds every game the user has from every store, installed or not, with a filter per store. The Xbox tab holds the PC Game Pass catalog and the Microsoft Store, the Steam tab the Steam store, each with lists by genre, and search reaches both stores. Buying happens in the store itself.
 - Installs Game Pass games and anything else on the Microsoft account through Windows' own installer, with a list of editions showing what's owned and what the others cost, and Steam games through Steam's dialog, with progress, speed and time left on the home screen; uninstalls too.

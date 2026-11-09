@@ -12,7 +12,7 @@ import { useHints } from "./Hints";
 /** A newer release, offered once as soon as setup, a game and its launch are out of the way. */
 export function UpdateOffer() {
   const offer = useStore((s) => s.updateOffer);
-  const blocked = useStore((s) => s.setupStep !== null || s.running !== null || s.launching !== null || s.updating !== null);
+  const blocked = useStore((s) => s.setupStep !== null || s.running.length > 0 || s.launching !== null || s.updating !== null);
   return <AnimatePresence>{offer && !blocked && <Offer key={offer} version={offer} />}</AnimatePresence>;
 }
 

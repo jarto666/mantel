@@ -64,17 +64,21 @@ export function Battery({ power }: { power: Power }) {
   );
 }
 
+/** The game started last, and how many more are running. */
 function RunningPill() {
   const running = useStore((s) => s.running);
-  const game = gameById(running?.id ?? null);
   const now = useClock();
-  if (!running || !game || !running.detected) return null;
-  const min = Math.max(0, Math.floor((now.getTime() / 1000 - running.startedAt) / 60));
+  const list = running.filter((r) => r.detected);
+  const latest = list[list.length - 1];
+  const game = gameById(latest?.id ?? null);
+  if (!latest || !game) return null;
+  const min = Math.max(0, Math.floor((now.getTime() / 1000 - latest.startedAt) / 60));
   return (
     <span className="running-pill">
       <span className="live-dot" />
-      {game.name}
+      <span className="running-name">{game.name}</span>
       <span className="running-time">{t("{n} min", { n: min })}</span>
+      {list.length > 1 && <span className="running-time">+{list.length - 1}</span>}
     </span>
   );
 }

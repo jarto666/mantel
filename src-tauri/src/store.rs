@@ -143,7 +143,8 @@ pub struct AppState {
     dir: PathBuf,
     pub user: Mutex<UserData>,
     pub cache: Mutex<Cache>,
-    pub running: Mutex<Option<crate::launcher::Running>>,
+    /// Games running now, oldest first, including a launch still waiting for its process.
+    pub running: Mutex<Vec<crate::launcher::Running>>,
 }
 
 const USER_FILE: &str = "user.json";
@@ -154,7 +155,7 @@ impl AppState {
         let state = AppState {
             user: Mutex::new(read_json(&dir.join(USER_FILE))),
             cache: Mutex::new(read_json(&dir.join(CACHE_FILE))),
-            running: Mutex::new(None),
+            running: Mutex::new(Vec::new()),
             dir,
         };
         // Tokens saved by older versions are plain text: encrypt them right away.

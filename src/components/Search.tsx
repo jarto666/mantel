@@ -151,7 +151,7 @@ export function Search() {
                 key={g.id}
                 game={g}
                 focused={zone === "results" && n === i}
-                running={running?.id === g.id}
+                running={running.some((r) => r.id === g.id)}
                 showName={zone === "results" && n === i}
                 onClick={() => {
                   if (isCatalog(g) || isStoreItem(g)) return useStore.setState({ overlay: null, detailsId: g.id });

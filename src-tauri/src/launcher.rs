@@ -1,5 +1,6 @@
 //! Starting games through their own launchers, and noticing any library game that runs,
-//! whether Mantel started it or not, so playtime and "last played" stay honest.
+//! whether Mantel started it or not, so playtime and "last played" stay honest. Several can
+//! run at once: a game and a browser, or two games.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -86,8 +87,25 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
 
     let trackable = pid.is_some() || game.install_dir.is_some() || !game.exe_names.is_empty();
     *PENDING.lock().unwrap() = Some(Pending { id: game.id.clone(), at: Instant::now(), pid, trackable });
-    *app.state::<AppState>().running.lock().unwrap() = Some(Running { id: game.id.clone(), started_at: now(), detected: false });
+    launched(&mut app.state::<AppState>().running.lock().unwrap(), &game.id, now());
     Ok(())
+}
+
+/// A launch from Mantel. Only one waits for its process at a time, so an earlier launch that
+/// never showed up is dropped; games already running stay.
+fn launched(running: &mut Vec<Running>, id: &str, at: i64) {
+    running.retain(|r| r.detected);
+    if !running.iter().any(|r| r.id == id) {
+        running.push(Running { id: id.to_string(), started_at: at, detected: false });
+    }
+}
+
+/// A game's process appeared. A launch from Mantel keeps the time it was started.
+fn detected(running: &mut Vec<Running>, id: &str, at: i64) {
+    match running.iter_mut().find(|r| r.id == id) {
+        Some(r) => r.detected = true,
+        None => running.push(Running { id: id.to_string(), started_at: at, detected: true }),
+    }
 }
 
 /// How long Mantel stays out of the way of a Gaming Services window after a game ends.
@@ -100,15 +118,15 @@ const CLOSE_GRACE: Duration = Duration::from_secs(5);
 /// its memory.
 const KILL_WAIT: Duration = Duration::from_secs(3);
 
-/// Set by [`close`] once the game is gone, so its session ends without the usual grace.
-static CLOSED: Mutex<Option<String>> = Mutex::new(None);
+/// Filled by [`close`] once a game is gone, so its session ends without the usual grace.
+static CLOSED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// Closes the running game: asks its windows to close, as Alt+F4 would, then terminates
+/// Closes a running game: asks its windows to close, as Alt+F4 would, then terminates
 /// whatever is left. Anti-cheat can refuse the second step, and a game stuck inside Windows
 /// can outlive it; that's when this returns an error.
-pub fn close(app: &AppHandle) -> Result<(), String> {
+pub fn close(app: &AppHandle, id: &str) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let Some(running) = state.running.lock().unwrap().clone() else { return Ok(()) };
+    let Some(running) = state.running.lock().unwrap().iter().find(|r| r.id == id).cloned() else { return Ok(()) };
     let targets = targets(app);
     let target = targets.iter().find(|t| t.id == running.id);
     let name = state.cache.lock().unwrap().library.iter().find(|g| g.id == running.id).map(|g| g.name.clone()).unwrap_or_default();
@@ -122,8 +140,11 @@ pub fn close(app: &AppHandle) -> Result<(), String> {
     if found.is_empty() {
         // Still starting (Steam updating, a login): nothing to close yet, so stop waiting for it.
         if !running.detected {
-            *PENDING.lock().unwrap() = None;
-            *state.running.lock().unwrap() = None;
+            let mut pending = PENDING.lock().unwrap();
+            if pending.as_ref().is_some_and(|p| p.id == id) {
+                *pending = None;
+            }
+            state.running.lock().unwrap().retain(|r| r.id != id);
         }
         return Ok(());
     }
@@ -155,14 +176,16 @@ pub fn close(app: &AppHandle) -> Result<(), String> {
         let name = if name.is_empty() { "the game" } else { name.as_str() };
         return Err(format!("Windows didn't let Mantel close {name}. Quit it from the game's own menu."));
     }
-    *CLOSED.lock().unwrap() = Some(running.id);
+    CLOSED.lock().unwrap().push(running.id);
     Ok(())
 }
 
-/// Brings the running game's window to the front. False when it has no window at all,
+/// Brings a running game's window to the front. False when it has no window at all,
 /// which happens when a game hangs or keeps running in the background after "closing".
-pub fn switch_to(app: &AppHandle) -> bool {
-    let Some(id) = app.state::<AppState>().running.lock().unwrap().as_ref().map(|r| r.id.clone()) else { return false };
+pub fn switch_to(app: &AppHandle, id: &str) -> bool {
+    if !app.state::<AppState>().running.lock().unwrap().iter().any(|r| r.id == id) {
+        return false;
+    }
     let targets = targets(app);
     let Some(target) = targets.iter().find(|t| t.id == id) else { return false };
     focus_window_of(&processes_of(&mut System::new(), target))
@@ -354,11 +377,11 @@ pub fn spawn_tracker(app: AppHandle) {
                     }
                 }
             }
-            let closed = CLOSED.lock().unwrap().take();
+            let closed = std::mem::take(&mut *CLOSED.lock().unwrap());
             let mut ended = Vec::new();
             for (id, s) in sessions.iter_mut().filter(|(id, _)| !alive.contains(*id)) {
                 s.misses += 1;
-                if s.misses >= GRACE_POLLS || closed.as_ref() == Some(id) {
+                if s.misses >= GRACE_POLLS || closed.contains(id) {
                     ended.push(id.clone());
                 }
             }
@@ -383,13 +406,7 @@ fn started(app: &AppHandle, id: &str) -> bool {
         }
         hit
     };
-    {
-        let mut running = state.running.lock().unwrap();
-        let keep_start = running.as_ref().filter(|r| r.id == id).map(|r| r.started_at);
-        if running.as_ref().is_none_or(|r| r.id == id || !r.detected) {
-            *running = Some(Running { id: id.to_string(), started_at: keep_start.unwrap_or_else(now), detected: true });
-        }
-    }
+    detected(&mut state.running.lock().unwrap(), id, now());
     crate::log::info(&format!("session start {id} (from mantel: {from_mantel})"));
     let _ = app.emit("game-started", id);
     if from_mantel && state.user.lock().unwrap().settings.minimize_on_launch {
@@ -412,15 +429,11 @@ fn finish(app: &AppHandle, id: &str, session: &Session) {
         meta.last_played = Some(now());
         state.save_user(&user);
     }
-    {
-        let mut running = state.running.lock().unwrap();
-        if running.as_ref().is_some_and(|r| r.id == id) {
-            *running = None;
-        }
-    }
+    state.running.lock().unwrap().retain(|r| r.id != id);
     crate::log::info(&format!("session end {id} after {seconds}s"));
     let _ = app.emit("game-stopped", Stopped { id: id.to_string(), seconds });
-    // Come back to the front only for games we sent the player into.
+    // Come back to the front only for games we sent the player into, and not over another
+    // game the player has moved on to.
     if session.from_mantel {
         // Gaming Services may have something left to say, like that license refusal; Mantel
         // waits its turn instead of covering it.
@@ -431,9 +444,40 @@ fn finish(app: &AppHandle, id: &str, session: &Session) {
             while start.elapsed() < SPLASH_WAIT && !splash_of(&mut sys, &name).is_empty() {
                 std::thread::sleep(Duration::from_secs(1));
             }
-            to_front(&app);
+            if !in_another_game(&app) {
+                to_front(&app);
+            }
         });
     }
+}
+
+/// Whether the window in front belongs to a game that's still running.
+fn in_another_game(app: &AppHandle) -> bool {
+    let ids: Vec<String> = app.state::<AppState>().running.lock().unwrap().iter().map(|r| r.id.clone()).collect();
+    if ids.is_empty() {
+        return false;
+    }
+    let mut sys = System::new();
+    refresh(&mut sys);
+    front_game(&sys, &targets(app)).is_some_and(|id| ids.contains(&id))
+}
+
+/// The library game whose window is in front, if any.
+#[cfg(windows)]
+fn front_game(sys: &System, targets: &[Target]) -> Option<String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), &mut pid) };
+    if pid == 0 || pid == std::process::id() {
+        return None;
+    }
+    let process = sys.process(sysinfo::Pid::from_u32(pid))?;
+    targets.iter().find(|t| matches(t, process)).map(|t| t.id.clone())
+}
+
+#[cfg(not(windows))]
+fn front_game(_sys: &System, _targets: &[Target]) -> Option<String> {
+    None
 }
 
 /// Puts Mantel back in front of whatever the player was sent to.
@@ -454,11 +498,7 @@ fn expire_pending(app: &AppHandle, sessions: &HashMap<String, Session>) {
     }
     let id = p.id.clone();
     *pending = None;
-    let state = app.state::<AppState>();
-    let mut running = state.running.lock().unwrap();
-    if running.as_ref().is_some_and(|r| r.id == id && !r.detected) {
-        *running = None;
-    }
+    app.state::<AppState>().running.lock().unwrap().retain(|r| r.id != id || r.detected);
     crate::log::warn(&format!("launch {id}: no process seen within {}s", limit.as_secs()));
     let _ = app.emit("game-launch-timeout", &id);
 }
@@ -554,6 +594,42 @@ fn open_uri(uri: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ids(running: &[Running]) -> Vec<(&str, bool)> {
+        running.iter().map(|r| (r.id.as_str(), r.detected)).collect()
+    }
+
+    #[test]
+    fn a_second_game_runs_beside_the_first() {
+        let mut running = Vec::new();
+        launched(&mut running, "a", 100);
+        detected(&mut running, "a", 130);
+        launched(&mut running, "b", 200);
+        detected(&mut running, "b", 210);
+        assert_eq!(ids(&running), [("a", true), ("b", true)]);
+        // A launch from Mantel counts from when it was started, not when its process showed up.
+        assert_eq!(running.iter().map(|r| r.started_at).collect::<Vec<_>>(), [100, 200]);
+    }
+
+    #[test]
+    fn a_new_launch_drops_one_that_never_started() {
+        let mut running = Vec::new();
+        detected(&mut running, "a", 100);
+        launched(&mut running, "b", 200);
+        launched(&mut running, "c", 300);
+        assert_eq!(ids(&running), [("a", true), ("c", false)]);
+        // Launching a game that's already running doesn't add it twice.
+        launched(&mut running, "a", 400);
+        assert_eq!(ids(&running), [("a", true)]);
+    }
+
+    #[test]
+    fn a_game_started_outside_mantel_joins_the_list() {
+        let mut running = Vec::new();
+        launched(&mut running, "a", 100);
+        detected(&mut running, "b", 150);
+        assert_eq!(ids(&running), [("a", false), ("b", true)]);
+    }
 
     #[test]
     fn terminates_a_process() {

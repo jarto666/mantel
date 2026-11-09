@@ -7,7 +7,7 @@ import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow }
 import { locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
-import { launch, openSignIn, setFocus, toggleFavorite, useStore } from "../store";
+import { launch, openSignIn, setFocus, setSelected, toggleFavorite, useStore } from "../store";
 import type { Game, Source } from "../types";
 import { playtime, SOURCE_NAME } from "../util";
 
@@ -81,7 +81,9 @@ export function Library({ active }: { active: boolean }) {
   useScrollFocus(scroller, `${f}:${i}`);
 
   useEffect(() => {
-    if (active && game) setFocus(game);
+    if (!active) return;
+    setSelected(game?.id ?? null);
+    if (game) setFocus(game);
   }, [active, game]);
 
   const pick = useHandler((g: Game) => {
@@ -190,7 +192,7 @@ export function Library({ active }: { active: boolean }) {
         <div className="grid" ref={grid} key={filter.id} data-dir={dir}>
           {tiles.slice(0, shown).map((x, n) =>
             x.kind === "game" ? (
-              <Cover key={x.game.id} game={x.game} focused={n === i} running={running?.id === x.game.id} lazy onClick={pick} />
+              <Cover key={x.game.id} game={x.game} focused={n === i} running={running.some((r) => r.id === x.game.id)} lazy onClick={pick} />
             ) : (
               <div key={`sign-in:${x.store}`} className={`cover library-card store-tile ${n === i ? "is-focused" : ""}`} onClick={() => (n === i ? openSignIn(x.store) : setIndex(n))}>
                 <div className="cover-frame">
