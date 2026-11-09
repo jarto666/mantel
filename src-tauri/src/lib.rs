@@ -317,7 +317,7 @@ fn installs() -> Vec<install::Progress> {
 
 #[tauri::command]
 async fn uninstall_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
-    if state.running.lock().unwrap().as_ref().is_some_and(|r| r.id == id) {
+    if state.running.lock().unwrap().iter().any(|r| r.id == id) {
         return Err("Close the game first".into());
     }
     let game = state.cache.lock().unwrap().library.iter().find(|g| g.id == id && g.installed).cloned().ok_or("Game not found — refresh the library")?;
@@ -814,17 +814,17 @@ fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result
 }
 
 #[tauri::command]
-async fn switch_to_game(app: AppHandle) -> bool {
-    tauri::async_runtime::spawn_blocking(move || launcher::switch_to(&app)).await.unwrap_or(false)
+async fn switch_to_game(app: AppHandle, id: String) -> bool {
+    tauri::async_runtime::spawn_blocking(move || launcher::switch_to(&app, &id)).await.unwrap_or(false)
 }
 
 #[tauri::command]
-async fn close_game(app: AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || launcher::close(&app)).await.map_err(|e| e.to_string())?
+async fn close_game(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || launcher::close(&app, &id)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn running_game(state: State<'_, AppState>) -> Option<launcher::Running> {
+fn running_games(state: State<'_, AppState>) -> Vec<launcher::Running> {
     state.running.lock().unwrap().clone()
 }
 
@@ -951,7 +951,7 @@ pub fn run() {
             launch_game,
             close_game,
             switch_to_game,
-            running_game,
+            running_games,
             open_game_folder,
             power_status,
             power_action,

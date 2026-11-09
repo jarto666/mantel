@@ -25,7 +25,7 @@ export function LaunchOverlay() {
   const card = useRef<HTMLDivElement>(null);
   // A game not seen yet doesn't count as running once nobody's waiting for it; "game-started"
   // still picks it up if it comes after all.
-  const close = () => useStore.setState((s) => ({ launching: null, running: s.running?.detected ? s.running : null }));
+  const close = () => useStore.setState((s) => ({ launching: null, running: s.running.filter((r) => r.detected) }));
 
   useInput(() => {
     close();
@@ -45,7 +45,7 @@ export function LaunchOverlay() {
       clearTimeout(timer);
     };
     const onFocus = () => {
-      if (left) timer = window.setTimeout(() => useStore.setState((s) => ({ launching: { id, phase: "timeout" }, running: s.running?.detected ? s.running : null })), GIVE_UP);
+      if (left) timer = window.setTimeout(() => useStore.setState((s) => ({ launching: { id, phase: "timeout" }, running: s.running.filter((r) => r.detected) })), GIVE_UP);
     };
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);

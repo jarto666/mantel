@@ -7,7 +7,7 @@ import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow }
 import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
-import { launch, setFocus, useStore } from "../store";
+import { launch, setFocus, setSelected, useStore } from "../store";
 import type { Game, StorePage } from "../types";
 
 /** A list too long to have here, fetched as the player gets to it. */
@@ -87,7 +87,7 @@ function usePages(key: string, pager: Pager | undefined) {
   return { games: page?.games ?? [], more: page?.more ?? false, busy: page?.busy ?? !!pager, failed: page?.failed ?? false, load };
 }
 
-function ShelfRow({ shelf, focused, col, runningId, onPick }: { shelf: Shelf; focused: boolean; col: number; runningId?: string; onPick: (n: number) => void }) {
+function ShelfRow({ shelf, focused, col, runningIds, onPick }: { shelf: Shelf; focused: boolean; col: number; runningIds: string[]; onPick: (n: number) => void }) {
   const rail = useRef<HTMLDivElement>(null);
   useScrollFocus(rail, `${focused}:${col}`, { axis: "x" });
   const tiles = tilesOf(shelf);
@@ -101,7 +101,7 @@ function ShelfRow({ shelf, focused, col, runningId, onPick }: { shelf: Shelf; fo
       <div className="gp-rail" ref={rail}>
         {tiles.map((tile, n) =>
           tile.kind === "game" ? (
-            <Cover key={tile.game.id} game={tile.game} focused={focused && n === col} running={runningId === tile.game.id} lazy installMark={false} storeMark={false} onClick={pickCover} />
+            <Cover key={tile.game.id} game={tile.game} focused={focused && n === col} running={runningIds.includes(tile.game.id)} lazy installMark={false} storeMark={false} onClick={pickCover} />
           ) : (
             <div key={tile.kind} className={`cover library-card store-tile ${focused && n === col ? "is-focused" : ""}`} onClick={() => onPick(n)}>
               <div className="cover-frame">
@@ -138,6 +138,7 @@ function ShelfRow({ shelf, focused, col, runningId, onPick }: { shelf: Shelf; fo
  */
 export function Browse({ active, label, modes, own }: { active: boolean; label: string; modes: Mode[]; own?: (game: Game) => Game }) {
   const running = useStore((s) => s.running);
+  const runningIds = useMemo(() => running.map((r) => r.id), [running]);
   const [modeIndex, setModeIndex] = useState(0);
   const m = Math.min(modeIndex, modes.length - 1);
   const mode = modes[m];
@@ -176,7 +177,9 @@ export function Browse({ active, label, modes, own }: { active: boolean; label: 
   useScrollFocus(gridBox, `${listKey}:${i}`);
 
   useEffect(() => {
-    if (active && game) setFocus(game);
+    if (!active) return;
+    setSelected(game?.id ?? null);
+    if (game) setFocus(game);
   }, [active, game]);
 
   // The next page comes as the player nears the end of what's here.
@@ -314,7 +317,7 @@ export function Browse({ active, label, modes, own }: { active: boolean; label: 
               shelf={s}
               focused={n === r}
               col={n === r ? c : cols[colKey(s)] ?? 0}
-              runningId={running?.id}
+              runningIds={runningIds}
               onPick={(k) => {
                 const picked = tilesOf(s)[k];
                 if (n === r && k === c) return picked.kind === "game" ? open(picked.game) : activate(s, picked.kind);
@@ -330,7 +333,7 @@ export function Browse({ active, label, modes, own }: { active: boolean; label: 
           <div className="grid-scroll" ref={gridBox} key={listKey}>
             <div className="grid" ref={gridEl}>
               {grid.slice(0, shown).map((g, n) => (
-                <Cover key={g.id} game={g} focused={n === i} running={running?.id === g.id} lazy installMark={false} storeMark={false} onClick={pickInGrid} />
+                <Cover key={g.id} game={g} focused={n === i} running={running.some((r) => r.id === g.id)} lazy installMark={false} storeMark={false} onClick={pickInGrid} />
               ))}
             </div>
             <div ref={end} />

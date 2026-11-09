@@ -177,7 +177,7 @@ const trailers: Record<number, string> = {
 const SAMPLE_ACHIEVEMENTS = ["First Steps", "Night Owl", "Collector", "Untouchable", "Speed Demon", "Completionist", "Explorer", "Sharpshooter"];
 
 let quick: Quick = { volume: 45, muted: false, brightness: 80, wifi: { connected: true, name: "Home Wi-Fi", signal: 72 } };
-let running: Running | null = null;
+let running: Running[] = [];
 let steamKey = "";
 let xboxTag: string | null = null;
 let autostart = false;
@@ -366,8 +366,8 @@ export const mockApi: Api = {
       { name: "RetroArch", path: "C:\\RetroArch\\RetroArch.lnk", target: "C:\\RetroArch\\retroarch.exe" },
     ];
   },
-  async switchToGame() {
-    return false;
+  async switchToGame(id) {
+    return running.some((r) => r.id === id && r.detected);
   },
   async removeCustomGame(id) {
     games = games.filter((g) => g.id !== id);
@@ -375,25 +375,31 @@ export const mockApi: Api = {
   },
   async launchGame(id) {
     if (id.startsWith("gamepass:")) return;
-    running = { id, startedAt: Math.floor(Date.now() / 1000), detected: false };
+    // As the backend does: one launch waits at a time, games already running stay.
+    running = running.filter((r) => r.detected && r.id !== id);
+    const launch = { id, startedAt: Math.floor(Date.now() / 1000), detected: false };
+    running.push(launch);
     setTimeout(() => {
-      if (running?.id !== id) return;
-      running.detected = true;
+      if (!running.includes(launch)) return;
+      launch.detected = true;
       emit("game-started", id);
     }, 2600);
   },
-  async closeGame() {
-    if (!running) return;
-    const { id, startedAt } = running;
-    running = null;
+  async closeGame(id) {
+    const game = running.find((r) => r.id === id);
+    if (!game) return;
+    // A game takes a moment to save and quit, as on a device.
+    await wait(1500);
+    const { startedAt } = game;
+    running = running.filter((r) => r !== game);
     const seconds = Math.floor(Date.now() / 1000) - startedAt;
     games = games.map((g) =>
       g.id === id ? { ...g, lastPlayed: Math.floor(Date.now() / 1000), playtimeMinutes: g.playtimeMinutes + Math.round(seconds / 60) } : g,
     );
-    setTimeout(() => emit("game-stopped", { id, seconds }), 400);
+    setTimeout(() => emit("game-stopped", { id, seconds }), 1200);
   },
-  async runningGame() {
-    return running;
+  async runningGames() {
+    return structuredClone(running);
   },
   async openGameFolder() {},
   async powerStatus() {

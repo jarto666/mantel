@@ -70,12 +70,17 @@ interface State {
   loaded: boolean;
   scanning: boolean;
   settings: Settings | null;
-  running: Running | null;
+  /** Games running now, oldest first, with a launch still waiting for its process. */
+  running: Running[];
   launching: Launching | null;
+  /** Games asked to close, until they're gone or Windows refuses. */
+  closing: string[];
   view: View;
   detailsId: string | null;
   overlay: Overlay;
   focusId: string | null;
+  /** The game card selected right now on the tab in view; null on a tile that isn't a game. */
+  selectedId: string | null;
   accent: string;
   toasts: Toast[];
   /** Custom game whose name is being edited. */
@@ -110,12 +115,14 @@ export const useStore = create<State>(() => ({
   loaded: false,
   scanning: false,
   settings: null,
-  running: null,
+  running: [],
   launching: null,
+  closing: [],
   view: "home",
   detailsId: null,
   overlay: null,
   focusId: null,
+  selectedId: null,
   accent: DEFAULT_ACCENT,
   toasts: [],
   renaming: null,
@@ -345,6 +352,11 @@ export function toast(text: string, tone: Toast["tone"] = "info") {
 
 let focusTimer = 0;
 /** Background art and accent follow focus, debounced so fast scrolling doesn't strobe. */
+/** What the tab in view has selected now, for actions on "this game" such as closing it. */
+export function setSelected(id: string | null) {
+  if (get().selectedId !== id) set({ selectedId: id });
+}
+
 export function setFocus(game: Game | null) {
   if (!game) return;
   // Back on the game the art already shows, before the move away from it landed: that move is off,
@@ -359,7 +371,7 @@ export function setFocus(game: Game | null) {
 }
 
 export async function boot() {
-  const [settings, cached, running] = await Promise.all([api.getSettings(), api.getLibrary(false), api.runningGame()]);
+  const [settings, cached, running] = await Promise.all([api.getSettings(), api.getLibrary(false), api.runningGames()]);
   setSoundEnabled(settings.sounds);
   set({ settings, games: cached, loaded: true, running });
   api.installs().then((list) => set({ installs: Object.fromEntries(list.map((p) => [p.id, p])) }), () => {});
@@ -461,7 +473,7 @@ export async function checkForUpdateNow() {
 }
 
 export async function installUpdate() {
-  if (get().running) return toast(t("Close the game first, then update"), "warn");
+  if (get().running.length) return toast(t("Close the game first, then update"), "warn");
   const version = get().update ?? "";
   set({ updateOffer: null, updating: { version, downloaded: 0, total: null, restartIn: null } });
   const patch = (p: Partial<Updating>) => set((s) => ({ updating: s.updating && { ...s.updating, ...p } }));
@@ -557,60 +569,66 @@ export async function launch(game: Game) {
     }
     return;
   }
-  const { running } = get();
-  if (running?.id === game.id) {
-    if (!(await api.switchToGame())) {
-      toast(t("{name} is running in the background without a window. Close it from the control center (≡).", { name: game.name }), "warn");
-    }
-    return;
-  }
-  if (running?.detected) {
-    const other = gameById(running.id)?.name;
-    toast(other ? t("Close {name} first (≡ menu)", { name: other }) : t("Close the running game first (≡ menu)"), "warn");
-    return;
-  }
+  if (isRunning(game.id)) return switchTo(game.id);
   sound.launch();
   rumble(0.5, 0.9, 260);
   set({ launching: { id: game.id, phase: "starting", from: focusedCoverRect() }, overlay: null });
   try {
     await api.launchGame(game.id);
-    set({ running: { id: game.id, startedAt: Date.now() / 1000, detected: false } });
+    // As the backend does: one launch waits at a time, games already running stay.
+    set((s) => ({ running: [...s.running.filter((r) => r.detected && r.id !== game.id), { id: game.id, startedAt: Date.now() / 1000, detected: false }] }));
   } catch (e) {
     set({ launching: { id: game.id, phase: "error", message: errorText(e) } });
   }
 }
 
+export function isRunning(id: string) {
+  return get().running.some((r) => r.id === id);
+}
+
+/** Back into a running game, as the taskbar would. */
+export async function switchTo(id: string) {
+  if (await api.switchToGame(id)) return;
+  const name = gameById(id)?.name ?? "";
+  toast(t("{name} is running in the background without a window. Close it from the control center (≡).", { name }), "warn");
+}
+
+const notClosing = (s: State, id: string) => s.closing.filter((x) => x !== id);
+
 /** The game gets a few seconds to quit by itself; "game-stopped" then says it's gone. */
-export async function closeRunning() {
-  const name = gameById(get().running?.id ?? null)?.name;
+export async function closeRunning(id: string) {
+  if (get().closing.includes(id)) return;
+  set((s) => ({ closing: [...s.closing, id] }));
+  const name = gameById(id)?.name;
   if (name) toast(t("Closing {name}…", { name }));
   try {
-    await api.closeGame();
+    await api.closeGame(id);
   } catch (e) {
     toast(errorText(e), "warn");
+    return set((s) => ({ closing: notClosing(s, id) }));
   }
   // A launch that never got going is simply dropped, with no "game-stopped" to follow.
-  if (!(await api.runningGame())) set({ running: null, launching: null });
+  const left = await api.runningGames();
+  if (!left.some((r) => r.id === id))
+    set((s) => ({ running: s.running.filter((r) => r.id !== id), launching: s.launching?.id === id ? null : s.launching, closing: notClosing(s, id) }));
 }
 
 export function wireEvents() {
   const offs = [
     api.on("game-started", (id) => {
       set((s) => ({
-        running:
-          s.running && s.running.id === id
-            ? { ...s.running, detected: true }
-            : s.running?.detected
-              ? s.running
-              : { id: id as string, startedAt: Date.now() / 1000, detected: true },
+        running: s.running.some((r) => r.id === id)
+          ? s.running.map((r) => (r.id === id ? { ...r, detected: true } : r))
+          : [...s.running, { id: id as string, startedAt: Date.now() / 1000, detected: true }],
         launching: s.launching?.id === id ? { id: id as string, phase: "started" } : s.launching,
       }));
     }),
     api.on("game-stopped", async (payload) => {
       const { id, seconds } = payload as { id: string; seconds: number };
       set((s) => ({
-        running: s.running?.id === id ? null : s.running,
+        running: s.running.filter((r) => r.id !== id),
         launching: s.launching?.id === id ? null : s.launching,
+        closing: notClosing(s, id),
       }));
       const name = gameById(id)?.name;
       const min = Math.round(seconds / 60);
@@ -621,7 +639,7 @@ export function wireEvents() {
     api.on("game-uninstalled", (payload) => void gameUninstalled(payload as string)),
     api.on("game-launch-timeout", (id) => {
       set((s) => ({
-        running: s.running?.id === id ? null : s.running,
+        running: s.running.filter((r) => r.id !== id || r.detected),
         launching: s.launching?.id === id ? { id: id as string, phase: "timeout" } : s.launching,
       }));
     }),

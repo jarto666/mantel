@@ -203,7 +203,7 @@ img { display: block; }
 }
 .running-time { color: var(--ink-3); font-weight: 450; }
 .install-pill { flex: none; font-variant-numeric: tabular-nums; }
-.install-pill-name { overflow: hidden; text-overflow: ellipsis; }
+:is(.install-pill-name, .running-name) { overflow: hidden; text-overflow: ellipsis; }
 .install-ring { flex: none; width: 1.3rem; height: 1.3rem; transform: rotate(-90deg); fill: none; stroke-width: 3.6; }
 .install-ring circle { stroke: rgba(255, 255, 255, 0.22); }
 .install-ring circle + circle { stroke: var(--ink); stroke-linecap: round; transition: stroke-dashoffset 0.7s var(--ease); }

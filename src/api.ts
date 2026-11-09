@@ -44,11 +44,11 @@ export interface Api {
   /** An https URL or an image file as the game's art; null goes back to the store's. */
   setArt(id: string, kind: ArtKind, src: string | null): Promise<Game[]>;
   appSuggestions(): Promise<Suggestion[]>;
-  switchToGame(): Promise<boolean>;
+  switchToGame(id: string): Promise<boolean>;
   removeCustomGame(id: string): Promise<Game[]>;
   launchGame(id: string): Promise<void>;
-  closeGame(): Promise<void>;
-  runningGame(): Promise<Running | null>;
+  closeGame(id: string): Promise<void>;
+  runningGames(): Promise<Running[]>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
   quickStatus(): Promise<Quick>;
@@ -141,11 +141,11 @@ const tauriApi: Api = {
   artChoices: (id, kind) => call("art_choices", { id, kind }),
   setArt: (id, kind, src) => call("set_art", { id, kind, src }),
   appSuggestions: () => call("app_suggestions"),
-  switchToGame: () => call("switch_to_game"),
+  switchToGame: (id) => call("switch_to_game", { id }),
   removeCustomGame: (id) => call("remove_custom_game", { id }),
   launchGame: (id) => call("launch_game", { id }),
-  closeGame: () => call("close_game"),
-  runningGame: () => call("running_game"),
+  closeGame: (id) => call("close_game", { id }),
+  runningGames: () => call("running_games"),
   openGameFolder: (id) => call("open_game_folder", { id }),
   powerStatus: () => call("power_status"),
   quickStatus: () => call("quick_status"),

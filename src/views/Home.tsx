@@ -9,7 +9,7 @@ import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
 import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring, useRem, useSettled } from "../motion";
-import { askCancel, gamePassGames, isCatalog, launch, rescan, setFocus, sourceLabel, toggleFavorite, useStore } from "../store";
+import { askCancel, closeRunning, gamePassGames, isCatalog, launch, rescan, setFocus, setSelected, sourceLabel, toggleFavorite, useStore } from "../store";
 import type { Game } from "../types";
 import { hours, installLabel, lastPlayed, size } from "../util";
 
@@ -30,9 +30,11 @@ function shelf(games: Game[], justInstalled: string[]): Game[] {
   return [...new Set([...installed, ...recent, ...favs, ...fresh])].slice(0, SHELF_SIZE);
 }
 
-type Button = "play" | "details" | "fav" | "progress" | "cancel";
+type Button = "play" | "quit" | "details" | "fav" | "progress" | "cancel";
 
-const buttonsFor = (game: Game | undefined): Button[] => (game && !game.installed ? ["progress", "cancel"] : ["play", "details", "fav"]);
+/** A running game gets a close button beside Resume, so it closes from its own card. */
+const buttonsFor = (game: Game | undefined, running: boolean): Button[] =>
+  game && !game.installed ? ["progress", "cancel"] : running ? ["play", "quit", "details", "fav"] : ["play", "details", "fav"];
 
 const heroVariants: Variants = {
   enter: { opacity: 0 },
@@ -45,10 +47,11 @@ const item: Variants = {
   exit: { opacity: 0, x: -16, transition: { duration: 0.16 } },
 };
 
-function Hero({ game, running, zone, btn, onPress }: { game: Game; running: boolean; zone: string; btn: number; onPress: (b: Button) => void }) {
+function Hero({ game, running, zone, btn, armed, onPress }: { game: Game; running: boolean; zone: string; btn: number; armed: boolean; onPress: (b: Button) => void }) {
   const played = game.playtimeMinutes;
   const install = useStore((s) => s.installs[game.id]);
-  const buttons = buttonsFor(game);
+  const closing = useStore((s) => s.closing.includes(game.id));
+  const buttons = buttonsFor(game, running);
   return (
     <motion.section className="hero" variants={heroVariants} initial="enter" animate="show" exit="exit">
       <motion.div className="hero-eyebrow" variants={item}>
@@ -75,7 +78,8 @@ function Hero({ game, running, zone, btn, onPress }: { game: Game; running: bool
         {buttons.map((b, n) => (
           <button
             key={b}
-            className={`btn ${b === "play" || b === "progress" ? "btn-play" : "btn-round"} ${b === "progress" ? "has-progress" : ""} ${b === "cancel" && install?.state === "canceling" ? "is-busy" : ""} ${zone === "hub" && n === btn ? "is-focused" : ""} ${b === "fav" && game.favorite ? "is-on" : ""}`}
+            className={`btn ${b === "play" || b === "progress" ? "btn-play" : b === "quit" && (armed || closing) ? "btn-pill" : "btn-round"} ${b === "progress" ? "has-progress" : ""} ${(b === "cancel" && install?.state === "canceling") || (b === "quit" && closing) ? "is-busy" : ""} ${zone === "hub" && n === btn ? "is-focused" : ""} ${b === "fav" && game.favorite ? "is-on" : ""} ${b === "quit" && armed ? "is-armed" : ""}`}
+            aria-label={b === "quit" ? t("Close game") : undefined}
             style={b === "progress" ? ({ "--progress": (install?.percent ?? 100) / 100 } as React.CSSProperties) : undefined}
             onClick={() => onPress(b)}
           >
@@ -89,8 +93,11 @@ function Hero({ game, running, zone, btn, onPress }: { game: Game; running: bool
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{DOWNLOAD}</svg>
                 {install ? installLabel(install) : t("Installed")}
               </>
-            ) : b === "cancel" ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            ) : b === "cancel" || b === "quit" ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                {b === "quit" && closing ? t("Closing…") : b === "quit" && armed ? t("Press A again") : null}
+              </>
             ) : b === "details" ? (
               <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
             ) : (
@@ -162,11 +169,23 @@ export function Home({ active }: { active: boolean }) {
   // with its logo, stats and buttons stuck faded: every showing gets a key of its own.
   const showing = useRef<{ id: string | null; n: number }>({ id: null, n: 0 });
   if (heroGame && heroGame.id !== showing.current.id) showing.current = { id: heroGame.id, n: showing.current.n + 1 };
-  const buttons = buttonsFor(game);
+  const isRunning = !!game && running.some((r) => r.id === game.id);
+  const buttons = buttonsFor(game, isRunning);
   const onItsWay = !!game && !game.installed;
+  // Closing asks twice: the first press turns the button into "Press A again", the second
+  // closes the game, and the button says so until it's gone.
+  const [armed, setArmed] = useState(false);
+  const closing = useStore((s) => !!game && s.closing.includes(game.id));
+  useEffect(() => setArmed(false), [game?.id, isRunning]);
+  // Once the game is gone its button goes too: focus goes back to Play.
+  useEffect(() => {
+    if (!isRunning) setBtn(0);
+  }, [isRunning]);
 
   useEffect(() => {
-    if (active && game) setFocus(game);
+    if (!active) return;
+    setSelected(game?.id ?? null);
+    if (game) setFocus(game);
   }, [active, game]);
 
   const openLibrary = () => useStore.setState({ view: "library" });
@@ -174,10 +193,17 @@ export function Home({ active }: { active: boolean }) {
   const activate = (g: Game) => (g.installed ? launch(g) : useStore.setState({ detailsId: g.id }));
   const press = (b: Button) => {
     if (!game) return;
+    if (b !== "quit") setArmed(false);
     if (b === "play") launch(game);
     if (b === "details" || b === "progress") useStore.setState({ detailsId: game.id });
     if (b === "fav") toggleFavorite(game);
     if (b === "cancel") askCancel(game);
+    if (b === "quit") {
+      if (closing) return;
+      if (!armed) return setArmed(true);
+      setArmed(false);
+      closeRunning(game.id);
+    }
   };
   const move = (d: number) => {
     const next = c + d;
@@ -193,6 +219,7 @@ export function Home({ active }: { active: boolean }) {
         return false;
       }
       if (zone === "hub") {
+        if (a !== "a") setArmed(false);
         switch (a) {
           case "left":
             return btn > 0 ? setBtn(btn - 1) : "edge";
@@ -240,7 +267,6 @@ export function Home({ active }: { active: boolean }) {
     Layer.view,
     active,
   );
-  const isRunning = !!game && running?.id === game.id;
   useHints(
     !list.length
       ? [["a", "Scan again"], ["menu", "Control center"]]
@@ -248,6 +274,10 @@ export function Home({ active }: { active: boolean }) {
         ? [["a", "Open library"], ["view", "Search"], ["menu", "Control center"]]
         : onItsWay
           ? [["a", "Details"], ["view", "Search"], ["menu", "Control center"]]
+          : zone === "hub" && buttons[btn] === "quit"
+            ? closing
+              ? [["y", "Details"], ["menu", "Control center"]]
+              : [["a", armed ? "Confirm" : "Close game"], ["y", "Details"], ["menu", "Control center"]]
           : [["a", isRunning ? "Resume" : "Play"], ["y", "Details"], ["x", game.favorite ? "Unfavorite" : "Favorite"], ["view", "Search"], ["menu", "Control center"]],
     Layer.view,
     active,
@@ -281,9 +311,10 @@ export function Home({ active }: { active: boolean }) {
           <Hero
             key={`${heroGame.id}:${showing.current.n}`}
             game={heroGame}
-            running={running?.id === heroGame.id}
+            running={running.some((r) => r.id === heroGame.id)}
             zone={zone}
             btn={btn}
+            armed={armed}
             onPress={(b) => {
               setZone("hub");
               setBtn(buttons.indexOf(b));
@@ -314,7 +345,7 @@ export function Home({ active }: { active: boolean }) {
                 <Cover
                   game={g}
                   focused={focused && zone === "rail"}
-                  running={running?.id === g.id}
+                  running={running.some((r) => r.id === g.id)}
                   className={focused ? "is-current" : ""}
                   lazy={i > 10}
                   onClick={() => {

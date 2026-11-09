@@ -20,7 +20,8 @@ TV PC.
   per-store setup.
 - **Controller first.** Every screen works with the gamepad, the touchscreen or a keyboard.
   The control center (≡) sets volume and brightness, shows Wi-Fi and battery, closes
-  games, restarts or powers off the device.
+  games, restarts or powers off the device. Several games and programs can run at once;
+  each one closes from its own card.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts
   connected, brings in playtime from Steam and Xbox across all your devices.
 - **One library, two stores.** The Library holds everything you have from every store,
