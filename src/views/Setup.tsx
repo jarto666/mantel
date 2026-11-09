@@ -11,7 +11,7 @@ import { errorText, LANGUAGES, t, tIn, windowsLanguage } from "../i18n";
 import { Layer, rumble, useInput } from "../input";
 import { ease } from "../motion";
 import { sound } from "../sound";
-import { closeSetup, saveSettings, toast, useStore } from "../store";
+import { closeSetup, isGame, saveSettings, toast, useStore } from "../store";
 import type { Game, Source } from "../types";
 
 /** First-run setup, like a console's: each step is also in Settings, so all of it can be skipped. */
@@ -85,7 +85,7 @@ const byRecent = (a: Game, b: Game) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0)
 /** The player's own covers, far back and dim: the first thing setup shows is their games. */
 const Wall = memo(function Wall() {
   const games = useStore((s) => s.games);
-  const covers = useMemo(() => games.filter((g) => !g.hidden && hasCover(g)).sort((a, b) => Number(b.installed) - Number(a.installed) || byRecent(a, b)), [games]);
+  const covers = useMemo(() => games.filter((g) => !g.hidden && isGame(g) && hasCover(g)).sort((a, b) => Number(b.installed) - Number(a.installed) || byRecent(a, b)), [games]);
   // Too few to fill a wall would look like a gap rather than a shelf: the site's poster title,
   // barely there, stands in.
   if (covers.length < 8) return <div className="setup-poster">Mantel</div>;
@@ -277,7 +277,7 @@ function SetupScreen({ step }: { step: number }) {
       </>
     );
   } else if (id === "games") {
-    const installed = games.filter((g) => g.installed && !g.hidden);
+    const installed = games.filter((g) => g.installed && !g.hidden && isGame(g));
     const n = installed.length;
     content = (
       <>

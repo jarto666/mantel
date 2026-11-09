@@ -38,6 +38,11 @@ TV PC.
   progress, and its page lists each achievement with rarity and gamerscore.
 - **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it.
   Settings → Interface turns that off.
+- **Apps next to the games.** The Apps tab opens music, video, chat and browsers: Microsoft
+  Store and Edge are there from the start, and Spotify, Netflix, Discord and other apps you
+  have join by themselves. Anything else adds from the Start menu, a list of sites such as
+  YouTube and Twitch that open in their own window, or a file. Apps open, switch and close
+  like games, and time in them isn't counted as playtime.
 - **Steps aside while you play.** Mantel minimizes when a game starts and comes back when
   it exits.
 - **Art for everything.** Covers, backgrounds and logos come from Steam and GOG; a free

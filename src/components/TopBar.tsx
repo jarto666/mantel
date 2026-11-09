@@ -8,6 +8,7 @@ import { Glyph } from "./Glyph";
 
 const TABS: [View, string][] = [
   ["home", "Games"],
+  ["apps", "Apps"],
   ["library", "Library"],
   ["gamepass", "Xbox"],
   ["steam", "Steam"],

@@ -28,6 +28,8 @@ roxmltree = "0.20"
 tauri-plugin-clipboard-manager = "2"
 tokio = { version = "1", features = ["sync", "time"] }
 percent-encoding = "2"
+# App icons taken from programs, saved as pictures. Tauri builds it already.
+png = "0.18"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
@@ -47,6 +49,7 @@ windows = { version = "0.62", features = [
 ] }
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_NetworkManagement_WiFi",
   "Win32_Security_Cryptography",
   "Win32_Storage_Packaging_Appx",

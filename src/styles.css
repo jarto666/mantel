@@ -605,6 +605,58 @@ img { display: block; }
 }
 .grid-scroll::-webkit-scrollbar { display: none; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 2.2rem 1.5rem; padding-bottom: 12rem; animation: fadeIn 0.4s ease both; }
+
+/* ---------- Apps tab ---------------------------------------------------- */
+
+.app-tile { position: relative; cursor: pointer; min-width: 0; }
+.app-tile-frame {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 1.2rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--tile, #1a1d26);
+  box-shadow: 0 1.2rem 2.4rem -1.2rem rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transform-origin: 50% 100%;
+  transition: transform 0.45s var(--bounce), box-shadow 0.4s var(--ease);
+}
+.app-tile.is-focused .app-tile-frame { transform: scale(1.05); box-shadow: var(--focus), 0 1.8rem 3.2rem -1.2rem rgba(0, 0, 0, 0.75), 0 0 3.4rem -0.6rem var(--glow); }
+.app-tile-icon { width: 46%; height: 46%; object-fit: contain; filter: drop-shadow(0 0.4rem 0.9rem rgba(0, 0, 0, 0.35)); }
+.app-tile-letter { font-size: 3.4rem; font-weight: 650; color: rgba(255, 255, 255, 0.9); }
+.app-tile-live { position: absolute; left: 0.6rem; top: 0.6rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.28rem 0.6rem; border-radius: 99px; background: rgba(5, 6, 10, 0.72); color: #a8f3bf; font-size: 0.72rem; font-weight: 650; }
+/* Asking for the second press, then saying it's on its way out. */
+.app-tile-ask { position: absolute; left: 0; right: 0; bottom: 0; padding: 0.6rem 0.4rem; background: var(--bad); color: #fff; font-size: 0.9rem; font-weight: 650; text-align: center; }
+.app-tile-ask.is-busy { background: rgba(5, 6, 10, 0.78); color: var(--ink-2); }
+.app-tile-name { margin-top: 0.8rem; font-size: 1.05rem; font-weight: 550; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 0.25s; }
+.app-tile.is-focused .app-tile-name { color: var(--ink); }
+.app-add .app-tile-frame { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px var(--stroke); color: var(--ink-2); }
+.app-add svg { width: 2.6rem; height: 2.6rem; }
+
+/* The scene: the selected app big on its own colour, a shelf of tiles below, as on Home. */
+.apps-scene { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 0 0 var(--pad-x); overflow: hidden; }
+.apps-ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70rem 46rem at 78% 30%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 70%),
+    linear-gradient(90deg, rgba(5, 6, 10, 0.75) 0%, rgba(5, 6, 10, 0.2) 55%, transparent 100%);
+  animation: fadeIn 0.6s ease both;
+}
+.apps-ghost { position: absolute; right: 7%; top: 14%; width: 30rem; height: 30rem; object-fit: contain; opacity: 0.22; }
+.apps-hero { position: relative; margin-top: 11rem; max-width: 46rem; animation: rise 0.55s var(--ease) both; }
+.apps-hero-icon { width: 7rem; height: 7rem; border-radius: 1.7rem; display: grid; place-items: center; background: var(--tile, rgba(255, 255, 255, 0.08)); box-shadow: 0 1.4rem 3rem -1rem rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.1); color: var(--ink-2); }
+.apps-hero-icon img { width: 58%; height: 58%; object-fit: contain; }
+.apps-hero-icon svg { width: 2.6rem; height: 2.6rem; }
+.apps-hero-name { margin: 1.6rem 0 0.5rem; font-size: 4.2rem; font-weight: 650; letter-spacing: -0.035em; line-height: 1.02; }
+.apps-hero-meta { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; font-size: 1.15rem; color: var(--ink-2); }
+.apps-hero-meta .live { display: inline-flex; align-items: center; gap: 0.5rem; color: #a8f3bf; }
+/* A scroll box clips what spills out of it, the focus glow included: the shelf reaches the
+   screen's edge, and its padding keeps the tiles where they were with room for the glow. */
+.apps-shelf { position: relative; display: flex; gap: 1.5rem; margin: auto 0 0 calc(-1 * var(--pad-x)); padding: 4.5rem 4.5rem 7.5rem var(--pad-x); overflow-x: auto; scrollbar-width: none; }
+.apps-shelf::-webkit-scrollbar { display: none; }
+.apps-shelf .app-tile { flex: none; width: 9.6rem; }
 .grid .cover { transition: transform 0.5s var(--bounce); }
 .grid .cover.is-focused { transform: scale(1.09); z-index: 2; }
 .grid .cover-frame::after, .gp-rail .cover-frame::after { content: ""; position: absolute; inset: 0; background: rgba(5, 6, 10, 0.12); transition: opacity 0.35s ease; pointer-events: none; }
@@ -1000,6 +1052,10 @@ img { display: block; }
 .addgame-row.is-focused { background: #fff; color: #07080c; }
 .addgame-row.is-focused svg, .addgame-row.is-focused .addgame-sub { color: rgba(7, 8, 12, 0.55); }
 .addgame-row.is-added:not(.is-focused) { opacity: 0.55; }
+/* An app's own icon on its own colour, as on its tile. */
+.addgame-icon { flex: none; width: 2.8rem; height: 2.8rem; border-radius: 0.75rem; display: grid; place-items: center; background: var(--tile, rgba(255, 255, 255, 0.08)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.addgame-icon img { width: 64%; height: 64%; object-fit: contain; }
+.addgame-row .addgame-icon svg { width: 1.4rem; height: 1.4rem; color: var(--ink-2); }
 .addgame-badge { flex: none; padding: 0.3rem 0.8rem; border-radius: 999px; background: rgba(95, 224, 138, 0.16); color: var(--good); font-size: 0.9rem; font-weight: 600; }
 .addgame-row.is-focused .addgame-badge { background: rgba(19, 138, 62, 0.12); color: #138a3e; }
 .keyflow-card.artpick { width: 80rem; height: min(60rem, 88vh); }

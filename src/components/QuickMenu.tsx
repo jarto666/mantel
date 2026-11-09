@@ -195,7 +195,7 @@ export function QuickMenu() {
   const run = running.find((r) => r.id === selected);
   const game = gameById(run?.id ?? null);
   const items: Item[] = [
-    ...(game ? [{ id: "close", label: t("Close game"), danger: true, confirm: true, run: () => closeRunning(game.id) }] : []),
+    ...(game ? [{ id: "close", label: game.kind === "app" ? t("Close app") : t("Close game"), danger: true, confirm: true, run: () => closeRunning(game.id) }] : []),
     ...(install ? [{ id: "install", label: installLabel(install), run: () => useStore.setState({ detailsId: install.id }) }] : []),
     { id: "search", label: t("Search"), run: () => useStore.setState({ overlay: "search" }) },
     { id: "rescan", label: t("Refresh library"), run: () => rescan() },
@@ -285,7 +285,7 @@ export function QuickMenu() {
               <>
                 <span className="live-dot" />
                 <span>{game.name}</span>
-                <span className="cc-dim">{t("{n} min this session", { n: minutes })}</span>
+                <span className="cc-dim">{game.kind === "app" ? t("{n} min", { n: minutes }) : t("{n} min this session", { n: minutes })}</span>
               </>
             ) : (
               <span className="cc-dim">{t("Control Center")}</span>

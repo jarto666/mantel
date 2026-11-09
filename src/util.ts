@@ -156,7 +156,8 @@ export function loadCors(src: string): Promise<HTMLImageElement> {
 export async function accentFor(game: Game): Promise<string> {
   const cached = accentCache.get(game.id);
   if (cached) return cached;
-  for (const path of [...game.art.cover, ...game.art.hero]) {
+  // An app has no cover: its icon carries its colour.
+  for (const path of [...game.art.cover, ...game.art.hero, ...(game.kind === "app" ? game.art.icon : [])]) {
     try {
       const img = await loadCors(toSrc(path));
       const canvas = document.createElement("canvas");

@@ -105,6 +105,10 @@ pub struct UserData {
     pub meta: HashMap<String, GameMeta>,
     pub custom: Vec<CustomGame>,
     pub accounts: Accounts,
+    /// The Apps tab: apps the player added, and known ones that joined by themselves.
+    pub apps: Vec<crate::apps::AppEntry>,
+    /// Apps the player took off the tab, by what launches them, so they don't come back.
+    pub dismissed_apps: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -145,6 +149,8 @@ pub struct AppState {
     pub cache: Mutex<Cache>,
     /// Games running now, oldest first, including a launch still waiting for its process.
     pub running: Mutex<Vec<crate::launcher::Running>>,
+    /// What "Add an app" offered last: adding takes an app from here, never a path from the UI.
+    pub app_choices: Mutex<Vec<crate::apps::AppEntry>>,
 }
 
 const USER_FILE: &str = "user.json";
@@ -156,6 +162,7 @@ impl AppState {
             user: Mutex::new(read_json(&dir.join(USER_FILE))),
             cache: Mutex::new(read_json(&dir.join(CACHE_FILE))),
             running: Mutex::new(Vec::new()),
+            app_choices: Mutex::new(Vec::new()),
             dir,
         };
         // Tokens saved by older versions are plain text: encrypt them right away.
@@ -169,6 +176,11 @@ impl AppState {
     /// Copies of image files the player picked as art, so they outlive the originals.
     pub fn art_dir(&self) -> PathBuf {
         self.dir.join("art")
+    }
+
+    /// Where app icons taken from programs and sites are kept.
+    pub fn icons_dir(&self) -> PathBuf {
+        self.dir.join("icons")
     }
 
     pub fn save_user(&self, user: &UserData) {

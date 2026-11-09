@@ -6,7 +6,7 @@ import { setSoundEnabled, sound } from "./sound";
 import type { AccountsStatus, Editions, Game, InstallProgress, Running, Settings, StoreHome, StoreShelf } from "./types";
 import { accentFor, baseTitle, DEFAULT_ACCENT, money, SOURCE_NAME } from "./util";
 
-export type View = "home" | "library" | "steam" | "gamepass" | "settings";
+export type View = "home" | "apps" | "library" | "steam" | "gamepass" | "settings";
 export type Overlay = "menu" | "search" | null;
 
 export interface Updating {
@@ -136,6 +136,9 @@ export const useStore = create<State>(() => ({
 
 const set = useStore.setState;
 const get = useStore.getState;
+
+/** Games, as opposed to the programs and sites on the Apps tab. */
+export const isGame = (g: Game) => g.kind !== "app";
 
 export const gameById = (id: string | null) =>
   id ? get().games.find((g) => g.id === id) ?? get().catalog.find((g) => g.id === id) ?? get().storeGames[id] ?? null : null;
@@ -572,6 +575,16 @@ export async function launch(game: Game) {
   if (isRunning(game.id)) return switchTo(game.id);
   sound.launch();
   rumble(0.5, 0.9, 260);
+  // An app just opens its window: the cover flight and "Starting" are for games.
+  if (!isGame(game)) {
+    try {
+      await api.launchGame(game.id);
+      set((s) => ({ running: [...s.running.filter((r) => r.detected && r.id !== game.id), { id: game.id, startedAt: Date.now() / 1000, detected: false }] }));
+    } catch (e) {
+      toast(errorText(e), "warn");
+    }
+    return;
+  }
   set({ launching: { id: game.id, phase: "starting", from: focusedCoverRect() }, overlay: null });
   try {
     await api.launchGame(game.id);
@@ -630,9 +643,11 @@ export function wireEvents() {
         launching: s.launching?.id === id ? null : s.launching,
         closing: notClosing(s, id),
       }));
-      const name = gameById(id)?.name;
+      const game = gameById(id);
+      const name = game?.name;
       const min = Math.round(seconds / 60);
-      if (name && seconds > 0) toast(min > 0 ? t("{name}: +{min} min played", { name, min }) : t("{name} closed", { name }), "good");
+      // Time in an app isn't playtime.
+      if (name && seconds > 0) toast(min > 0 && isGame(game) ? t("{name}: +{min} min played", { name, min }) : t("{name} closed", { name }), "good");
       set({ games: await api.getLibrary(false) });
     }),
     api.on("install-progress", (payload) => void installProgress(payload as InstallProgress)),

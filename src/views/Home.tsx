@@ -9,7 +9,7 @@ import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
 import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring, useRem, useSettled } from "../motion";
-import { askCancel, closeRunning, gamePassGames, isCatalog, launch, rescan, setFocus, setSelected, sourceLabel, toggleFavorite, useStore } from "../store";
+import { askCancel, closeRunning, gamePassGames, isCatalog, isGame, launch, rescan, setFocus, setSelected, sourceLabel, toggleFavorite, useStore } from "../store";
 import type { Game } from "../types";
 import { hours, installLabel, lastPlayed, size } from "../util";
 
@@ -22,7 +22,7 @@ const FOCUS_SCALE = 1.32;
 
 /** What Mantel just installed, then recently played, favorites, and the newest installs. */
 function shelf(games: Game[], justInstalled: string[]): Game[] {
-  const visible = games.filter((g) => !g.hidden && g.installed);
+  const visible = games.filter((g) => !g.hidden && g.installed && isGame(g));
   const installed = justInstalled.flatMap((id) => visible.filter((g) => g.id === id && !g.lastPlayed));
   const recent = visible.filter((g) => g.lastPlayed).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0));
   const favs = visible.filter((g) => g.favorite);
@@ -146,7 +146,7 @@ export function Home({ active }: { active: boolean }) {
     for (const g of onItsWay) ids.add(g.id);
     return [...onItsWay, ...shelf(games, justInstalled).filter((g) => !ids.has(g.id))];
   }, [catalog, installing, games, justInstalled]);
-  const total = useMemo(() => games.filter((g) => !g.hidden && g.installed).length, [games]);
+  const total = useMemo(() => games.filter((g) => !g.hidden && g.installed && isGame(g)).length, [games]);
   const rem = useRem();
 
   // Focus follows a game, not a slot: the shelf reorders when something gets played.

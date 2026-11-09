@@ -1,6 +1,6 @@
 // Stand-in backend for developing the UI in a regular browser.
 import type { Api, GameEvent } from "./api";
-import type { Achievements, Art, Game, Quick, Running, Settings, Source } from "./types";
+import type { Achievements, AppChoice, Art, Game, Quick, Running, Settings, Source } from "./types";
 
 const cdn = (id: number): Art => {
   const base = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}`;
@@ -75,6 +75,58 @@ let games: Game[] = seeds.map(([source, name, appid, minutes, days], i) => ({
   installed: i !== 14 && i !== 16,
   achievements: achievementsFor(source, i, minutes),
 }));
+
+// Apps for the browser: the real thing reads icons and colours from the installed apps.
+const wiki = (path: string) => `https://upload.wikimedia.org/wikipedia/commons/thumb/${path}/330px-${path.split("/").pop()}.png`;
+const ICONS = {
+  spotify: wiki("8/84/Spotify_icon.svg"),
+  discord: wiki("a/a2/Discord_logo_simplified.svg"),
+  youtube: wiki("0/09/YouTube_full-color_icon_%282017%29.svg"),
+  netflix: wiki("1/18/Netflix_2016_N_logo.svg"),
+  twitch: wiki("d/d3/Twitch_Glitch_Logo_Purple.svg"),
+  plex: wiki("7/7b/Plex_logo_2022.svg"),
+  vlc: wiki("e/e6/VLC_Icon.svg"),
+  edge: wiki("9/98/Microsoft_Edge_logo_%282019%29.svg"),
+  chrome: wiki("e/e1/Google_Chrome_icon_%28February_2022%29.svg"),
+  firefox: wiki("a/a0/Firefox_logo%2C_2019.svg"),
+  disney: wiki("3/3e/Disney%2B_logo.svg"),
+};
+const app = (name: string, icon: string | null, color: string, site: string | null, days: number | null): Game => ({
+  id: `app:${name.toLowerCase().replace(/\W+/g, "-")}`,
+  source: "custom",
+  sourceId: name,
+  name,
+  art: { cover: [], hero: [], logo: [], icon: icon ? [icon] : [] },
+  playtimeMinutes: 0,
+  lastPlayed: days == null ? null : Math.floor(now - days * DAY),
+  favorite: false,
+  hidden: false,
+  installed: true,
+  kind: "app",
+  color,
+  site,
+});
+games.push(
+  app("Spotify", ICONS.spotify, "#121212", null, 0.1),
+  app("YouTube", ICONS.youtube, "#0f0f0f", "youtube.com", 0.4),
+  app("Discord", ICONS.discord, "#5865f2", null, 1),
+  app("Netflix", ICONS.netflix, "#000000", null, 3),
+  app("Twitch", ICONS.twitch, "#18181b", "twitch.tv", 5),
+  app("Disney+", ICONS.disney, "#eef2fb", null, 20),
+  app("Plex", ICONS.plex, "#1f1f1f", null, null),
+  app("Microsoft Edge", ICONS.edge, "#0a2540", null, null),
+);
+
+const appChoices: AppChoice[] = [
+  { name: "VLC media player", target: "VideoLAN.VLC", kind: "desktop", icon: ICONS.vlc, color: "#2b2b2b" },
+  { name: "Google Chrome", target: "Chrome", kind: "desktop", icon: ICONS.chrome, color: "#1f1f1f" },
+  { name: "Firefox", target: "308046B0AF4A39CB", kind: "desktop", icon: ICONS.firefox, color: "#20123a" },
+  { name: "Moonlight", target: "Moonlight", kind: "desktop" },
+  { name: "WhatsApp", target: "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App", kind: "store", color: "#0b141a" },
+  { name: "YouTube Music", target: "https://music.youtube.com", kind: "site", icon: ICONS.youtube, color: "#030303" },
+  { name: "Xbox Cloud Gaming", target: "https://www.xbox.com/play", kind: "site", color: "#107c10" },
+  { name: "GeForce NOW", target: "https://play.geforcenow.com", kind: "site", color: "#1a1a1a" },
+];
 
 const pickedArt: Record<string, string> = {};
 const installing = new Set<string>();
@@ -365,6 +417,27 @@ export const mockApi: Api = {
       { name: "Dying Light 2 Stay Human", path: "C:\\Users\\you\\Desktop\\Dying Light 2.lnk", target: "C:\\Games\\DL2\\DyingLightGame_x64_rwdi.exe" },
       { name: "RetroArch", path: "C:\\RetroArch\\RetroArch.lnk", target: "C:\\RetroArch\\retroarch.exe" },
     ];
+  },
+  async appChoices() {
+    await wait(500);
+    return appChoices.filter((c) => !games.some((g) => g.kind === "app" && g.name === c.name));
+  },
+  async addApp(target) {
+    await wait(300);
+    const choice = appChoices.find((c) => c.target === target)!;
+    const site = choice.kind === "site" ? new URL(choice.target).hostname.replace(/^www\./, "") : null;
+    games.push({ ...app(choice.name, choice.icon ?? null, choice.color ?? "#1a1d26", site, null), addedAt: now });
+    return structuredClone(games);
+  },
+  async addAppFile(path) {
+    await wait(300);
+    const name = path.split("\\").pop()!.replace(/\.(exe|lnk|url|bat|cmd)$/i, "");
+    games.push({ ...app(name, null, "#1a1d26", null, null), addedAt: now });
+    return structuredClone(games);
+  },
+  async removeApp(id) {
+    games = games.filter((g) => g.id !== id);
+    return structuredClone(games);
   },
   async switchToGame(id) {
     return running.some((r) => r.id === id && r.detected);
