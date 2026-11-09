@@ -1,7 +1,9 @@
 mod accounts;
+mod apps;
 mod art;
 mod fse;
 mod gamepass;
+mod icons;
 mod install;
 mod steam_install;
 mod steam_store;
@@ -52,11 +54,50 @@ fn allow_assets(app: &AppHandle, dirs: &[std::path::PathBuf]) {
 
 fn rescan(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let (settings, custom, steam_signed_in) = {
+    let (settings, custom, steam_signed_in, mut exclude) = {
         let user = state.user.lock().unwrap();
-        (user.settings.clone(), user.custom.clone(), user.accounts.steam_signed_in)
+        let mut exclude = apps::Exclude { taken: user.apps.iter().map(|a| a.target.clone()).collect(), ..Default::default() };
+        exclude.taken.extend(user.dismissed_apps.iter().cloned());
+        (user.settings.clone(), user.custom.clone(), user.accounts.steam_signed_in, exclude)
     };
+    // The Start menu is read while the stores scan: known apps join the Apps tab by themselves,
+    // and Store apps on it follow their folder across updates.
+    let icons = state.icons_dir();
+    exclude.game_names.push("Mantel".into());
+    let discovery = std::thread::spawn({
+        let icons = icons.clone();
+        move || {
+            let list = apps::start_apps();
+            let found = apps::discover_from(&list, &icons, &exclude, |a| apps::is_known(&a.name));
+            (list, found)
+        }
+    });
     let mut scan = library::scan_all(&settings, &custom);
+    let (list, found) = discovery.join().unwrap_or_default();
+    let entries = {
+        let mut user = state.user.lock().unwrap();
+        let mut changed = apps::refresh(&list, &mut user.apps);
+        // A known app that's also a game here (a launcher added by hand, say) stays a game.
+        let games: Vec<String> = scan.games.iter().map(|g| g.name.to_lowercase()).collect();
+        let found: Vec<apps::AppEntry> = found.into_iter().filter(|a| !games.contains(&a.name.to_lowercase())).collect();
+        if !found.is_empty() {
+            log::info(&format!("apps: {} found", found.len()));
+            user.apps.extend(found);
+            changed = true;
+        }
+        if changed {
+            state.save_user(&user);
+        }
+        user.apps.clone()
+    };
+    let shown = apps::installed(&list, &entries);
+    if shown.len() < entries.len() {
+        log::info(&format!("apps: {} not installed any more", entries.len() - shown.len()));
+    }
+    let edge = apps::edge();
+    scan.games.extend(shown.iter().map(|a| apps::game_of(a, edge.as_deref())));
+    scan.asset_dirs.extend(shown.iter().filter_map(|a| a.location.as_ref().map(std::path::PathBuf::from)));
+    scan.asset_dirs.push(icons);
     allow_assets(app, &scan.asset_dirs);
 
     if settings.sources.steam && steam_signed_in {
@@ -138,7 +179,7 @@ async fn resolve_art(state: State<'_, AppState>) -> Result<bool, String> {
         let todo: Vec<art::Lookup> = cache
             .library
             .iter()
-            .filter(|g| g.source != "steam")
+            .filter(|g| g.source != "steam" && !g.is_app())
             .filter(|g| match cache.art.get(&g.id) {
                 Some(r) => r.art.is_empty() && t - r.at > ART_RETRY_SECS,
                 None => true,
@@ -232,7 +273,7 @@ async fn measure_sizes(state: State<'_, AppState>) -> Result<bool, String> {
         cache
             .library
             .iter()
-            .filter(|g| g.installed && g.size_bytes.is_none())
+            .filter(|g| g.installed && g.size_bytes.is_none() && !g.is_app())
             .filter_map(|g| {
                 let dir = g.install_dir.clone()?;
                 if cache.sizes.get(&dir).is_some_and(|s| t - s.at < SIZE_RETRY_SECS) {
@@ -695,6 +736,140 @@ async fn app_suggestions(state: State<'_, AppState>) -> Result<Vec<pick::Suggest
     tauri::async_runtime::spawn_blocking(move || pick::suggestions(&known)).await.map_err(|e| e.to_string())
 }
 
+/// Apps "Add an app" can offer: the Start menu's, games and apps on the tab left out, then
+/// sites. Kept, so adding takes an app from this list and nothing else.
+#[tauri::command]
+async fn app_choices(app: AppHandle) -> Result<Vec<apps::AppEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let exclude = {
+            let user = state.user.lock().unwrap();
+            let cache = state.cache.lock().unwrap();
+            let games = cache.library.iter().filter(|g| !g.is_app());
+            apps::Exclude {
+                taken: user.apps.iter().map(|a| a.target.clone()).collect(),
+                game_dirs: games.clone().filter_map(|g| g.install_dir.clone()).collect(),
+                game_names: games.map(|g| g.name.clone()).collect(),
+            }
+        };
+        let icons = state.icons_dir();
+        let mut found = apps::discover(&icons, &exclude, |_| true);
+        found.extend(
+            apps::SITES
+                .iter()
+                .filter(|(_, url)| !exclude.taken.iter().any(|t| t == url))
+                .map(|(name, url)| apps::AppEntry { name: name.to_string(), kind: "site".into(), target: url.to_string(), ..Default::default() }),
+        );
+        let mut dirs: Vec<std::path::PathBuf> = found.iter().filter_map(|a| a.location.as_ref().map(Into::into)).collect();
+        dirs.push(icons);
+        allow_assets(&app, &dirs);
+        *state.app_choices.lock().unwrap() = found.clone();
+        found
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Puts an app from the last "Add an app" list on the Apps tab. A site gets its icon from the
+/// site itself.
+#[tauri::command]
+async fn add_app(app: AppHandle, target: String) -> Result<Vec<Game>, String> {
+    let state = app.state::<AppState>();
+    let mut entry = state.app_choices.lock().unwrap().iter().find(|c| c.target == target).cloned().ok_or("That app isn't on the list any more")?;
+    if entry.kind == "site" && entry.icon.is_none() {
+        entry.icon = apps::fetch_site_icon(&entry.target, &state.icons_dir(), &entry.id()).await;
+    }
+    let game = apps::game_of(&entry, apps::edge().as_deref());
+    if let Some(location) = &entry.location {
+        allow_assets(&app, &[location.into()]);
+    }
+    log::info(&format!("app added: {} ({})", entry.name, entry.kind));
+    {
+        let mut user = state.user.lock().unwrap();
+        user.dismissed_apps.retain(|t| *t != entry.target);
+        user.meta.entry(game.id.clone()).or_default().added_at = Some(now());
+        if !user.apps.iter().any(|a| a.target == entry.target) {
+            user.apps.push(entry);
+        }
+        state.save_user(&user);
+    }
+    {
+        let mut cache = state.cache.lock().unwrap();
+        cache.library.retain(|g| g.id != game.id);
+        cache.library.push(game);
+        state.save_cache(&cache);
+    }
+    Ok(snapshot(&state))
+}
+
+/// Puts a file the player picked on the Apps tab: an exe, a shortcut, a .url or a batch file.
+/// Like a game added by hand, an exe gets its product name and a shortcut is followed through
+/// the program it points at; the icon comes from that program.
+#[tauri::command]
+async fn add_app_file(app: AppHandle, path: String) -> Result<Vec<Game>, String> {
+    let file = std::path::Path::new(&path);
+    let ext = file.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if !file.is_file() || !["exe", "lnk", "url", "bat", "cmd"].contains(&ext.as_str()) {
+        return Err("Pick a program, a shortcut or a batch file".into());
+    }
+    let state = app.state::<AppState>();
+    if state.user.lock().unwrap().apps.iter().any(|a| a.target.eq_ignore_ascii_case(&path)) {
+        return Err("That one is already in your apps".into());
+    }
+    let stem = file.file_stem().map(|s| s.to_string_lossy().to_string()).ok_or("bad path")?;
+    let icons = state.icons_dir();
+    let mut entry = {
+        let path = path.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let exe = if ext == "exe" { Some(path.clone()) } else if ext == "lnk" { pick::shortcut_target(&path).filter(|t| t.to_lowercase().ends_with(".exe")) } else { None };
+            let name = exe.as_deref().filter(|_| ext == "exe").and_then(pick::product_name).unwrap_or(stem);
+            let mut entry = apps::from_file(&path, name, exe);
+            let out = icons.join(format!("{}.png", entry.id()));
+            let source = entry.exe.clone().unwrap_or_else(|| path.clone());
+            if icons::extract(&source, 0, &out) {
+                entry.icon = Some(out.to_string_lossy().to_string());
+            }
+            entry
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    };
+    entry.name = entry.name.trim().to_string();
+    let game = apps::game_of(&entry, None);
+    log::info(&format!("app added from a file: {}", entry.name));
+    {
+        let mut user = state.user.lock().unwrap();
+        user.meta.entry(game.id.clone()).or_default().added_at = Some(now());
+        user.apps.push(entry);
+        state.save_user(&user);
+    }
+    {
+        let mut cache = state.cache.lock().unwrap();
+        cache.library.retain(|g| g.id != game.id);
+        cache.library.push(game);
+        state.save_cache(&cache);
+    }
+    Ok(snapshot(&state))
+}
+
+/// Takes an app off the Apps tab for good: a known one doesn't come back by itself.
+#[tauri::command]
+fn remove_app(state: State<'_, AppState>, id: String) -> Vec<Game> {
+    {
+        let mut user = state.user.lock().unwrap();
+        let gone: Vec<String> = user.apps.iter().filter(|a| format!("app:{}", a.id()) == id).map(|a| a.target.clone()).collect();
+        user.apps.retain(|a| format!("app:{}", a.id()) != id);
+        user.dismissed_apps.extend(gone);
+        state.save_user(&user);
+    }
+    {
+        let mut cache = state.cache.lock().unwrap();
+        cache.library.retain(|g| g.id != id);
+        state.save_cache(&cache);
+    }
+    snapshot(&state)
+}
+
 #[tauri::command]
 fn remove_custom_game(state: State<'_, AppState>, id: String) -> Vec<Game> {
     {
@@ -918,6 +1093,7 @@ pub fn run() {
             let state = AppState::load(dir);
             let mut dirs = state.cache.lock().unwrap().asset_dirs.clone();
             dirs.push(state.art_dir());
+            dirs.push(state.icons_dir());
             let customs: Vec<_> = state.user.lock().unwrap().custom.iter().filter_map(|c| std::path::Path::new(&c.path).parent().map(|p| p.to_path_buf())).collect();
             app.manage(state);
             allow_assets(app.handle(), &dirs);
@@ -952,6 +1128,10 @@ pub fn run() {
             close_game,
             switch_to_game,
             running_games,
+            app_choices,
+            add_app,
+            add_app_file,
+            remove_app,
             open_game_folder,
             power_status,
             power_action,

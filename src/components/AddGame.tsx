@@ -6,10 +6,11 @@ import { errorText, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { rescan, toast, useStore } from "../store";
-import type { Listing, PickEntry, Suggestion } from "../types";
+import type { AppChoice, Game, Listing, PickEntry, Suggestion } from "../types";
 import { size } from "../util";
 import { Glyph } from "./Glyph";
 import { useHints, type Hint } from "./Hints";
+import { Img } from "./Img";
 
 type Tab = "suggested" | "browse";
 
@@ -174,6 +175,188 @@ export function AddGame({ onClose }: { onClose: () => void }) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 {KIND_ICON[r.kind]}
               </svg>
+              <span className="addgame-text">
+                <span className="addgame-name">{r.name}</span>
+                {r.sub && <span className="addgame-sub">{r.sub}</span>}
+              </span>
+              {added.has(r.key) && <span className="addgame-badge">{t("Added")}</span>}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** The Add app dialog's tabs, LB/RB going left and right through them. */
+const APP_TABS = ["installed", "sites", "files"] as const;
+type AppTab = (typeof APP_TABS)[number];
+
+/**
+ * Adding to the Apps tab: apps from the Start menu (programs, Microsoft Store apps, sites
+ * installed from a browser), a site that opens in a window of its own, or any program or
+ * shortcut picked from the file system.
+ */
+export function AddApp({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<AppTab>("installed");
+  const [choices, setChoices] = useState<AppChoice[] | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [index, setIndex] = useState(0);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.appChoices().then(setChoices).catch(() => setChoices([]));
+    api.listDir(null).then(setListing).catch(() => {});
+  }, []);
+
+  type Row = { key: string; name: string; sub?: string; icon?: string | null; color?: string | null; kind: PickEntry["kind"] | "app"; pick: () => void };
+  const sub = (c: AppChoice) =>
+    c.kind === "site" ? new URL(c.target).hostname.replace(/^www\./, "") : c.kind === "web" ? t("Website") : c.kind === "store" ? t("Microsoft Store") : t("Program");
+  // Sites a browser installed are in the Start menu: they're with the installed apps.
+  const rows: Row[] =
+    tab === "files"
+      ? (listing?.entries ?? []).map((e) => ({
+          key: e.path,
+          name: e.name,
+          sub: e.size ? size(e.size) : undefined,
+          kind: e.kind,
+          pick: () => (PICKABLE.has(e.kind) ? void addFile(e.path, e.name) : void open(e.path)),
+        }))
+      : (choices ?? [])
+          .filter((c) => (tab === "sites") === (c.kind === "site"))
+          .map((c) => ({ key: c.target, name: c.name, sub: sub(c), icon: c.icon, color: c.color, kind: c.kind === "site" ? "url" : "app", pick: () => void add(c) }));
+  const i = Math.min(index, Math.max(0, rows.length - 1));
+  useScrollFocus(list, `${tab}:${listing?.path}:${i}`);
+
+  async function open(path: string | null, back = false) {
+    try {
+      const next = await api.listDir(path);
+      setListing(next);
+      // Going up returns the cursor to the folder we came out of.
+      const from = back ? listing?.path : null;
+      setIndex(from ? Math.max(0, next.entries.findIndex((e) => e.path === from)) : 0);
+    } catch (e) {
+      toast(errorText(e), "warn");
+    }
+  }
+
+  async function adding(key: string, name: string, run: () => Promise<Game[]>) {
+    if (busy || added.has(key)) return;
+    setBusy(true);
+    try {
+      useStore.setState({ games: await run() });
+      setAdded((s) => new Set(s).add(key));
+      toast(t("Added {name} to Apps", { name }), "good");
+    } catch (e) {
+      toast(errorText(e), "warn");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const add = (c: AppChoice) => adding(c.target, c.name, () => api.addApp(c.target));
+  const addFile = (path: string, name: string) => adding(path, name.replace(/\.(exe|lnk|url|bat|cmd)$/i, ""), () => api.addAppFile(path));
+
+  const switchTab = (d: number) => {
+    const next = APP_TABS[APP_TABS.indexOf(tab) + d];
+    if (!next) return "edge" as const;
+    setTab(next);
+    setIndex(0);
+  };
+
+  const inFolder = tab === "files" && !!listing?.path;
+  useInput(
+    (a) => {
+      if (busy) return "silent";
+      switch (a) {
+        case "up":
+          return i > 0 ? setIndex(i - 1) : "edge";
+        case "down":
+          return i < rows.length - 1 ? setIndex(i + 1) : "edge";
+        case "lb":
+          return switchTab(-1);
+        case "rb":
+          return switchTab(1);
+        case "a":
+          rows[i]?.pick();
+          return;
+        case "b":
+          if (inFolder) return void open(listing!.parent, true);
+          return onClose();
+        case "y":
+          if (inFolder) void open(null, true);
+          return;
+        default:
+          return "silent";
+      }
+    },
+    Layer.modal,
+  );
+  const focused = rows[i];
+  const hints: Hint[] = [
+    ["a", focused && (focused.kind === "dir" || focused.kind === "drive" || focused.kind === "place") ? "Open" : "Add"],
+    ["lb", "Tabs"],
+    ["b", inFolder ? "Up" : "Close"],
+  ];
+  if (inFolder) hints.push(["y", "Top"]);
+  useHints(hints, Layer.modal);
+
+  const where =
+    tab === "installed"
+      ? t("Apps in your Start menu that aren't in Mantel yet")
+      : tab === "sites"
+        ? t("Sites that open in a window of their own, like an app")
+        : listing?.path ?? t("Pick a place to start. Folders and launchable files only");
+  const loading = tab !== "files" && choices === null;
+
+  return (
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <motion.div className="keyflow-card addgame" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
+        <h2 className="keyflow-title">{t("Add an app")}</h2>
+        <div className="addgame-tabs">
+          <Glyph b="lb" />
+          {APP_TABS.map((id) => (
+            <button key={id} className={`addgame-tab ${tab === id ? "is-active" : ""}`} onClick={() => switchTab(APP_TABS.indexOf(id) - APP_TABS.indexOf(tab))}>
+              {id === "installed" ? t("Installed apps") : id === "sites" ? t("Websites") : t("Browse files")}
+            </button>
+          ))}
+          <Glyph b="rb" />
+        </div>
+        <div className="addgame-where">{where}</div>
+        <div className="addgame-list" ref={list}>
+          {loading && (
+            <div className="addgame-empty">
+              <span className="spinner" /> {t("Looking for apps…")}
+            </div>
+          )}
+          {!loading && rows.length === 0 && <div className="addgame-empty">{tab === "files" ? t("No folders or launchable files here.") : t("Nothing new found.")}</div>}
+          {rows.map((r, n) => (
+            <button
+              key={r.key}
+              className={`addgame-row ${n === i ? "is-focused" : ""} ${added.has(r.key) ? "is-added" : ""}`}
+              onClick={() => {
+                setIndex(n);
+                r.pick();
+              }}
+            >
+              {tab === "files" ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  {KIND_ICON[r.kind]}
+                </svg>
+              ) : (
+                <span className="addgame-icon" style={{ "--tile": r.color ?? undefined } as React.CSSProperties}>
+                  <Img
+                    srcs={r.icon ? [r.icon] : []}
+                    trim
+                    fallback={
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                        {KIND_ICON[r.kind]}
+                      </svg>
+                    }
+                  />
+                </span>
+              )}
               <span className="addgame-text">
                 <span className="addgame-name">{r.name}</span>
                 {r.sub && <span className="addgame-sub">{r.sub}</span>}

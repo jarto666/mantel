@@ -1,4 +1,4 @@
-import type { AccountsStatus, Achievement, ArtChoices, ArtKind, Details, Editions, Game, InstallProgress, Listing, Power, Quick, Running, Settings, StoreHit, StoreHome, StorePage, StoreShelf, Suggestion } from "./types";
+import type { AccountsStatus, Achievement, AppChoice, ArtChoices, ArtKind, Details, Editions, Game, InstallProgress, Listing, Power, Quick, Running, Settings, StoreHit, StoreHome, StorePage, StoreShelf, Suggestion } from "./types";
 import { mockApi } from "./mock";
 import { steamLanguage } from "./i18n";
 
@@ -44,6 +44,13 @@ export interface Api {
   /** An https URL or an image file as the game's art; null goes back to the store's. */
   setArt(id: string, kind: ArtKind, src: string | null): Promise<Game[]>;
   appSuggestions(): Promise<Suggestion[]>;
+  /** Apps in the Start menu and sites to offer on the Apps tab, leaving out what's there already. */
+  appChoices(): Promise<AppChoice[]>;
+  /** Adds an app from the last list `appChoices` gave, by what launches it. */
+  addApp(target: string): Promise<Game[]>;
+  /** Adds a program, shortcut, .url or batch file picked from the file system. */
+  addAppFile(path: string): Promise<Game[]>;
+  removeApp(id: string): Promise<Game[]>;
   switchToGame(id: string): Promise<boolean>;
   removeCustomGame(id: string): Promise<Game[]>;
   launchGame(id: string): Promise<void>;
@@ -141,6 +148,10 @@ const tauriApi: Api = {
   artChoices: (id, kind) => call("art_choices", { id, kind }),
   setArt: (id, kind, src) => call("set_art", { id, kind, src }),
   appSuggestions: () => call("app_suggestions"),
+  appChoices: () => call("app_choices"),
+  addApp: (target) => call("add_app", { target }),
+  addAppFile: (path) => call("add_app_file", { path }),
+  removeApp: (id) => call("remove_app", { id }),
   switchToGame: (id) => call("switch_to_game", { id }),
   removeCustomGame: (id) => call("remove_custom_game", { id }),
   launchGame: (id) => call("launch_game", { id }),

@@ -155,6 +155,15 @@ pub struct Game {
     /// Percent off that price right now.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discount: Option<u8>,
+    /// "app" for programs and sites on the Apps tab; games leave it out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// An app's tile colour, where the app names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// The site an app opens, for sites added as apps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<String>,
 }
 
 fn installed_default() -> bool {
@@ -162,6 +171,11 @@ fn installed_default() -> bool {
 }
 
 impl Game {
+    /// A program or site on the Apps tab rather than a game.
+    pub fn is_app(&self) -> bool {
+        self.kind.as_deref() == Some("app")
+    }
+
     pub fn new(source: &str, source_id: impl Into<String>, name: impl Into<String>, launch: Launch) -> Self {
         let source_id = source_id.into();
         Game {
@@ -186,6 +200,9 @@ impl Game {
             genres: Vec::new(),
             price: None,
             discount: None,
+            kind: None,
+            color: None,
+            site: None,
         }
     }
 }

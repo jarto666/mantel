@@ -7,7 +7,7 @@ import { useGridColumns, useHandler, useOverflowing, useScrollFocus, useWindow }
 import { locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { spring } from "../motion";
-import { launch, openSignIn, setFocus, setSelected, toggleFavorite, useStore } from "../store";
+import { isGame, launch, openSignIn, setFocus, setSelected, toggleFavorite, useStore } from "../store";
 import type { Game, Source } from "../types";
 import { playtime, SOURCE_NAME } from "../util";
 
@@ -35,7 +35,7 @@ export function Library({ active }: { active: boolean }) {
   const sources = useStore((s) => s.settings?.sources);
   const steamIn = useStore((s) => !!s.accounts?.steam.connected);
   const xboxIn = useStore((s) => !!s.accounts?.xboxGamertag);
-  const visible = useMemo(() => games.filter((g) => !g.hidden), [games]);
+  const visible = useMemo(() => games.filter((g) => !g.hidden && isGame(g)), [games]);
   const installed = useMemo(() => visible.filter((g) => g.installed), [visible]);
 
   const filters = useMemo(() => {

@@ -2287,6 +2287,7 @@ dependencies = [
  "base64 0.22.1",
  "futures",
  "percent-encoding",
+ "png",
  "reqwest 0.12.28",
  "roxmltree",
  "serde",

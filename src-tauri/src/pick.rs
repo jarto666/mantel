@@ -216,6 +216,12 @@ pub fn shortcut_target(_lnk: &str) -> Option<String> {
     None
 }
 
+/// Runs a PowerShell script without a window and returns what it printed.
+#[cfg(windows)]
+pub(crate) fn run_powershell(script: &str) -> Option<String> {
+    powershell(script)
+}
+
 #[cfg(windows)]
 fn powershell(script: &str) -> Option<String> {
     use std::os::windows::process::CommandExt;

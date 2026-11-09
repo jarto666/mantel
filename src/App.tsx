@@ -15,10 +15,11 @@ import { usePageHidden } from "./hooks";
 import { idleFor, Layer, setBackgroundInput, setWakeHandler, startInput, useInput } from "./input";
 import { warmUpSound } from "./sound";
 import { setLanguage, t } from "./i18n";
-import { boot, gameById, toast, useStore, wireEvents } from "./store";
+import { boot, gameById, isGame, toast, useStore, wireEvents } from "./store";
 import { installLabel } from "./util";
 import { Details } from "./views/Details";
 import { GamePass } from "./views/GamePass";
+import { Apps } from "./views/Apps";
 import { Home } from "./views/Home";
 import { Library } from "./views/Library";
 import { Settings } from "./views/Settings";
@@ -29,6 +30,7 @@ const AMBIENT_AFTER = 30_000;
 
 // These follow the store themselves; a tab changing is no reason to render all of them again.
 const HomeTab = memo(Home);
+const AppsTab = memo(Apps);
 const LibraryTab = memo(Library);
 const SteamTab = memo(Steam);
 const XboxTab = memo(GamePass);
@@ -106,7 +108,7 @@ export function App() {
   const launching = useStore((s) => s.launching);
   const setup = useStore((s) => s.setupStep !== null);
   // The screensaver shows the games' art; with none (Home's empty state) there's nothing to show.
-  const hasGames = useStore((s) => s.games.some((g) => g.installed && !g.hidden) || Object.keys(s.installs).length > 0);
+  const hasGames = useStore((s) => s.games.some((g) => g.installed && !g.hidden && isGame(g)) || Object.keys(s.installs).length > 0);
   const updateShown = useStore((s) => s.updateOffer !== null || s.updating !== null);
   const ambient = useAmbient(view === "home" && !detailsId && !overlay && !launching && !setup && hasGames && !updateShown);
 
@@ -162,6 +164,9 @@ export function App() {
       <TopBar />
       <div className={`view ${view === "home" ? "is-active" : ""}`}>
         <HomeTab active={viewActive && view === "home"} />
+      </div>
+      <div className={`view ${view === "apps" ? "is-active" : ""}`}>
+        <AppsTab active={viewActive && view === "apps"} />
       </div>
       <div className={`view ${view === "library" ? "is-active" : ""}`}>
         <LibraryTab active={viewActive && view === "library"} />

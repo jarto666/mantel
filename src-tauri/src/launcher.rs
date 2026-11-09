@@ -49,6 +49,9 @@ struct Target {
     id: String,
     dir: Option<String>,
     exes: Vec<String>,
+    /// An app counts as running only while it has a window: Spotify or Discord in the tray
+    /// isn't something the player is in.
+    window: bool,
 }
 
 static PENDING: Mutex<Option<Pending>> = Mutex::new(None);
@@ -85,6 +88,9 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
     };
     crate::log::info(&format!("launch {} via {:?}", game.id, game.launch));
 
+    // A site opens in Edge, whose process hands the window to the browser already running and
+    // goes away: nothing of the site's own to follow.
+    let pid = if game.site.is_some() { None } else { pid };
     let trackable = pid.is_some() || game.install_dir.is_some() || !game.exe_names.is_empty();
     *PENDING.lock().unwrap() = Some(Pending { id: game.id.clone(), at: Instant::now(), pid, trackable });
     launched(&mut app.state::<AppState>().running.lock().unwrap(), &game.id, now());
@@ -151,6 +157,17 @@ pub fn close(app: &AppHandle, id: &str) -> Result<(), String> {
     crate::log::info(&format!("close {}: {} processes", running.id, found.len()));
     ask_to_close(&found);
     let deadline = Instant::now() + CLOSE_GRACE;
+    // An app that keeps running in the tray once its window is closed is closed as far as the
+    // player can tell; it isn't ended.
+    if target.is_some_and(|t| t.window) {
+        while has_window(&alive(&mut sys)) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        if !has_window(&alive(&mut sys)) {
+            CLOSED.lock().unwrap().push(running.id);
+            return Ok(());
+        }
+    }
     let mut left = found;
     while !left.is_empty() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(250));
@@ -341,6 +358,17 @@ fn focus_window_of(_pids: &[u32]) -> bool {
     false
 }
 
+/// Whether any of these processes shows a window of its own.
+#[cfg(windows)]
+fn has_window(pids: &[u32]) -> bool {
+    !pids.is_empty() && !main_windows(pids).is_empty()
+}
+
+#[cfg(not(windows))]
+fn has_window(pids: &[u32]) -> bool {
+    !pids.is_empty()
+}
+
 #[cfg(not(windows))]
 fn ask_to_close(_pids: &[u32]) {}
 
@@ -356,6 +384,7 @@ pub fn spawn_tracker(app: AppHandle) {
 
             let pending_pid = PENDING.lock().unwrap().as_ref().and_then(|p| Some((p.id.clone(), p.pid?)));
             let mut alive: HashSet<String> = HashSet::new();
+            let mut app_pids: HashMap<String, Vec<u32>> = HashMap::new();
             for (pid, p) in sys.processes() {
                 let pid = pid.as_u32();
                 if pid == std::process::id() {
@@ -364,9 +393,14 @@ pub fn spawn_tracker(app: AppHandle) {
                 if let Some((id, _)) = pending_pid.as_ref().filter(|(_, ppid)| *ppid == pid) {
                     alive.insert(id.clone());
                 } else if let Some(t) = targets.iter().find(|t| matches(t, p)) {
-                    alive.insert(t.id.clone());
+                    if t.window {
+                        app_pids.entry(t.id.clone()).or_default().push(pid);
+                    } else {
+                        alive.insert(t.id.clone());
+                    }
                 }
             }
+            alive.extend(app_pids.into_iter().filter(|(_, pids)| has_window(pids)).map(|(id, _)| id));
 
             for id in &alive {
                 match sessions.get_mut(id) {
@@ -422,10 +456,14 @@ fn finish(app: &AppHandle, id: &str, session: &Session) {
     // The game was gone for every missed poll.
     let seconds = session.since.elapsed().as_secs().saturating_sub(POLL.as_secs() * session.misses as u64);
     // A game that didn't stay, like one refused its license at launch, hasn't been played.
+    // Time in an app isn't playtime, but when it was last used orders the Apps tab.
     if seconds > 0 {
+        let app = state.cache.lock().unwrap().library.iter().any(|g| g.id == id && g.is_app());
         let mut user = state.user.lock().unwrap();
         let meta = user.meta.entry(id.to_string()).or_default();
-        meta.tracked_minutes += (seconds + 30) / 60;
+        if !app {
+            meta.tracked_minutes += (seconds + 30) / 60;
+        }
         meta.last_played = Some(now());
         state.save_user(&user);
     }
@@ -514,6 +552,7 @@ fn targets(app: &AppHandle) -> Vec<Target> {
             id: g.id.clone(),
             dir: g.install_dir.as_deref().map(normalize_dir),
             exes: g.exe_names.iter().map(|e| e.to_lowercase()).collect(),
+            window: g.is_app(),
         })
         .collect()
 }

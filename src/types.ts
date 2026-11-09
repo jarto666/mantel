@@ -55,6 +55,23 @@ export interface Game {
   price?: string | null;
   /** Percent off that price right now. */
   discount?: number | null;
+  /** "app" for programs and sites on the Apps tab; games leave it out. */
+  kind?: "app" | null;
+  /** An app's tile colour, its own where the app has one. */
+  color?: string | null;
+  /** The site an app opens, for sites added as apps. */
+  site?: string | null;
+}
+
+/** Something to add on the Apps tab: an app from the Start menu, or a site. */
+export interface AppChoice {
+  name: string;
+  /** What Windows launches it by: a Start menu app id, or the site's address. */
+  target: string;
+  /** A Microsoft Store app, a program, a site a browser installed as an app, or a site. */
+  kind: "store" | "desktop" | "web" | "site";
+  icon?: string | null;
+  color?: string | null;
 }
 
 export interface StoreShelf {
