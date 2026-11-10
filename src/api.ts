@@ -100,6 +100,12 @@ export interface Api {
    *  `beforeInstall`, then installs it and restarts into it: on Windows the installer closes
    *  Mantel itself. */
   installUpdate(onProgress: (downloaded: number, total: number | null) => void, beforeInstall: () => Promise<void>): Promise<void>;
+  /** Marks an update as under way, right before the installer starts and closes Mantel. */
+  beginUpdate(version: string): Promise<void>;
+  /** The update failed before the installer ran. */
+  endUpdate(): Promise<void>;
+  /** The version being installed, when Xbox mode opened Mantel again while an update installs. */
+  updateInProgress(): Promise<string | null>;
 }
 
 export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout" | "install-progress" | "game-uninstalled";
@@ -225,6 +231,9 @@ const tauriApi: Api = {
     }
     return pendingUpdate?.version ?? null;
   },
+  beginUpdate: (version) => call("begin_update", { version }),
+  endUpdate: () => call("end_update"),
+  updateInProgress: () => call("update_in_progress"),
   async installUpdate(onProgress, beforeInstall) {
     const update = pendingUpdate;
     if (!update) return;
