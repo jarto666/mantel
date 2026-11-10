@@ -377,6 +377,16 @@ export async function boot() {
   const [settings, cached, running] = await Promise.all([api.getSettings(), api.getLibrary(false), api.runningGames()]);
   setSoundEnabled(settings.sounds);
   set({ settings, games: cached, loaded: true, running });
+  // Xbox mode opened Mantel again while an update installs, and the installer is about to close
+  // this copy, or to finish. Wait on the update screen instead of starting up a version that's
+  // on its way out: no scan, no setup, no update check.
+  const installing = await api.updateInProgress().catch(() => null);
+  if (installing) {
+    api.log("info", `update ${installing} is installing: waiting for it`);
+    set({ updating: { version: installing, downloaded: 0, total: null, restartIn: 0 } });
+    while (await api.updateInProgress().catch(() => null)) await new Promise((r) => setTimeout(r, 1000));
+    set({ updating: null });
+  }
   api.installs().then((list) => set({ installs: Object.fromEntries(list.map((p) => [p.id, p])) }), () => {});
   api.appVersion().then((version) => set({ version }));
   // The library scan carries on behind it, so setup can show what it found.
@@ -490,12 +500,16 @@ export async function installUpdate() {
           await new Promise((r) => setTimeout(r, 1000));
         }
         patch({ restartIn: 0 });
+        // The copy Xbox mode opens while the installer works sees this and waits.
+        await api.beginUpdate(version).catch(() => {});
       },
     );
     // On Windows the installer has closed Mantel by now; sample data has nothing to restart into.
     if (!isTauri) setTimeout(() => set({ updating: null }), 1500);
   } catch (e) {
     api.log("warn", `update: ${e}`);
+    // Copies Xbox mode opens from now on start up as usual.
+    api.endUpdate().catch(() => {});
     set({ updating: null });
     toast(t("Update failed: {error}", { error: errorText(e) }), "warn");
   }
@@ -505,11 +519,13 @@ export async function rescan(quiet = false) {
   if (get().scanning) return;
   set({ scanning: true });
   try {
-    const shown = (list: Game[]) => list.filter((g) => !g.hidden).length;
+    // Apps on the Apps tab aren't games: they don't count as new games found.
+    const shown = (list: Game[]) => list.filter((g) => !g.hidden && isGame(g)).length;
     const before = shown(get().games);
     const games = await api.getLibrary(true);
     set({ games });
-    if (!quiet) toast(games.length === 1 ? t("Library updated: 1 game") : t("Library updated: {n} games", { n: games.length }), "good");
+    const count = games.filter(isGame).length;
+    if (!quiet) toast(count === 1 ? t("Library updated: 1 game") : t("Library updated: {n} games", { n: count }), "good");
     // Games that finished installing with Mantel closed get a notice of their own in followInstalls.
     else if (shown(games) > before && before > 0 && (followed || !rememberedInstalls().length)) toast(shown(games) - before === 1 ? t("1 new game found") : t("{n} new games found", { n: shown(games) - before }), "good");
     if (await api.resolveArt()) set({ games: await api.getLibrary(false) });

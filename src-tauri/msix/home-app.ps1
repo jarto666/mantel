@@ -47,10 +47,23 @@ try {
   }
   $path = Join-Path $PSScriptRoot 'AppxManifest.xml'
   [xml]$manifest = Get-Content $path
-  $manifest.Package.Identity.Version = "$Version.0"
+  # A package version is four numbers: a test build's "0.5.1-test.2" registers as 0.5.1.0.
+  $manifest.Package.Identity.Version = "$(($Version -split '[-+]')[0]).0"
   $manifest.Save($path)
   New-Item -ItemType Directory -Force $public | Out-Null
-  Add-AppxPackage -Register $path -ErrorAction Stop
+  # During an update Xbox mode has already opened Mantel again, and Windows won't register a
+  # package whose app is running: it closes Mantel for the moment it takes, and Xbox mode opens
+  # the new version. One more try if the first one loses a race.
+  for ($try = 1; ; $try++) {
+    try {
+      Add-AppxPackage -Register $path -ForceApplicationShutdown -ErrorAction Stop
+      break
+    } catch {
+      if ($try -ge 3) { throw }
+      Say "try $try failed: $($_.Exception.Message.Split([Environment]::NewLine)[0])"
+      Start-Sleep -Seconds 2
+    }
+  }
   Say "registered $Version from $PSScriptRoot"
 } catch {
   Say "failed: $_"

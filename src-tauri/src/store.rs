@@ -178,6 +178,11 @@ impl AppState {
         self.dir.join("art")
     }
 
+    /// Mantel's data folder, `%APPDATA%\com.playmantel.launcher`.
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     /// Where app icons taken from programs and sites are kept.
     pub fn icons_dir(&self) -> PathBuf {
         self.dir.join("icons")

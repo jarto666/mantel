@@ -596,6 +596,12 @@ export const mockApi: Api = {
     // ?mockUpdate shows the update offer and the update screen in the browser.
     return new URLSearchParams(location.search).has("mockUpdate") ? "0.4.0" : null;
   },
+  async beginUpdate() {},
+  async endUpdate() {},
+  async updateInProgress() {
+    // ?installing shows what a copy opened during an install looks like, for a few seconds.
+    return new URLSearchParams(location.search).has("installing") && performance.now() < 6000 ? "0.5.1" : null;
+  },
   async installUpdate(onProgress, beforeInstall) {
     const total = 96 * 1024 ** 2;
     for (let step = 0; step <= 40; step++) {
