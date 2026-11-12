@@ -249,6 +249,7 @@ export const ru: Catalog = {
   "Looking for apps…": "Ищем приложения…",
   "Nothing new found.": "Ничего нового не нашлось.",
   "Close app": "Закрыть приложение",
+  "Closed {name}": "{name}: приложение закрыто",
   "Press Y again": "Нажмите Y ещё раз",
   "Microsoft Store": "Microsoft Store",
   "Program": "Программа",

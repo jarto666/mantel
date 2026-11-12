@@ -15,7 +15,7 @@ Key facts:
 - Plays a game's trailer, muted, behind it (can be turned off).
 - Can be the home app of Windows' full screen experience (Xbox mode): one button in setup or Settings, which turns on Windows' Developer Mode once you allow it. Uninstalling gives Xbox mode back its previous home app.
 - A short first-run setup: language, Steam and Xbox sign-in, and how the handheld starts.
-- An Apps tab next to the games for music, video, chat and browsers: Microsoft Store and Edge from the start, known apps such as Spotify, Netflix and Discord when installed, and anything else from the Start menu, a list of sites that open in their own Edge window, or a file. Apps open, switch and close like games; time in them isn't playtime.
+- An Apps tab next to the games for music, video, chat and browsers: Microsoft Store and Edge from the start, known apps such as Spotify, Netflix and Discord when installed, and anything else from the Start menu, a list of sites that open in their own Edge window, or a file. Apps open, switch and close like games; an open app shows only as a dot on its tile, with no timer, and time in apps isn't playtime.
 - Minimizes while a game runs and comes back when it exits.
 - Artwork comes from Steam and GOG, plus SteamGridDB with the user's own free key.
 - Privacy: no servers and no telemetry. Steam and Xbox sign-in happen on Steam's and Microsoft's own pages. All data stays on the PC in `%APPDATA%\com.playmantel.launcher\`.

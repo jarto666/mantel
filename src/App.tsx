@@ -15,7 +15,7 @@ import { usePageHidden } from "./hooks";
 import { idleFor, Layer, setBackgroundInput, setWakeHandler, startInput, useInput } from "./input";
 import { warmUpSound } from "./sound";
 import { setLanguage, t } from "./i18n";
-import { boot, gameById, isGame, toast, useStore, wireEvents } from "./store";
+import { boot, gameById, isGame, padIsFree, toast, useStore, wireEvents } from "./store";
 import { installLabel } from "./util";
 import { Details } from "./views/Details";
 import { GamePass } from "./views/GamePass";
@@ -115,7 +115,7 @@ export function App() {
   useEffect(() => {
     startInput();
     requestIdleCallback(() => warmUpSound());
-    setBackgroundInput(() => !useStore.getState().running.length);
+    setBackgroundInput(padIsFree);
     if (isTauri) import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setFocus()).catch(() => {});
     const off = wireEvents();
     boot().catch((e) => toast(t("Startup failed: {error}", { error: String(e) }), "warn"));

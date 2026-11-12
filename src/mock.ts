@@ -474,6 +474,9 @@ export const mockApi: Api = {
   async runningGames() {
     return structuredClone(running);
   },
+  async appInFront() {
+    return false;
+  },
   async openGameFolder() {},
   async powerStatus() {
     const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> };
