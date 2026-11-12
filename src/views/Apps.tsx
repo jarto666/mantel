@@ -28,12 +28,8 @@ function AppTile({ app, focused, running, armed, removing, closing, onClick }: {
     <div className={`app-tile ${focused ? "is-focused" : ""}`} onClick={onClick}>
       <div className="app-tile-frame" style={{ "--tile": app.color ?? undefined } as React.CSSProperties}>
         <Img srcs={app.art.icon} className="app-tile-icon" trim fallback={<span className="app-tile-letter">{app.name.slice(0, 1)}</span>} />
-        {running && !armed && !closing && !removing && (
-          <span className="app-tile-live">
-            <span className="live-dot" />
-            {t("Running")}
-          </span>
-        )}
+        {/* Open, as a dock marks it: a dot, no clock. */}
+        {running && !armed && !closing && !removing && <span className="app-tile-open" />}
         {(armed || closing || removing) && <span className={`app-tile-ask ${closing ? "is-busy" : ""}`}>{closing ? t("Closing…") : removing ? t("Press X again") : t("Press Y again")}</span>}
       </div>
       <div className="app-tile-name">{app.name}</div>
@@ -216,16 +212,12 @@ export function Apps({ active }: { active: boolean }) {
       <section className="apps-hero" key={`hero:${app?.id ?? "add"}`}>
         <div className="apps-hero-icon" style={{ "--tile": app?.color ?? undefined } as React.CSSProperties}>
           {app ? <Img srcs={app.art.icon} trim fallback={<span className="app-tile-letter">{app.name.slice(0, 1)}</span>} /> : PLUS}
+          {/* Open: a dot on its icon, so nothing below moves. */}
+          {isRunning && <span className="apps-hero-open" />}
         </div>
         <h1 className="apps-hero-name">{app ? app.name : t("Add an app")}</h1>
         <div className="apps-hero-meta">
           {app ? app.site : t("Programs, Microsoft Store apps and websites")}
-          {isRunning && (
-            <span className="live">
-              <span className="live-dot" />
-              {t("Running")}
-            </span>
-          )}
         </div>
         <div className="hero-actions">
           {buttons.map((b, n) => (

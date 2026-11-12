@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { t } from "../i18n";
-import { gameById, useStore, type View } from "../store";
+import { gameById, gamesRunning, useStore, type View } from "../store";
 import type { Power } from "../types";
 import { Glyph } from "./Glyph";
 
@@ -65,11 +65,12 @@ export function Battery({ power }: { power: Power }) {
   );
 }
 
-/** The game started last, and how many more are running. */
+/** The game started last, and how many more are running. Apps stay out of it. */
 function RunningPill() {
   const running = useStore((s) => s.running);
+  const games = useStore((s) => s.games);
   const now = useClock();
-  const list = running.filter((r) => r.detected);
+  const list = gamesRunning({ running, games }).filter((r) => r.detected);
   const latest = list[list.length - 1];
   const game = gameById(latest?.id ?? null);
   if (!latest || !game) return null;

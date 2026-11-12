@@ -209,6 +209,8 @@ img { display: block; }
 .install-ring circle + circle { stroke: var(--ink); stroke-linecap: round; transition: stroke-dashoffset 0.7s var(--ease); }
 
 .live-dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--good); animation: pulse 1.8s ease-out infinite; }
+/* An app that's open: marked, but nothing to watch. */
+.live-dot.is-still { animation: none; }
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 rgba(95, 224, 138, 0.6); }
   100% { box-shadow: 0 0 0 0.7rem rgba(95, 224, 138, 0); }
@@ -624,7 +626,7 @@ img { display: block; }
 .app-tile.is-focused .app-tile-frame { transform: scale(1.05); box-shadow: var(--focus), 0 1.8rem 3.2rem -1.2rem rgba(0, 0, 0, 0.75), 0 0 3.4rem -0.6rem var(--glow); }
 .app-tile-icon { width: 46%; height: 46%; object-fit: contain; filter: drop-shadow(0 0.4rem 0.9rem rgba(0, 0, 0, 0.35)); }
 .app-tile-letter { font-size: 3.4rem; font-weight: 650; color: rgba(255, 255, 255, 0.9); }
-.app-tile-live { position: absolute; left: 0.6rem; top: 0.6rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.28rem 0.6rem; border-radius: 99px; background: rgba(5, 6, 10, 0.72); color: #a8f3bf; font-size: 0.72rem; font-weight: 650; }
+.app-tile-open { position: absolute; left: 50%; bottom: 0.7rem; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 0 0 0.15rem rgba(0, 0, 0, 0.22); transform: translateX(-50%); }
 /* Asking for the second press, then saying it's on its way out. */
 .app-tile-ask { position: absolute; left: 0; right: 0; bottom: 0; padding: 0.6rem 0.4rem; background: var(--bad); color: #fff; font-size: 0.9rem; font-weight: 650; text-align: center; }
 .app-tile-ask.is-busy { background: rgba(5, 6, 10, 0.78); color: var(--ink-2); }
@@ -635,23 +637,46 @@ img { display: block; }
 
 /* The scene: the selected app big on its own colour, a shelf of tiles below, as on Home. */
 .apps-scene { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 0 0 var(--pad-x); overflow: hidden; }
+/* The app's colour as a light from the top right, falling off to black, never a blob. Its mark
+   sits in the field tone on tone, cropped by the screen like a poster's; grain keeps the
+   gradient from banding. All of it is still: nothing here moves while the tab is open. */
 .apps-ambient {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(70rem 46rem at 78% 30%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 70%),
-    linear-gradient(90deg, rgba(5, 6, 10, 0.75) 0%, rgba(5, 6, 10, 0.2) 55%, transparent 100%);
+    linear-gradient(90deg, rgba(5, 6, 10, 0.92) 0%, rgba(5, 6, 10, 0.7) 32%, rgba(5, 6, 10, 0.2) 70%, rgba(5, 6, 10, 0.05) 100%),
+    linear-gradient(200deg, color-mix(in oklab, var(--accent) 42%, #05060a) 0%, color-mix(in oklab, var(--accent) 16%, #05060a) 45%, #05060a 85%);
   animation: fadeIn 0.6s ease both;
 }
-.apps-ghost { position: absolute; right: 7%; top: 14%; width: 30rem; height: 30rem; object-fit: contain; opacity: 0.22; }
+.apps-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.apps-ghost {
+  position: absolute;
+  right: -10rem;
+  top: -6rem;
+  width: 56rem;
+  height: 56rem;
+  object-fit: contain;
+  opacity: 0.5;
+  filter: grayscale(1) contrast(1.2);
+  mix-blend-mode: overlay;
+  -webkit-mask-image: linear-gradient(215deg, #000 20%, transparent 75%);
+  mask-image: linear-gradient(215deg, #000 20%, transparent 75%);
+}
 .apps-hero { position: relative; margin-top: 11rem; max-width: 46rem; animation: rise 0.55s var(--ease) both; }
-.apps-hero-icon { width: 7rem; height: 7rem; border-radius: 1.7rem; display: grid; place-items: center; background: var(--tile, rgba(255, 255, 255, 0.08)); box-shadow: 0 1.4rem 3rem -1rem rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.1); color: var(--ink-2); }
+.apps-hero-icon { position: relative; width: 7rem; height: 7rem; border-radius: 1.7rem; display: grid; place-items: center; background: var(--tile, rgba(255, 255, 255, 0.08)); box-shadow: 0 1.4rem 3rem -1rem rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.1); color: var(--ink-2); }
 .apps-hero-icon img { width: 58%; height: 58%; object-fit: contain; }
 .apps-hero-icon svg { width: 2.6rem; height: 2.6rem; }
 .apps-hero-name { margin: 1.6rem 0 0.5rem; font-size: 4.2rem; font-weight: 650; letter-spacing: -0.035em; line-height: 1.02; }
 .apps-hero-meta { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; font-size: 1.15rem; color: var(--ink-2); }
-.apps-hero-meta .live { display: inline-flex; align-items: center; gap: 0.5rem; color: #a8f3bf; }
+.apps-hero-open { position: absolute; right: -0.35rem; bottom: -0.35rem; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 0.3rem #07080c; }
 /* A scroll box clips what spills out of it, the focus glow included: the shelf reaches the
    screen's edge, and its padding keeps the tiles where they were with room for the glow. */
 .apps-shelf { position: relative; display: flex; gap: 1.5rem; margin: auto 0 0 calc(-1 * var(--pad-x)); padding: 4.5rem 4.5rem 7.5rem var(--pad-x); overflow-x: auto; scrollbar-width: none; }

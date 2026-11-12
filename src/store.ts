@@ -140,6 +140,14 @@ const get = useStore.getState;
 /** Games, as opposed to the programs and sites on the Apps tab. */
 export const isGame = (g: Game) => g.kind !== "app";
 
+/** What's running, leaving out apps: Spotify being open says nothing about where the player is. */
+export const gamesRunning = (s: { running: Running[]; games: Game[] }) => s.running.filter((r) => !s.games.some((g) => g.id === r.id && !isGame(g)));
+
+let appInFront = false;
+/** Whether the pad may drive Mantel while it isn't focused: not while a game runs, nor while an
+ *  app's window is in front of Mantel. */
+export const padIsFree = () => !gamesRunning(get()).length && !appInFront;
+
 export const gameById = (id: string | null) =>
   id ? get().games.find((g) => g.id === id) ?? get().catalog.find((g) => g.id === id) ?? get().storeGames[id] ?? null : null;
 
@@ -486,7 +494,7 @@ export async function checkForUpdateNow() {
 }
 
 export async function installUpdate() {
-  if (get().running.length) return toast(t("Close the game first, then update"), "warn");
+  if (gamesRunning(get()).length) return toast(t("Close the game first, then update"), "warn");
   const version = get().update ?? "";
   set({ updateOffer: null, updating: { version, downloaded: 0, total: null, restartIn: null } });
   const patch = (p: Partial<Updating>) => set((s) => ({ updating: s.updating && { ...s.updating, ...p } }));
@@ -636,6 +644,9 @@ export async function closeRunning(id: string) {
     toast(errorText(e), "warn");
     return set((s) => ({ closing: notClosing(s, id) }));
   }
+  // The call returns once it's gone. A game says so with its playtime when its session ends.
+  const game = gameById(id);
+  if (name && game && !isGame(game)) toast(t("Closed {name}", { name }), "good");
   // A launch that never got going is simply dropped, with no "game-stopped" to follow.
   const left = await api.runningGames();
   if (!left.some((r) => r.id === id))
@@ -643,6 +654,7 @@ export async function closeRunning(id: string) {
 }
 
 export function wireEvents() {
+  api.appInFront().then((v) => void (appInFront = v), () => {});
   const offs = [
     api.on("game-started", (id) => {
       set((s) => ({
@@ -662,10 +674,12 @@ export function wireEvents() {
       const game = gameById(id);
       const name = game?.name;
       const min = Math.round(seconds / 60);
-      // Time in an app isn't playtime.
-      if (name && seconds > 0) toast(min > 0 && isGame(game) ? t("{name}: +{min} min played", { name, min }) : t("{name} closed", { name }), "good");
+      // Time in an app isn't playtime, and an app that closes needs no word: closing one from
+      // Mantel says so itself.
+      if (name && game && seconds > 0 && isGame(game)) toast(min > 0 ? t("{name}: +{min} min played", { name, min }) : t("{name} closed", { name }), "good");
       set({ games: await api.getLibrary(false) });
     }),
+    api.on("front-app", (payload) => void (appInFront = payload === true)),
     api.on("install-progress", (payload) => void installProgress(payload as InstallProgress)),
     api.on("game-uninstalled", (payload) => void gameUninstalled(payload as string)),
     api.on("game-launch-timeout", (id) => {

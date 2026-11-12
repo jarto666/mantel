@@ -229,6 +229,7 @@ export const fr: Catalog = {
   "Looking for apps…": "Recherche d’applis…",
   "Nothing new found.": "Rien de nouveau.",
   "Close app": "Fermer l’appli",
+  "Closed {name}": "Appli fermée : {name}",
   "Press Y again": "Appuyez encore sur Y",
   "Microsoft Store": "Microsoft Store",
   "Program": "Programme",

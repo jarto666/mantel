@@ -56,6 +56,8 @@ export interface Api {
   launchGame(id: string): Promise<void>;
   closeGame(id: string): Promise<void>;
   runningGames(): Promise<Running[]>;
+  /** Whether an app's window is in front, which keeps the pad away from Mantel behind it. */
+  appInFront(): Promise<boolean>;
   openGameFolder(id: string): Promise<void>;
   powerStatus(): Promise<Power>;
   quickStatus(): Promise<Quick>;
@@ -108,7 +110,7 @@ export interface Api {
   updateInProgress(): Promise<string | null>;
 }
 
-export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout" | "install-progress" | "game-uninstalled";
+export type GameEvent = "game-started" | "game-stopped" | "game-launch-timeout" | "install-progress" | "game-uninstalled" | "front-app";
 
 export interface FullScreenMode {
   supported: boolean;
@@ -163,6 +165,7 @@ const tauriApi: Api = {
   launchGame: (id) => call("launch_game", { id }),
   closeGame: (id) => call("close_game", { id }),
   runningGames: () => call("running_games"),
+  appInFront: () => call("app_in_front"),
   openGameFolder: (id) => call("open_game_folder", { id }),
   powerStatus: () => call("power_status"),
   quickStatus: () => call("quick_status"),

@@ -42,7 +42,8 @@ TV PC.
   Store and Edge are there from the start, and Spotify, Netflix, Discord and other apps you
   have join by themselves. Anything else adds from the Start menu, a list of sites such as
   YouTube and Twitch that open in their own window, or a file. Apps open, switch and close
-  like games, and time in them isn't counted as playtime.
+  like games, but an open app is only a dot on its tile: no timer, no "Playing", and it
+  doesn't hold back updates. Time in apps isn't counted as playtime.
 - **Steps aside while you play.** Mantel minimizes when a game starts and comes back when
   it exits.
 - **Art for everything.** Covers, backgrounds and logos come from Steam and GOG; a free

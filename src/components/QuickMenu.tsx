@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { errorText, locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
-import { closeRunning, gameById, rescan, toast, useStore } from "../store";
+import { closeRunning, gameById, isGame, rescan, toast, useStore } from "../store";
 import { installLabel } from "../util";
 import { DOWNLOAD } from "./Glyph";
 import type { Power, Quick } from "../types";
@@ -283,9 +283,9 @@ export function QuickMenu() {
           <div className="cc-now">
             {game ? (
               <>
-                <span className="live-dot" />
+                <span className={`live-dot ${isGame(game) ? "" : "is-still"}`} />
                 <span>{game.name}</span>
-                <span className="cc-dim">{game.kind === "app" ? t("{n} min", { n: minutes }) : t("{n} min this session", { n: minutes })}</span>
+                {isGame(game) && <span className="cc-dim">{t("{n} min this session", { n: minutes })}</span>}
               </>
             ) : (
               <span className="cc-dim">{t("Control Center")}</span>

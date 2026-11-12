@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { onGamePass, useStore } from "../store";
+import { isGame, onGamePass, useStore } from "../store";
 import { t } from "../i18n";
 import type { Game } from "../types";
 import { placeholderHue } from "../util";
@@ -45,9 +45,11 @@ export const Cover = memo(function Cover({
 }) {
   const install = useStore((s) => s.installs[game.id]);
   const onPass = useStore(() => storeMark && onGamePass(game));
+  // An app being open isn't playing: its tile on the Apps tab shows that quietly.
+  const playing = running && isGame(game);
   // "New" and "Leaving soon" only ever mean Game Pass, and "Playing" is short-lived: any of them
   // takes the corner the Game Pass mark would sit in.
-  const badge = running || game.tags?.includes("leaving") || game.tags?.includes("new");
+  const badge = playing || game.tags?.includes("leaving") || game.tags?.includes("new");
   return (
     <div className={`cover ${focused ? "is-focused" : ""} ${game.installed ? "" : "is-uninstalled"} ${className}`} onClick={onClick && (() => onClick(game))} data-id={game.id}>
       <div className="cover-frame">
@@ -58,7 +60,7 @@ export const Cover = memo(function Cover({
           <span className="cover-progress">
             <span style={{ width: `${install.percent}%` }} />
           </span>
-        ) : running ? (
+        ) : playing ? (
           <span className="cover-badge">{t("Playing")}</span>
         ) : game.tags?.includes("leaving") ? (
           <span className="cover-badge is-leaving">{t("Leaving soon")}</span>

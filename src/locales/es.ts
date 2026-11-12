@@ -229,6 +229,7 @@ export const es: Catalog = {
   "Looking for apps…": "Buscando apps…",
   "Nothing new found.": "No hay nada nuevo.",
   "Close app": "Cerrar app",
+  "Closed {name}": "App cerrada: {name}",
   "Press Y again": "Pulsa Y de nuevo",
   "Microsoft Store": "Microsoft Store",
   "Program": "Programa",
