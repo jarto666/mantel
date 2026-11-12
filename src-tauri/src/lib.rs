@@ -586,8 +586,8 @@ fn save_settings(state: State<'_, AppState>, settings: Settings) {
     state.save_user(&user);
 }
 
-/// Adds an exe, shortcut, .url or batch file. Shortcuts are launched as-is (keeping their
-/// arguments) but tracked through the exe they point at; exes get their product name.
+/// Adds an exe, shortcut, .url or batch file. Resolved exe shortcuts launch the exe with the
+/// shortcut's arguments and working folder; other file types are opened through the shell.
 #[tauri::command]
 async fn add_custom_game(app: AppHandle, path: String, name: Option<String>, target: Option<String>) -> Result<Vec<Game>, String> {
     let state = app.state::<AppState>();
@@ -597,17 +597,45 @@ async fn add_custom_game(app: AppHandle, path: String, name: Option<String>, tar
     let file = std::path::Path::new(&path);
     let stem = file.file_stem().map(|s| s.to_string_lossy().to_string()).ok_or("bad path")?;
     let ext = file.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-    let (name, target) = {
+    let (name, target, args, working_dir, shortcut_launch) = {
         let path = path.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            let target = target.or_else(|| (ext == "lnk").then(|| pick::shortcut_target(&path)).flatten());
-            let name = name.or_else(|| (ext == "exe").then(|| pick::product_name(&path)).flatten()).unwrap_or(stem);
-            (name, target)
+            let shortcut = (ext == "lnk").then(|| pick::shortcut_info(&path)).flatten();
+            let shortcut_launch = shortcut.as_ref().is_some_and(|s| s.target.to_lowercase().ends_with(".exe"));
+            let target = shortcut
+                .as_ref()
+                .map(|s| s.target.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .or(target);
+            let args = if shortcut_launch {
+                shortcut
+                    .as_ref()
+                    .map(|s| pick::parse_windows_args(&s.arguments))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            let working_dir = shortcut
+                .as_ref()
+                .map(|s| s.working_directory.trim().to_string())
+                .filter(|dir| !dir.is_empty());
+            let name = name
+                .or_else(|| (ext == "exe").then(|| pick::product_name(&path)).flatten())
+                .unwrap_or(stem);
+            (name, target, args, working_dir, shortcut_launch)
         })
         .await
         .map_err(|e| e.to_string())?
     };
-    let custom = CustomGame { id: format!("{:x}", now()), name, path: path.clone(), args: Vec::new(), target };
+    let custom = CustomGame {
+        id: format!("{:x}", now()),
+        name,
+        path: path.clone(),
+        args,
+        target,
+        working_dir,
+        shortcut_launch,
+    };
     let game = library::custom_game(&custom);
     if let Some(dir) = game.install_dir.clone() {
         allow_assets(&app, &[dir.into()]);

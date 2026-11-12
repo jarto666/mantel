@@ -202,24 +202,126 @@ pub fn product_name(_exe: &str) -> Option<String> {
     None
 }
 
-/// Where a shortcut points.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ShortcutInfo {
+    pub target: String,
+    pub arguments: String,
+    pub working_directory: String,
+}
+
+/// The executable, arguments and working folder a shortcut points to.
 #[cfg(windows)]
-pub fn shortcut_target(lnk: &str) -> Option<String> {
+pub fn shortcut_info(lnk: &str) -> Option<ShortcutInfo> {
     let escaped = lnk.replace('\'', "''");
-    let script = format!("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (New-Object -ComObject WScript.Shell).CreateShortcut('{escaped}').TargetPath");
-    let target = powershell(&script)?.trim().trim_start_matches('\u{feff}').to_string();
-    (!target.is_empty()).then_some(target)
+    let script = format!(
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $s = (New-Object -ComObject WScript.Shell).CreateShortcut('{escaped}'); [pscustomobject]@{{ target = [string]$s.TargetPath; arguments = [string]$s.Arguments; workingDirectory = [string]$s.WorkingDirectory }} | ConvertTo-Json -Compress"
+    );
+    let output = powershell(&script)?;
+    serde_json::from_str(output.trim().trim_start_matches('\u{feff}')).ok()
 }
 
 #[cfg(not(windows))]
-pub fn shortcut_target(_lnk: &str) -> Option<String> {
+pub fn shortcut_info(_lnk: &str) -> Option<ShortcutInfo> {
     None
+}
+
+/// Where a shortcut points, for callers that only need its executable path.
+pub fn shortcut_target(lnk: &str) -> Option<String> {
+    shortcut_info(lnk).map(|s| s.target).filter(|target| !target.is_empty())
+}
+
+/// Splits a shortcut's Windows command-line arguments without losing quoted paths.
+pub fn parse_windows_args(raw: &str) -> Vec<String> {
+    let chars: Vec<char> = raw.chars().collect();
+    let mut args = Vec::new();
+    let mut arg = String::new();
+    let mut in_quotes = false;
+    let mut started = false;
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i].is_whitespace() && !in_quotes {
+            if started {
+                args.push(std::mem::take(&mut arg));
+                started = false;
+            }
+            i += 1;
+            continue;
+        }
+        if chars[i] == '\\' {
+            let start = i;
+            while i < chars.len() && chars[i] == '\\' {
+                i += 1;
+            }
+            let slashes = i - start;
+            if i < chars.len() && chars[i] == '"' {
+                arg.extend(std::iter::repeat('\\').take(slashes / 2));
+                started = true;
+                if slashes % 2 == 1 {
+                    arg.push('"');
+                    i += 1;
+                } else if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+                    arg.push('"');
+                    i += 2;
+                } else {
+                    in_quotes = !in_quotes;
+                    i += 1;
+                }
+            } else {
+                arg.extend(std::iter::repeat('\\').take(slashes));
+                started = true;
+            }
+            continue;
+        }
+        if chars[i] == '"' {
+            started = true;
+            if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+                arg.push('"');
+                i += 2;
+            } else {
+                in_quotes = !in_quotes;
+                i += 1;
+            }
+            continue;
+        }
+        arg.push(chars[i]);
+        started = true;
+        i += 1;
+    }
+    if started {
+        args.push(arg);
+    }
+    args
 }
 
 /// Runs a PowerShell script without a window and returns what it printed.
 #[cfg(windows)]
 pub(crate) fn run_powershell(script: &str) -> Option<String> {
     powershell(script)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_windows_args;
+
+    #[test]
+    fn keeps_quoted_shortcut_paths_as_one_argument() {
+        let raw = r#"-f -g "C:/Users/p/Documents/ROMS\Kirby’s Return to Dream Land Deluxe [01006B601380E000].xci""#;
+        assert_eq!(
+            parse_windows_args(raw),
+            vec![
+                "-f".to_string(),
+                "-g".to_string(),
+                "C:/Users/p/Documents/ROMS\\Kirby’s Return to Dream Land Deluxe [01006B601380E000].xci".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn handles_escaped_quotes_and_empty_arguments() {
+        assert_eq!(parse_windows_args(r#"one "" "two\" words""#), ["one", "", "two\" words"]);
+    }
 }
 
 #[cfg(windows)]
