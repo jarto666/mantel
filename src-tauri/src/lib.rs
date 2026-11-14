@@ -1053,6 +1053,12 @@ fn running_games(state: State<'_, AppState>) -> Vec<launcher::Running> {
     state.running.lock().unwrap().clone()
 }
 
+/// Whether an app's window is in front, which keeps the pad away from Mantel behind it.
+#[tauri::command]
+fn app_in_front() -> bool {
+    launcher::app_in_front()
+}
+
 #[tauri::command]
 fn open_game_folder(state: State<'_, AppState>, id: String) -> Result<(), String> {
     let dir = state.cache.lock().unwrap().library.iter().find(|g| g.id == id).and_then(|g| g.install_dir.clone());
@@ -1149,6 +1155,7 @@ pub fn run() {
             allow_assets(app.handle(), &dirs);
             allow_assets(app.handle(), &customs);
             launcher::spawn_tracker(app.handle().clone());
+            launcher::watch_front(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1178,6 +1185,7 @@ pub fn run() {
             close_game,
             switch_to_game,
             running_games,
+            app_in_front,
             app_choices,
             begin_update,
             end_update,

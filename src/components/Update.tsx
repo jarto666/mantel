@@ -5,14 +5,14 @@ import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { sound } from "../sound";
-import { dismissUpdateOffer, installUpdate, useStore, type Updating } from "../store";
+import { dismissUpdateOffer, gamesRunning, installUpdate, useStore, type Updating } from "../store";
 import { size } from "../util";
 import { useHints } from "./Hints";
 
 /** A newer release, offered once as soon as setup, a game and its launch are out of the way. */
 export function UpdateOffer() {
   const offer = useStore((s) => s.updateOffer);
-  const blocked = useStore((s) => s.setupStep !== null || s.running.length > 0 || s.launching !== null || s.updating !== null);
+  const blocked = useStore((s) => s.setupStep !== null || gamesRunning(s).length > 0 || s.launching !== null || s.updating !== null);
   return <AnimatePresence>{offer && !blocked && <Offer key={offer} version={offer} />}</AnimatePresence>;
 }
 

@@ -4,7 +4,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -381,6 +382,7 @@ pub fn spawn_tracker(app: AppHandle) {
             std::thread::sleep(POLL);
             let targets = targets(&app);
             refresh(&mut sys);
+            check_front(&app);
 
             let pending_pid = PENDING.lock().unwrap().as_ref().and_then(|p| Some((p.id.clone(), p.pid?)));
             let mut alive: HashSet<String> = HashSet::new();
@@ -429,6 +431,10 @@ pub fn spawn_tracker(app: AppHandle) {
     });
 }
 
+fn is_app(app: &AppHandle, id: &str) -> bool {
+    app.state::<AppState>().cache.lock().unwrap().library.iter().any(|g| g.id == id && g.is_app())
+}
+
 /// A game's process just appeared. Returns whether Mantel launched it.
 fn started(app: &AppHandle, id: &str) -> bool {
     let state = app.state::<AppState>();
@@ -441,7 +447,9 @@ fn started(app: &AppHandle, id: &str) -> bool {
         hit
     };
     detected(&mut state.running.lock().unwrap(), id, now());
-    crate::log::info(&format!("session start {id} (from mantel: {from_mantel})"));
+    // Apps have lines of their own, so a "session start" without an end always means a game.
+    let what = if is_app(app, id) { "app open" } else { "session start" };
+    crate::log::info(&format!("{what} {id} (from mantel: {from_mantel})"));
     let _ = app.emit("game-started", id);
     if from_mantel && state.user.lock().unwrap().settings.minimize_on_launch {
         if let Some(w) = app.get_webview_window("main") {
@@ -455,20 +463,21 @@ fn finish(app: &AppHandle, id: &str, session: &Session) {
     let state = app.state::<AppState>();
     // The game was gone for every missed poll.
     let seconds = session.since.elapsed().as_secs().saturating_sub(POLL.as_secs() * session.misses as u64);
+    let an_app = is_app(app, id);
     // A game that didn't stay, like one refused its license at launch, hasn't been played.
     // Time in an app isn't playtime, but when it was last used orders the Apps tab.
     if seconds > 0 {
-        let app = state.cache.lock().unwrap().library.iter().any(|g| g.id == id && g.is_app());
         let mut user = state.user.lock().unwrap();
         let meta = user.meta.entry(id.to_string()).or_default();
-        if !app {
+        if !an_app {
             meta.tracked_minutes += (seconds + 30) / 60;
         }
         meta.last_played = Some(now());
         state.save_user(&user);
     }
     state.running.lock().unwrap().retain(|r| r.id != id);
-    crate::log::info(&format!("session end {id} after {seconds}s"));
+    let what = if an_app { "app closed" } else { "session end" };
+    crate::log::info(&format!("{what} {id} after {seconds}s"));
     let _ = app.emit("game-stopped", Stopped { id: id.to_string(), seconds });
     // Come back to the front only for games we sent the player into, and not over another
     // game the player has moved on to.
@@ -557,18 +566,162 @@ fn targets(app: &AppHandle) -> Vec<Target> {
         .collect()
 }
 
+/// What marks an app's window: its program, or for a site the browser it opens in. Sites aren't
+/// followed as running, but a browser in front is still not Mantel.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn app_targets(app: &AppHandle) -> Vec<Target> {
+    let state = app.state::<AppState>();
+    let cache = state.cache.lock().unwrap();
+    cache.library.iter().filter(|g| g.is_app()).filter_map(|g| app_target(g)).collect()
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn app_target(g: &Game) -> Option<Target> {
+    let mut exes: Vec<String> = g.exe_names.iter().map(|e| e.to_lowercase()).collect();
+    if let (Some(_), Launch::Exe { path, .. }) = (&g.site, &g.launch) {
+        exes.extend(path.rsplit(['\\', '/']).next().map(str::to_lowercase));
+    }
+    let dir = g.install_dir.as_deref().map(normalize_dir);
+    (dir.is_some() || !exes.is_empty()).then(|| Target { id: g.id.clone(), dir, exes, window: true })
+}
+
+/// Whether an app's window is in front. The pad then belongs to that app, even while Mantel
+/// shows behind it; a game running takes the pad away from Mantel by itself.
+static APP_IN_FRONT: AtomicBool = AtomicBool::new(false);
+static WATCHING: OnceLock<AppHandle> = OnceLock::new();
+
+pub fn app_in_front() -> bool {
+    APP_IN_FRONT.load(Ordering::Relaxed)
+}
+
+/// Follows the window in front: Windows reports each change to a thread of its own, and the
+/// tracker looks again on every poll in case a change went unreported.
+pub fn watch_front(app: &AppHandle) {
+    if WATCHING.set(app.clone()).is_err() {
+        return;
+    }
+    #[cfg(windows)]
+    std::thread::spawn(|| unsafe {
+        use windows_sys::Win32::UI::Accessibility::SetWinEventHook;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetMessageW, EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT};
+        let hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, std::ptr::null_mut(), Some(front_changed), 0, 0, WINEVENT_OUTOFCONTEXT);
+        if hook.is_null() {
+            return crate::log::warn("front window: not followed, only checked every few seconds");
+        }
+        // The hook's reports arrive as messages to this thread.
+        let mut msg: MSG = std::mem::zeroed();
+        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
+    });
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn front_changed(_hook: windows_sys::Win32::UI::Accessibility::HWINEVENTHOOK, _event: u32, _hwnd: windows_sys::Win32::Foundation::HWND, _object: i32, _child: i32, _thread: u32, _time: u32) {
+    if let Some(app) = WATCHING.get() {
+        check_front(app);
+    }
+}
+
+/// Tells the page when the window in front starts or stops being an app's.
+fn check_front(app: &AppHandle) {
+    let now = front_is_app(app);
+    if APP_IN_FRONT.swap(now, Ordering::Relaxed) != now {
+        let _ = app.emit("front-app", now);
+    }
+}
+
+#[cfg(windows)]
+fn front_is_app(app: &AppHandle) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    let hwnd = unsafe { GetForegroundWindow() };
+    let mut pid = 0u32;
+    if hwnd.is_null() || unsafe { GetWindowThreadProcessId(hwnd, &mut pid) } == 0 || pid == std::process::id() {
+        return false;
+    }
+    let Some(mut exe) = exe_of(pid) else { return false };
+    // A Store app's window belongs to the frame host; the app's own process draws inside it.
+    if file_name(&exe).eq_ignore_ascii_case("applicationframehost.exe") {
+        match hosted_by(hwnd, pid).and_then(exe_of) {
+            Some(hosted) => exe = hosted,
+            None => return false,
+        }
+    }
+    let name = file_name(&exe);
+    app_targets(app).iter().any(|t| matches_exe(t, Some(&exe), name))
+}
+
+#[cfg(not(windows))]
+fn front_is_app(_app: &AppHandle) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn file_name(path: &str) -> &str {
+    path.rsplit(['\\', '/']).next().unwrap_or(path)
+}
+
+/// The full path of a process's executable. Needs only the right to ask, which Windows grants
+/// for the player's own processes, elevated ones too.
+#[cfg(windows)]
+fn exe_of(pid: u32) -> Option<String> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
+    unsafe {
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if process.is_null() {
+            return None;
+        }
+        let mut buf = [0u16; 1024];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len) != 0;
+        CloseHandle(process);
+        ok.then(|| String::from_utf16_lossy(&buf[..len as usize]))
+    }
+}
+
+/// The process drawing inside a frame host's window: the one child window that isn't the host's.
+#[cfg(windows)]
+fn hosted_by(frame: windows_sys::Win32::Foundation::HWND, host: u32) -> Option<u32> {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetWindowThreadProcessId};
+
+    struct Search {
+        host: u32,
+        found: Option<u32>,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> i32 {
+        let search = &mut *(lparam as *mut Search);
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid != 0 && pid != search.host {
+            search.found = Some(pid);
+            return 0;
+        }
+        1
+    }
+
+    let mut search = Search { host, found: None };
+    unsafe { EnumChildWindows(frame, Some(visit), &mut search as *mut Search as LPARAM) };
+    search.found
+}
+
 fn refresh(sys: &mut System) {
     // Exe paths are cached per pid, so after the first pass only new processes cost anything.
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet));
 }
 
 fn matches(t: &Target, p: &sysinfo::Process) -> bool {
-    if let (Some(dir), Some(exe)) = (&t.dir, p.exe()) {
-        if normalize_path(&exe.to_string_lossy()).starts_with(dir.as_str()) {
+    let exe = t.dir.as_ref().and(p.exe()).map(|e| e.to_string_lossy());
+    matches_exe(t, exe.as_deref(), &p.name().to_string_lossy())
+}
+
+/// A process by its executable's full path, when known, and its file name.
+fn matches_exe(t: &Target, exe: Option<&str>, name: &str) -> bool {
+    if let (Some(dir), Some(exe)) = (&t.dir, exe) {
+        if normalize_path(exe).starts_with(dir.as_str()) {
             return true;
         }
     }
-    !t.exes.is_empty() && t.exes.contains(&p.name().to_string_lossy().to_lowercase())
+    !t.exes.is_empty() && t.exes.contains(&name.to_lowercase())
 }
 
 fn normalize_path(p: &str) -> String {
@@ -668,6 +821,36 @@ mod tests {
         launched(&mut running, "a", 100);
         detected(&mut running, "b", 150);
         assert_eq!(ids(&running), [("a", false), ("b", true)]);
+    }
+
+    fn app(launch: Launch) -> Game {
+        let mut g = Game::new("custom", "x", "X", launch);
+        g.kind = Some("app".into());
+        g
+    }
+
+    #[test]
+    fn an_apps_window_is_known_by_its_program() {
+        let mut spotify = app(Launch::Uri { uri: "shell:AppsFolder\\Spotify".into() });
+        spotify.install_dir = Some(r"C:\Users\p\AppData\Roaming\Spotify".into());
+        spotify.exe_names = vec!["Spotify.exe".into()];
+        let t = app_target(&spotify).unwrap();
+        assert!(matches_exe(&t, Some(r"C:\Users\p\AppData\Roaming\Spotify\Spotify.exe"), "Spotify.exe"));
+        assert!(matches_exe(&t, None, "spotify.exe"));
+        assert!(!matches_exe(&t, Some(r"C:\Users\p\AppData\Roaming\SpotifyHelper\helper.exe"), "helper.exe"));
+    }
+
+    #[test]
+    fn a_site_is_known_by_the_browser_it_opens_in() {
+        let edge = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+        let mut youtube = app(Launch::Exe { path: edge.into(), args: vec!["--app=https://www.youtube.com".into()], cwd: None });
+        youtube.site = Some("youtube.com".into());
+        let t = app_target(&youtube).unwrap();
+        assert!(matches_exe(&t, Some(edge), "msedge.exe"));
+        // Without a browser of its own, a site leaves nothing to know it by.
+        let mut by_uri = app(Launch::Uri { uri: "https://www.youtube.com".into() });
+        by_uri.site = Some("youtube.com".into());
+        assert!(app_target(&by_uri).is_none());
     }
 
     #[test]

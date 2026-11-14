@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, toSrc } from "../api";
 import { usePageHidden } from "../hooks";
 import { idleFor } from "../input";
-import { gameById, isCatalog, isStoreItem, useStore } from "../store";
+import { gameById, gamesRunning, isCatalog, isStoreItem, useStore } from "../store";
 import { streamTrailer } from "../trailer";
 import type { Game } from "../types";
 import { placeholderHue } from "../util";
@@ -60,7 +60,7 @@ function Trailer() {
   // Where a game has the screen to itself: Home, Game Pass, and its own page.
   const onStage = useStore((s) => s.view === "home" || s.view === "gamepass" || s.detailsId !== null);
   const covered = useStore((s) => s.overlay !== null || s.launching !== null || s.watching || s.setupStep !== null);
-  const running = useStore((s) => s.running.length > 0);
+  const running = useStore((s) => gamesRunning(s).length > 0);
   const hidden = usePageHidden();
   const video = useRef<HTMLVideoElement>(null);
   const coveredRef = useRef(covered);
