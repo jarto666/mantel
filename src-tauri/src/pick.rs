@@ -213,12 +213,62 @@ pub struct ShortcutInfo {
 /// The executable, arguments and working folder a shortcut points to.
 #[cfg(windows)]
 pub fn shortcut_info(lnk: &str) -> Option<ShortcutInfo> {
-    let escaped = lnk.replace('\'', "''");
-    let script = format!(
-        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $s = (New-Object -ComObject WScript.Shell).CreateShortcut('{escaped}'); [pscustomobject]@{{ target = [string]$s.TargetPath; arguments = [string]$s.Arguments; workingDirectory = [string]$s.WorkingDirectory }} | ConvertTo-Json -Compress"
-    );
-    let output = powershell(&script)?;
-    serde_json::from_str(output.trim().trim_start_matches('\u{feff}')).ok()
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED, STGM_READ,
+    };
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+    let path = lnk.to_string();
+    let result = std::thread::spawn(move || {
+        struct ComApartment;
+        impl Drop for ComApartment {
+            fn drop(&mut self) {
+                unsafe { CoUninitialize() };
+            }
+        }
+
+        if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
+            return None;
+        }
+        let _apartment = ComApartment;
+        let link: IShellLinkW = unsafe {
+            CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?
+        };
+        let persist: IPersistFile = link.cast().ok()?;
+        let path_wide: Vec<u16> = std::ffi::OsStr::new(&path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe { persist.Load(PCWSTR(path_wide.as_ptr()), STGM_READ).ok()? };
+
+        let mut target = [0u16; 32_768];
+        let mut arguments = [0u16; 32_768];
+        let mut working_directory = [0u16; 32_768];
+        unsafe {
+            link.GetPath(&mut target, std::ptr::null_mut(), 0).ok()?;
+            link.GetArguments(&mut arguments).ok()?;
+            link.GetWorkingDirectory(&mut working_directory).ok()?;
+        }
+        let text = |value: &[u16]| {
+            let length = value.iter().position(|unit| *unit == 0).unwrap_or(value.len());
+            String::from_utf16_lossy(&value[..length])
+        };
+        Some(ShortcutInfo {
+            target: text(&target),
+            arguments: text(&arguments),
+            working_directory: text(&working_directory),
+        })
+    })
+    .join()
+    .ok()
+    .flatten();
+    if result.is_none() {
+        crate::log::warn("shortcut metadata lookup failed: Shell Link COM read failed");
+    }
+    result
 }
 
 #[cfg(not(windows))]
@@ -321,6 +371,60 @@ mod tests {
     #[test]
     fn handles_escaped_quotes_and_empty_arguments() {
         assert_eq!(parse_windows_args(r#"one "" "two\" words""#), ["one", "", "two\" words"]);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn reads_shortcut_target_arguments_and_working_directory() {
+        use super::shortcut_info;
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::{Interface, PCWSTR};
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+            COINIT_APARTMENTTHREADED,
+        };
+        use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let shortcut = std::env::temp_dir().join(format!("mantel-{id}.lnk"));
+        let target = r"C:\Games\eden.exe";
+        let arguments = r#"-f -g "C:/Games/Ron's ROMs/Kirby.xci""#;
+        let working_directory = r"C:\Games";
+        let wide = |value: &std::ffi::OsStr| {
+            value.encode_wide().chain(std::iter::once(0)).collect::<Vec<_>>()
+        };
+
+        std::thread::spawn({
+            let shortcut = shortcut.clone();
+            move || unsafe {
+                assert!(CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok());
+                let link: IShellLinkW =
+                    CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).unwrap();
+                let target_wide = wide(std::ffi::OsStr::new(target));
+                let arguments_wide = wide(std::ffi::OsStr::new(arguments));
+                let working_directory_wide = wide(std::ffi::OsStr::new(working_directory));
+                link.SetPath(PCWSTR(target_wide.as_ptr())).unwrap();
+                link.SetArguments(PCWSTR(arguments_wide.as_ptr())).unwrap();
+                link.SetWorkingDirectory(PCWSTR(working_directory_wide.as_ptr()))
+                    .unwrap();
+                let persist: IPersistFile = link.cast().unwrap();
+                let shortcut_wide = wide(shortcut.as_os_str());
+                persist.Save(PCWSTR(shortcut_wide.as_ptr()), true).unwrap();
+                drop(persist);
+                drop(link);
+                CoUninitialize();
+            }
+        })
+        .join()
+        .unwrap();
+
+        let info = shortcut_info(shortcut.to_str().unwrap()).unwrap();
+        assert_eq!(info.target, target);
+        assert_eq!(info.arguments, arguments);
+        assert_eq!(info.working_directory, working_directory);
+        std::fs::remove_file(shortcut).unwrap();
     }
 }
 
