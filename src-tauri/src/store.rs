@@ -77,6 +77,12 @@ pub struct CustomGame {
     /// For shortcuts: the exe they point at, which is what shows up as a running process.
     #[serde(default)]
     pub target: Option<String>,
+    /// The shortcut's working folder, when it has one.
+    #[serde(default)]
+    pub working_dir: Option<String>,
+    /// Whether a .lnk was resolved and should launch its executable directly.
+    #[serde(default)]
+    pub shortcut_launch: bool,
 }
 
 /// Store sign-ins. Kept out of `Settings` so tokens never travel to the UI, and encrypted on

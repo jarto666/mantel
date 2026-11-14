@@ -81,10 +81,22 @@ pub fn custom_game(c: &CustomGame) -> Game {
     let path = Path::new(&c.path);
     let parent = path.parent().map(|p| p.to_string_lossy().to_string());
     let is_exe = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("exe"));
+    let shortcut_exe = c.shortcut_launch
+        && c.target.as_deref().is_some_and(|target| {
+            Path::new(target).extension().is_some_and(|e| e.eq_ignore_ascii_case("exe"))
+        });
     let launch = if is_exe {
         Launch::Exe { path: c.path.clone(), args: c.args.clone(), cwd: parent.clone() }
+    } else if shortcut_exe {
+        let target = c.target.as_deref().unwrap();
+        let cwd = c
+            .working_dir
+            .clone()
+            .filter(|dir| !dir.is_empty())
+            .or_else(|| Path::new(target).parent().map(|p| p.to_string_lossy().to_string()));
+        Launch::Exe { path: target.to_string(), args: c.args.clone(), cwd }
     } else {
-        // Shortcuts, .url files, batch files: let the shell decide.
+        // Non-exe shortcuts, .url files and batch files still need the shell.
         Launch::Uri { uri: c.path.clone() }
     };
     let mut game = Game::new("custom", c.id.clone(), c.name.clone(), launch);
@@ -193,6 +205,38 @@ pub fn apply_meta(games: &mut [Game], user: &UserData, art: &HashMap<String, Res
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_resolved_shortcut_launches_its_exe_with_its_args_and_working_dir() {
+        let shortcut = CustomGame {
+            id: "shortcut".into(),
+            name: "Eden game".into(),
+            path: r"C:\Users\p\Desktop\Game.lnk".into(),
+            args: vec![
+                "-f".into(),
+                "-g".into(),
+                r"C:/ROMs/Kirby’s Return to Dream Land Deluxe.xci".into(),
+            ],
+            target: Some(r"C:\Eden\eden.exe".into()),
+            working_dir: Some(r"C:\Eden".into()),
+            shortcut_launch: true,
+        };
+        let game = custom_game(&shortcut);
+        let Launch::Exe { path, args, cwd } = &game.launch else {
+            panic!("resolved shortcut should launch its executable");
+        };
+        assert_eq!(path, r"C:\Eden\eden.exe");
+        assert_eq!(
+            args,
+            &vec![
+                "-f".to_string(),
+                "-g".to_string(),
+                r"C:/ROMs/Kirby’s Return to Dream Land Deluxe.xci".to_string(),
+            ]
+        );
+        assert_eq!(cwd.as_deref(), Some(r"C:\Eden"));
+        assert_eq!(game.exe_names, vec!["eden.exe".to_string()]);
+    }
 
     #[test]
     fn finds_game_roots() {

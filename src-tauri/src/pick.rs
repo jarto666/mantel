@@ -202,24 +202,230 @@ pub fn product_name(_exe: &str) -> Option<String> {
     None
 }
 
-/// Where a shortcut points.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ShortcutInfo {
+    pub target: String,
+    pub arguments: String,
+    pub working_directory: String,
+}
+
+/// The executable, arguments and working folder a shortcut points to.
 #[cfg(windows)]
-pub fn shortcut_target(lnk: &str) -> Option<String> {
-    let escaped = lnk.replace('\'', "''");
-    let script = format!("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (New-Object -ComObject WScript.Shell).CreateShortcut('{escaped}').TargetPath");
-    let target = powershell(&script)?.trim().trim_start_matches('\u{feff}').to_string();
-    (!target.is_empty()).then_some(target)
+pub fn shortcut_info(lnk: &str) -> Option<ShortcutInfo> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED, STGM_READ,
+    };
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+    let path = lnk.to_string();
+    let result = std::thread::spawn(move || {
+        struct ComApartment;
+        impl Drop for ComApartment {
+            fn drop(&mut self) {
+                unsafe { CoUninitialize() };
+            }
+        }
+
+        if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
+            return None;
+        }
+        let _apartment = ComApartment;
+        let link: IShellLinkW = unsafe {
+            CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?
+        };
+        let persist: IPersistFile = link.cast().ok()?;
+        let path_wide: Vec<u16> = std::ffi::OsStr::new(&path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe { persist.Load(PCWSTR(path_wide.as_ptr()), STGM_READ).ok()? };
+
+        let mut target = [0u16; 32_768];
+        let mut arguments = [0u16; 32_768];
+        let mut working_directory = [0u16; 32_768];
+        unsafe {
+            link.GetPath(&mut target, std::ptr::null_mut(), 0).ok()?;
+            link.GetArguments(&mut arguments).ok()?;
+            link.GetWorkingDirectory(&mut working_directory).ok()?;
+        }
+        let text = |value: &[u16]| {
+            let length = value.iter().position(|unit| *unit == 0).unwrap_or(value.len());
+            String::from_utf16_lossy(&value[..length])
+        };
+        Some(ShortcutInfo {
+            target: text(&target),
+            arguments: text(&arguments),
+            working_directory: text(&working_directory),
+        })
+    })
+    .join()
+    .ok()
+    .flatten();
+    if result.is_none() {
+        crate::log::warn("shortcut metadata lookup failed: Shell Link COM read failed");
+    }
+    result
 }
 
 #[cfg(not(windows))]
-pub fn shortcut_target(_lnk: &str) -> Option<String> {
+pub fn shortcut_info(_lnk: &str) -> Option<ShortcutInfo> {
     None
+}
+
+/// Where a shortcut points, for callers that only need its executable path.
+pub fn shortcut_target(lnk: &str) -> Option<String> {
+    shortcut_info(lnk).map(|s| s.target).filter(|target| !target.is_empty())
+}
+
+/// Splits a shortcut's Windows command-line arguments without losing quoted paths.
+pub fn parse_windows_args(raw: &str) -> Vec<String> {
+    let chars: Vec<char> = raw.chars().collect();
+    let mut args = Vec::new();
+    let mut arg = String::new();
+    let mut in_quotes = false;
+    let mut started = false;
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i].is_whitespace() && !in_quotes {
+            if started {
+                args.push(std::mem::take(&mut arg));
+                started = false;
+            }
+            i += 1;
+            continue;
+        }
+        if chars[i] == '\\' {
+            let start = i;
+            while i < chars.len() && chars[i] == '\\' {
+                i += 1;
+            }
+            let slashes = i - start;
+            if i < chars.len() && chars[i] == '"' {
+                arg.extend(std::iter::repeat('\\').take(slashes / 2));
+                started = true;
+                if slashes % 2 == 1 {
+                    arg.push('"');
+                    i += 1;
+                } else if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+                    arg.push('"');
+                    i += 2;
+                } else {
+                    in_quotes = !in_quotes;
+                    i += 1;
+                }
+            } else {
+                arg.extend(std::iter::repeat('\\').take(slashes));
+                started = true;
+            }
+            continue;
+        }
+        if chars[i] == '"' {
+            started = true;
+            if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+                arg.push('"');
+                i += 2;
+            } else {
+                in_quotes = !in_quotes;
+                i += 1;
+            }
+            continue;
+        }
+        arg.push(chars[i]);
+        started = true;
+        i += 1;
+    }
+    if started {
+        args.push(arg);
+    }
+    args
 }
 
 /// Runs a PowerShell script without a window and returns what it printed.
 #[cfg(windows)]
 pub(crate) fn run_powershell(script: &str) -> Option<String> {
     powershell(script)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_windows_args;
+
+    #[test]
+    fn keeps_quoted_shortcut_paths_as_one_argument() {
+        let raw = r#"-f -g "C:/Users/p/Documents/ROMS\Kirby’s Return to Dream Land Deluxe [01006B601380E000].xci""#;
+        assert_eq!(
+            parse_windows_args(raw),
+            vec![
+                "-f".to_string(),
+                "-g".to_string(),
+                "C:/Users/p/Documents/ROMS\\Kirby’s Return to Dream Land Deluxe [01006B601380E000].xci".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn handles_escaped_quotes_and_empty_arguments() {
+        assert_eq!(parse_windows_args(r#"one "" "two\" words""#), ["one", "", "two\" words"]);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn reads_shortcut_target_arguments_and_working_directory() {
+        use super::shortcut_info;
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::{Interface, PCWSTR};
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+            COINIT_APARTMENTTHREADED,
+        };
+        use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let shortcut = std::env::temp_dir().join(format!("mantel-{id}.lnk"));
+        let target = r"C:\Games\eden.exe";
+        let arguments = r#"-f -g "C:/Games/Ron's ROMs/Kirby.xci""#;
+        let working_directory = r"C:\Games";
+        let wide = |value: &std::ffi::OsStr| {
+            value.encode_wide().chain(std::iter::once(0)).collect::<Vec<_>>()
+        };
+
+        std::thread::spawn({
+            let shortcut = shortcut.clone();
+            move || unsafe {
+                assert!(CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok());
+                let link: IShellLinkW =
+                    CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).unwrap();
+                let target_wide = wide(std::ffi::OsStr::new(target));
+                let arguments_wide = wide(std::ffi::OsStr::new(arguments));
+                let working_directory_wide = wide(std::ffi::OsStr::new(working_directory));
+                link.SetPath(PCWSTR(target_wide.as_ptr())).unwrap();
+                link.SetArguments(PCWSTR(arguments_wide.as_ptr())).unwrap();
+                link.SetWorkingDirectory(PCWSTR(working_directory_wide.as_ptr()))
+                    .unwrap();
+                let persist: IPersistFile = link.cast().unwrap();
+                let shortcut_wide = wide(shortcut.as_os_str());
+                persist.Save(PCWSTR(shortcut_wide.as_ptr()), true).unwrap();
+                drop(persist);
+                drop(link);
+                CoUninitialize();
+            }
+        })
+        .join()
+        .unwrap();
+
+        let info = shortcut_info(shortcut.to_str().unwrap()).unwrap();
+        assert_eq!(info.target, target);
+        assert_eq!(info.arguments, arguments);
+        assert_eq!(info.working_directory, working_directory);
+        std::fs::remove_file(shortcut).unwrap();
+    }
 }
 
 #[cfg(windows)]
