@@ -106,10 +106,17 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
         // A shortcut to a program runs that program, as the shortcut would. Through the shell,
         // Windows first asks whether to run a program downloaded from the internet, like an
         // emulator from its site, and from Mantel that question fails with code 5 (#34).
-        Launch::Uri { uri } => match shortcut_command(uri) {
-            Some(mut cmd) => {
-                crate::log::info(&format!("launch {}: its shortcut runs {}", game.id, cmd.get_program().to_string_lossy()));
-                Some(cmd.spawn().map_err(|e| format!("Couldn't start {uri}: {e}"))?.id())
+        // A program it can't start that way, like one that asks for administrator rights every
+        // time, goes through the shell as before, which shows that prompt.
+        Launch::Uri { uri } => match shortcut_command(uri).map(|mut cmd| (cmd.get_program().to_string_lossy().to_string(), cmd.spawn())) {
+            Some((program, Ok(child))) => {
+                crate::log::info(&format!("launch {}: its shortcut runs {program}", game.id));
+                Some(child.id())
+            }
+            Some((program, Err(e))) => {
+                crate::log::info(&format!("launch {}: {program} didn't start by itself ({e}), so through the shell", game.id));
+                open_uri(uri)?;
+                None
             }
             None => {
                 open_uri(uri)?;
