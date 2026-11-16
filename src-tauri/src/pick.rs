@@ -202,24 +202,109 @@ pub fn product_name(_exe: &str) -> Option<String> {
     None
 }
 
-/// Where a shortcut points.
+/// What a shortcut runs.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Shortcut {
+    pub target: String,
+    /// As written in the shortcut, to be passed on as they are.
+    pub arguments: String,
+    pub working_dir: String,
+    /// Set to run as administrator, which only the shell can ask for.
+    pub elevated: bool,
+}
+
+/// Reads a shortcut through the Shell's own interface. WScript.Shell loses characters like the ’
+/// in "Kirby’s", and PowerShell takes that ’ for a quote, so shortcuts named after such a game
+/// couldn't be read at all.
 #[cfg(windows)]
-pub fn shortcut_target(lnk: &str) -> Option<String> {
-    let escaped = lnk.replace('\'', "''");
-    let script = format!("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (New-Object -ComObject WScript.Shell).CreateShortcut('{escaped}').TargetPath");
-    let target = powershell(&script)?.trim().trim_start_matches('\u{feff}').to_string();
-    (!target.is_empty()).then_some(target)
+pub fn shortcut(lnk: &str) -> Option<Shortcut> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, STGM_READ};
+    use windows::Win32::UI::Shell::{IShellLinkDataList, IShellLinkW, ShellLink, SLDF_RUNAS_USER};
+
+    let path: Vec<u16> = std::ffi::OsStr::new(lnk).encode_wide().chain(Some(0)).collect();
+    // COM on a thread of its own: the caller's may be set up for something else.
+    std::thread::spawn(move || unsafe {
+        let ready = CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok();
+        let read = || -> windows::core::Result<Shortcut> {
+            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+            link.cast::<IPersistFile>()?.Load(PCWSTR(path.as_ptr()), STGM_READ)?;
+            let mut buf = vec![0u16; 32_768];
+            let mut text = |get: &dyn Fn(&mut [u16]) -> windows::core::Result<()>| -> windows::core::Result<String> {
+                buf.fill(0);
+                get(&mut buf)?;
+                Ok(String::from_utf16_lossy(&buf[..buf.iter().position(|&c| c == 0).unwrap_or(buf.len())]))
+            };
+            let target = text(&|b| link.GetPath(b, std::ptr::null_mut(), 0))?;
+            let arguments = text(&|b| link.GetArguments(b))?;
+            let working_dir = text(&|b| link.GetWorkingDirectory(b))?;
+            let flags = link.cast::<IShellLinkDataList>().and_then(|d| d.GetFlags()).unwrap_or(0);
+            Ok(Shortcut { target, arguments, working_dir, elevated: flags & SLDF_RUNAS_USER.0 as u32 != 0 })
+        };
+        let shortcut = read();
+        if ready {
+            CoUninitialize();
+        }
+        shortcut.map_err(|e| crate::log::warn(&format!("shortcut not read: {e}"))).ok()
+    })
+    .join()
+    .ok()
+    .flatten()
 }
 
 #[cfg(not(windows))]
-pub fn shortcut_target(_lnk: &str) -> Option<String> {
+pub fn shortcut(_lnk: &str) -> Option<Shortcut> {
     None
+}
+
+/// Where a shortcut points.
+pub fn shortcut_target(lnk: &str) -> Option<String> {
+    shortcut(lnk).map(|s| s.target).filter(|t| !t.is_empty())
 }
 
 /// Runs a PowerShell script without a window and returns what it printed.
 #[cfg(windows)]
 pub(crate) fn run_powershell(script: &str) -> Option<String> {
     powershell(script)
+}
+
+#[cfg(all(test, windows))]
+pub(crate) mod tests {
+    use super::*;
+
+    /// Writes a shortcut the way Eden does for a game, named after it.
+    pub(crate) fn save(lnk: &std::path::Path, target: &str, arguments: &str, dir: &str) {
+        use windows::core::{Interface, HSTRING};
+        use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED};
+        use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+        let (lnk, target, arguments, dir) = (HSTRING::from(lnk.as_os_str()), HSTRING::from(target), HSTRING::from(arguments), HSTRING::from(dir));
+        std::thread::spawn(move || unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
+            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).unwrap();
+            link.SetPath(&target).unwrap();
+            link.SetArguments(&arguments).unwrap();
+            link.SetWorkingDirectory(&dir).unwrap();
+            link.cast::<IPersistFile>().unwrap().Save(&lnk, true).unwrap();
+            drop(link);
+            CoUninitialize();
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn reads_a_shortcut_named_with_a_curly_apostrophe() {
+        let dir = std::env::temp_dir().join(format!("mantel-lnk-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let lnk = dir.join("Kirby’s Return to Dream Land Deluxe.lnk");
+        let arguments = r#"-f -g "C:/ROMS\Kirby’s Return to Dream Land Deluxe [01006B601380E000].xci""#;
+        save(&lnk, r"C:\Eden\eden.exe", arguments, r"C:\Eden");
+        let read = shortcut(lnk.to_str().unwrap());
+        std::fs::remove_dir_all(&dir).unwrap();
+        let read = read.unwrap();
+        assert_eq!((read.target.as_str(), read.arguments.as_str(), read.working_dir.as_str(), read.elevated), (r"C:\Eden\eden.exe", arguments, r"C:\Eden", false));
+    }
 }
 
 #[cfg(windows)]

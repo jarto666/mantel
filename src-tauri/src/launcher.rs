@@ -5,7 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -57,6 +57,35 @@ struct Target {
 
 static PENDING: Mutex<Option<Pending>> = Mutex::new(None);
 
+/// The processes each running game was last seen with, so closing or switching to one game
+/// doesn't reach another that runs the same program, as games added from one emulator do.
+static PIDS: LazyLock<Mutex<HashMap<String, HashSet<u32>>>> = LazyLock::new(Default::default);
+
+/// A process a launch from Mantel claimed, and who it belongs to for as long as it runs.
+struct Claim {
+    name: String,
+    owners: Vec<String>,
+}
+
+/// Who a process belongs to. A launch claims the process it started, so of several shortcuts
+/// that run one emulator only the one launched counts as running, along with an app that runs
+/// the same program, like that emulator on the Apps tab. Any other process goes to the first
+/// game or app it matches.
+fn owners_of(matched: &[&Target], claimed: Option<&str>) -> Vec<String> {
+    let Some(first) = claimed.or_else(|| matched.first().map(|t| t.id.as_str())) else { return Vec::new() };
+    let mut owners = vec![first.to_string()];
+    if !matched.iter().any(|t| t.id == first && t.window) {
+        owners.extend(matched.iter().find(|t| t.window && t.id != first).map(|t| t.id.clone()));
+    }
+    owners
+}
+
+/// The processes the tracker last saw for a game, or the one Mantel just started for it.
+fn known_pids(id: &str) -> Option<HashSet<u32>> {
+    let seen = PIDS.lock().unwrap().get(id).cloned();
+    seen.or_else(|| PENDING.lock().unwrap().as_ref().filter(|p| p.id == id).and_then(|p| p.pid).map(|pid| HashSet::from([pid])))
+}
+
 /// Launchers like Steam may update or show a login before the game appears.
 const DETECT_WINDOW: Duration = Duration::from_secs(150);
 const POLL: Duration = Duration::from_secs(3);
@@ -74,10 +103,19 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
         };
     }
     let pid = match &game.launch {
-        Launch::Uri { uri } => {
-            open_uri(uri)?;
-            None
-        }
+        // A shortcut to a program runs that program, as the shortcut would. Through the shell,
+        // Windows first asks whether to run a program downloaded from the internet, like an
+        // emulator from its site, and from Mantel that question fails with code 5 (#34).
+        Launch::Uri { uri } => match shortcut_command(uri) {
+            Some(mut cmd) => {
+                crate::log::info(&format!("launch {}: its shortcut runs {}", game.id, cmd.get_program().to_string_lossy()));
+                Some(cmd.spawn().map_err(|e| format!("Couldn't start {uri}: {e}"))?.id())
+            }
+            None => {
+                open_uri(uri)?;
+                None
+            }
+        },
         Launch::Exe { path, args, cwd } => {
             let mut cmd = std::process::Command::new(path);
             cmd.args(args);
@@ -137,9 +175,17 @@ pub fn close(app: &AppHandle, id: &str) -> Result<(), String> {
     let targets = targets(app);
     let target = targets.iter().find(|t| t.id == running.id);
     let name = state.cache.lock().unwrap().library.iter().find(|g| g.id == running.id).map(|g| g.name.clone()).unwrap_or_default();
+    // A game's own processes when the tracker knows them; an app is all of its program.
+    let known = if target.is_some_and(|t| t.window) { None } else { known_pids(id) };
     let mut sys = System::new();
     let alive = |sys: &mut System| {
-        let mut pids = target.map(|t| processes_of(sys, t)).unwrap_or_default();
+        let mut pids = match &known {
+            Some(known) => {
+                refresh(sys);
+                known.iter().copied().filter(|&pid| sys.process(sysinfo::Pid::from_u32(pid)).is_some()).collect()
+            }
+            None => target.map(|t| processes_of(sys, t)).unwrap_or_default(),
+        };
         pids.extend(splash_of(sys, &name));
         pids
     };
@@ -201,7 +247,12 @@ pub fn close(app: &AppHandle, id: &str) -> Result<(), String> {
 /// Brings a running game's window to the front. False when it has no window at all,
 /// which happens when a game hangs or keeps running in the background after "closing".
 pub fn switch_to(app: &AppHandle, id: &str) -> bool {
-    if !app.state::<AppState>().running.lock().unwrap().iter().any(|r| r.id == id) {
+    let Some(running) = app.state::<AppState>().running.lock().unwrap().iter().find(|r| r.id == id).cloned() else { return false };
+    if let Some(pids) = known_pids(id) {
+        return focus_window_of(&pids.into_iter().collect::<Vec<_>>());
+    }
+    // Still starting through the shell: what matches it may be another game's.
+    if !running.detected {
         return false;
     }
     let targets = targets(app);
@@ -378,31 +429,54 @@ pub fn spawn_tracker(app: AppHandle) {
     std::thread::spawn(move || {
         let mut sys = System::new();
         let mut sessions: HashMap<String, Session> = HashMap::new();
+        let mut claims: HashMap<u32, Claim> = HashMap::new();
         loop {
             std::thread::sleep(POLL);
             let targets = targets(&app);
             refresh(&mut sys);
             check_front(&app);
 
-            let pending_pid = PENDING.lock().unwrap().as_ref().and_then(|p| Some((p.id.clone(), p.pid?)));
+            let pending = PENDING.lock().unwrap().as_ref().map(|p| (p.id.clone(), p.pid));
             let mut alive: HashSet<String> = HashSet::new();
             let mut app_pids: HashMap<String, Vec<u32>> = HashMap::new();
+            let mut pids: HashMap<String, HashSet<u32>> = HashMap::new();
             for (pid, p) in sys.processes() {
                 let pid = pid.as_u32();
                 if pid == std::process::id() {
                     continue;
                 }
-                if let Some((id, _)) = pending_pid.as_ref().filter(|(_, ppid)| *ppid == pid) {
-                    alive.insert(id.clone());
-                } else if let Some(t) = targets.iter().find(|t| matches(t, p)) {
-                    if t.window {
-                        app_pids.entry(t.id.clone()).or_default().push(pid);
-                    } else {
-                        alive.insert(t.id.clone());
+                let name = p.name().to_string_lossy().to_lowercase();
+                let owners = match claims.get(&pid).filter(|c| c.name == name) {
+                    Some(claim) => claim.owners.clone(),
+                    None => {
+                        claims.remove(&pid);
+                        let matched: Vec<&Target> = targets.iter().filter(|t| matches(t, p)).collect();
+                        // The launch Mantel waits for claims the process it started or, launched
+                        // through the shell, the processes that match it.
+                        let claimed = pending.as_ref().filter(|(id, started)| *started == Some(pid) || (started.is_none() && matched.iter().any(|t| &t.id == id))).map(|(id, _)| id.as_str());
+                        let owners = owners_of(&matched, claimed);
+                        if claimed.is_some() {
+                            claims.insert(pid, Claim { name, owners: owners.clone() });
+                        }
+                        owners
                     }
+                };
+                for id in owners {
+                    if targets.iter().any(|t| t.id == id && t.window) {
+                        app_pids.entry(id.clone()).or_default().push(pid);
+                    } else {
+                        alive.insert(id.clone());
+                    }
+                    pids.entry(id).or_default().insert(pid);
                 }
             }
+            claims.retain(|pid, _| sys.process(sysinfo::Pid::from_u32(*pid)).is_some());
             alive.extend(app_pids.into_iter().filter(|(_, pids)| has_window(pids)).map(|(id, _)| id));
+            // A session whose processes are gone has none, rather than whatever else runs its program.
+            for id in sessions.keys() {
+                pids.entry(id.clone()).or_default();
+            }
+            *PIDS.lock().unwrap() = pids;
 
             for id in &alive {
                 match sessions.get_mut(id) {
@@ -476,6 +550,7 @@ fn finish(app: &AppHandle, id: &str, session: &Session) {
         state.save_user(&user);
     }
     state.running.lock().unwrap().retain(|r| r.id != id);
+    PIDS.lock().unwrap().remove(id);
     let what = if an_app { "app closed" } else { "session end" };
     crate::log::info(&format!("{what} {id} after {seconds}s"));
     let _ = app.emit("game-stopped", Stopped { id: id.to_string(), seconds });
@@ -774,6 +849,36 @@ fn open_uri(uri: &str) -> Result<(), String> {
     }
 }
 
+/// What a shortcut to a program runs: the program, with its arguments as written and its working
+/// folder. None for any other file, for a program that isn't there any more (the shell may find
+/// where it went) and for a shortcut set to run as administrator: the shell handles those.
+#[cfg(windows)]
+fn shortcut_command(uri: &str) -> Option<std::process::Command> {
+    use std::os::windows::process::CommandExt;
+    if !uri.to_lowercase().ends_with(".lnk") {
+        return None;
+    }
+    let link = crate::pick::shortcut(uri)?;
+    let exe = Path::new(&link.target);
+    if link.elevated || !exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("exe")) || !exe.is_file() {
+        return None;
+    }
+    let mut cmd = std::process::Command::new(exe);
+    if !link.arguments.trim().is_empty() {
+        cmd.raw_arg(&link.arguments);
+    }
+    let dir = Some(PathBuf::from(&link.working_dir)).filter(|d| d.is_dir()).or_else(|| exe.parent().map(Path::to_path_buf));
+    if let Some(dir) = dir {
+        cmd.current_dir(dir);
+    }
+    Some(cmd)
+}
+
+#[cfg(not(windows))]
+fn shortcut_command(_uri: &str) -> Option<std::process::Command> {
+    None
+}
+
 #[cfg(not(windows))]
 fn open_uri(uri: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -789,6 +894,50 @@ mod tests {
 
     fn ids(running: &[Running]) -> Vec<(&str, bool)> {
         running.iter().map(|r| (r.id.as_str(), r.detected)).collect()
+    }
+
+    fn eden(id: &str, window: bool) -> Target {
+        Target { id: id.into(), dir: None, exes: vec!["eden.exe".into()], window }
+    }
+
+    #[test]
+    fn a_launch_claims_its_process_from_other_shortcuts_to_the_same_emulator() {
+        let targets = [eden("app:eden", true), eden("custom:kirby", false), eden("custom:mario", false)];
+        let matched: Vec<&Target> = targets.iter().collect();
+        // Eden on the Apps tab runs along with the game.
+        assert_eq!(owners_of(&matched, Some("custom:mario")), ["custom:mario", "app:eden"]);
+        // Eden opened by itself isn't any of its games.
+        assert_eq!(owners_of(&matched, Some("app:eden")), ["app:eden"]);
+        // Nobody launched it: the first match, as before.
+        assert_eq!(owners_of(&matched, None), ["app:eden"]);
+        assert_eq!(owners_of(&matched[1..], None), ["custom:kirby"]);
+    }
+
+    #[test]
+    fn a_launch_claims_its_process_even_when_nothing_else_knows_it() {
+        // A game added by hand whose program couldn't be told: only the launch knows its process.
+        assert_eq!(owners_of(&[], Some("custom:x")), ["custom:x"]);
+        assert!(owners_of(&[], None).is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_shortcut_runs_its_program_in_its_folder() {
+        let dir = std::env::temp_dir().join(format!("mantel-launch-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let exe = std::env::current_exe().unwrap();
+        let lnk = dir.join("Kirby’s Return to Dream Land Deluxe.lnk");
+        crate::pick::tests::save(&lnk, exe.to_str().unwrap(), r#"-f -g "C:/ROMS\Kirby’s.xci""#, dir.to_str().unwrap());
+        let cmd = shortcut_command(lnk.to_str().unwrap());
+        let gone = dir.join("gone.lnk");
+        crate::pick::tests::save(&gone, &dir.join("gone.exe").to_string_lossy(), "", "");
+        let to_missing = shortcut_command(gone.to_str().unwrap());
+        std::fs::remove_dir_all(&dir).unwrap();
+        let cmd = cmd.unwrap();
+        assert_eq!((cmd.get_program(), cmd.get_current_dir()), (exe.as_os_str(), Some(dir.as_path())));
+        // A program that isn't there any more is left to the shell.
+        assert!(to_missing.is_none());
+        assert!(shortcut_command("steam://rungameid/1").is_none());
     }
 
     #[test]

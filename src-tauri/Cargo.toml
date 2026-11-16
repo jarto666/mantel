@@ -46,6 +46,8 @@ windows = { version = "0.62", features = [
   "Win32_System_Rpc",
   "Win32_System_Variant",
   "Win32_System_Wmi",
+  "Win32_Storage_FileSystem",
+  "Win32_UI_Shell",
 ] }
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",

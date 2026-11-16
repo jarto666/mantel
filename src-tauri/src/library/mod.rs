@@ -65,7 +65,12 @@ pub fn scan_all(settings: &Settings, custom: &[CustomGame]) -> Scan {
             }
         }
     });
-    out.games.extend(custom.iter().map(custom_game));
+    // A shortcut whose program couldn't be read when it was added, like one named with a ’, is
+    // read again, so its game can be followed while it runs.
+    out.games.extend(custom.iter().map(|c| match &c.target {
+        None if c.path.to_lowercase().ends_with(".lnk") => custom_game(&CustomGame { target: crate::pick::shortcut_target(&c.path), ..c.clone() }),
+        _ => custom_game(c),
+    }));
     for g in &mut out.games {
         resolve_paths(g);
     }
