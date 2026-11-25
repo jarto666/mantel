@@ -6,12 +6,14 @@ import { GameName } from "../components/GameName";
 import { useHints } from "../components/Hints";
 import { Img } from "../components/Img";
 import { AchievementsStat, InstallStat, Stat } from "../components/Stat";
+import { useSwipe } from "../hooks";
 import { t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring, useRem, useSettled } from "../motion";
+import { sound } from "../sound";
 import { askCancel, closeRunning, gamePassGames, isCatalog, isGame, launch, rescan, setFocus, setSelected, sourceLabel, toggleFavorite, useStore } from "../store";
 import type { Game } from "../types";
-import { hours, installLabel, lastPlayed, size } from "../util";
+import { hours, installLabel, lastPlayed, pressAgain, size } from "../util";
 
 const SHELF_SIZE = 18;
 const LIBRARY_KEY = "library";
@@ -96,7 +98,7 @@ function Hero({ game, running, zone, btn, armed, onPress }: { game: Game; runnin
             ) : b === "cancel" || b === "quit" ? (
               <>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-                {b === "quit" && closing ? t("Closing…") : b === "quit" && armed ? t("Press A again") : null}
+                {b === "quit" && closing ? t("Closing…") : b === "quit" && armed ? pressAgain() : null}
               </>
             ) : b === "details" ? (
               <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="18.5" cy="12" r="1.7" /></svg>
@@ -205,12 +207,24 @@ export function Home({ active }: { active: boolean }) {
       closeRunning(game.id);
     }
   };
+  // The card in focus as of the last move, ahead of the render: one drag can move several.
+  const at = useRef(c);
+  at.current = c;
   const move = (d: number) => {
-    const next = c + d;
+    const next = at.current + d;
     if (next < 0 || next > list.length) return "edge" as const;
+    at.current = next;
     setDir(d);
     setFocusKey(keyAt(next));
   };
+  // A finger or a mouse moves the shelf too: dragging it, or the wheel over it.
+  const swipe = useSwipe((d) => {
+    setZone("rail");
+    const moved = move(d) !== "edge";
+    if (moved) sound.move();
+    else sound.edge();
+    return moved;
+  }, (CARD_W + GAP) * rem * 0.6);
 
   useInput(
     (a) => {
@@ -325,7 +339,7 @@ export function Home({ active }: { active: boolean }) {
       </AnimatePresence>
       </div>
 
-      <div className="shelf" data-dir={dir > 0 ? "r" : "l"}>
+      <div className="shelf" data-dir={dir > 0 ? "r" : "l"} {...swipe}>
         <motion.div className="shelf-glow" animate={{ x: 0 }} transition={spring.rail} />
         {[...list, null].map((g, i) => {
           const focused = i === c;

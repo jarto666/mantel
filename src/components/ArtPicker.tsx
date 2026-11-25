@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useScrollFocus } from "../hooks";
 import { errorText, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { toast, useStore } from "../store";
 import type { ArtChoices, ArtKind, Game, Listing, PickEntry } from "../types";
@@ -199,7 +199,7 @@ export function ArtPicker({ game, onClose }: { game: Game; onClose: () => void }
           : null;
 
   return (
-    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} {...backdrop}>
       <motion.div
         className="keyflow-card addgame artpick"
         data-kind={kind}

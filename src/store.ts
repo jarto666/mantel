@@ -65,6 +65,8 @@ interface State {
   watching: boolean;
   /** The game whose download the player is being asked about cancelling. */
   cancelAsk: string | null;
+  /** A question up before something rare that can't be taken back, such as an uninstall. */
+  question: Ask | null;
   /** The game Windows is removing right now. */
   uninstalling: string | null;
   loaded: boolean;
@@ -111,6 +113,7 @@ export const useStore = create<State>(() => ({
   access: {},
   watching: false,
   cancelAsk: null,
+  question: null,
   uninstalling: null,
   loaded: false,
   scanning: false,
@@ -142,6 +145,14 @@ export const isGame = (g: Game) => g.kind !== "app";
 
 /** What's running, leaving out apps: Spotify being open says nothing about where the player is. */
 export const gamesRunning = (s: { running: Running[]; games: Game[] }) => s.running.filter((r) => !s.games.some((g) => g.id === r.id && !isGame(g)));
+
+/** A launch from Mantel, as the backend records it: one launch waits at a time, games already
+ * running stay. A game can be seen running before its launch call returns, when it goes through
+ * Windows' administrator prompt, and it keeps that mark. */
+export const withLaunch = (running: Running[], id: string): Running[] => {
+  const kept = running.filter((r) => r.detected);
+  return kept.some((r) => r.id === id) ? kept : [...kept, { id, startedAt: Date.now() / 1000, detected: false }];
+};
 
 let appInFront = false;
 /** Whether the pad may drive Mantel while it isn't focused: not while a game runs, nor while an
@@ -603,7 +614,7 @@ export async function launch(game: Game) {
   if (!isGame(game)) {
     try {
       await api.launchGame(game.id);
-      set((s) => ({ running: [...s.running.filter((r) => r.detected && r.id !== game.id), { id: game.id, startedAt: Date.now() / 1000, detected: false }] }));
+      set((s) => ({ running: withLaunch(s.running, game.id) }));
     } catch (e) {
       toast(errorText(e), "warn");
     }
@@ -612,8 +623,7 @@ export async function launch(game: Game) {
   set({ launching: { id: game.id, phase: "starting", from: focusedCoverRect() }, overlay: null });
   try {
     await api.launchGame(game.id);
-    // As the backend does: one launch waits at a time, games already running stay.
-    set((s) => ({ running: [...s.running.filter((r) => r.detected && r.id !== game.id), { id: game.id, startedAt: Date.now() / 1000, detected: false }] }));
+    set((s) => ({ running: withLaunch(s.running, game.id) }));
   } catch (e) {
     set({ launching: { id: game.id, phase: "error", message: errorText(e) } });
   }
@@ -713,6 +723,21 @@ export async function startInstall(game: Game, anyway = false, chosen?: string[]
   }
 }
 
+/** What to ask before an action, and the action. */
+export interface Ask {
+  eyebrow: string;
+  title: string;
+  text?: string;
+  /** The answer that goes ahead: the action's own name. */
+  yes: string;
+  /** Going ahead destroys something: the answer is red. */
+  danger?: boolean;
+  run: () => void;
+}
+
+/** Asks before a rare action that can't be taken back. Going on takes a second, deliberate answer. */
+export const askFirst = (ask: Ask) => set({ question: ask });
+
 /** Cancels at once while there's nothing to lose yet, and asks once there is. */
 export function askCancel(game: Game) {
   const install = get().installs[game.id];
@@ -766,8 +791,9 @@ async function rescanFresh() {
 
 export async function uninstall(game: Game) {
   try {
-    // Steam takes it from here, with a dialog of its own.
+    // Steam, or the game's own uninstaller, takes it from here with questions of its own.
     if (game.source === "steam") toast(t("Opening {store} to uninstall {name}", { store: sourceLabel(game), name: game.name }));
+    else if (game.source === "custom") toast(t("Opening the uninstaller for {name}", { name: game.name }));
     else set({ uninstalling: game.id });
     await api.uninstallGame(game.id);
   } catch (e) {

@@ -102,7 +102,34 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
             Launch::Exe { .. } => Err("This game isn't installed".into()),
         };
     }
-    let pid = match &game.launch {
+    // Mantel waits for the game before starting it. Through the shell, a program that asks for
+    // administrator rights can be running before the shell call returns, and the tracker must
+    // still see it as this launch: otherwise the game counts as started elsewhere, and the
+    // player gets no "Playing" or "Close" for it. Until the game is started, the launch gets
+    // the full wait, however long Windows' prompt stays up.
+    let waiting = Pending { id: game.id.clone(), at: Instant::now(), pid: None, trackable: true };
+    let earlier = PENDING.lock().unwrap().replace(waiting);
+    let pid = match start(game) {
+        Ok(pid) => pid,
+        Err(e) => {
+            gave_up(&mut PENDING.lock().unwrap(), &game.id, earlier);
+            return Err(e);
+        }
+    };
+    crate::log::info(&format!("launch {} via {:?}", game.id, game.launch));
+
+    // A site opens in Edge, whose process hands the window to the browser already running and
+    // goes away: nothing of the site's own to follow.
+    let pid = if game.site.is_some() { None } else { pid };
+    let trackable = pid.is_some() || game.install_dir.is_some() || !game.exe_names.is_empty();
+    started_as(&mut PENDING.lock().unwrap(), &game.id, pid, trackable);
+    launched(&mut app.state::<AppState>().running.lock().unwrap(), &game.id, now());
+    Ok(())
+}
+
+/// Starts an installed game. Returns the process it started, when Mantel started it itself.
+fn start(game: &Game) -> Result<Option<u32>, String> {
+    Ok(match &game.launch {
         // A shortcut to a program runs that program, as the shortcut would. Through the shell,
         // Windows first asks whether to run a program downloaded from the internet, like an
         // emulator from its site, and from Mantel that question fails with code 5 (#34).
@@ -131,16 +158,24 @@ pub fn launch(app: &AppHandle, game: &Game) -> Result<(), String> {
             }
             Some(cmd.spawn().map_err(|e| format!("Couldn't start {path}: {e}"))?.id())
         }
-    };
-    crate::log::info(&format!("launch {} via {:?}", game.id, game.launch));
+    })
+}
 
-    // A site opens in Edge, whose process hands the window to the browser already running and
-    // goes away: nothing of the site's own to follow.
-    let pid = if game.site.is_some() { None } else { pid };
-    let trackable = pid.is_some() || game.install_dir.is_some() || !game.exe_names.is_empty();
-    *PENDING.lock().unwrap() = Some(Pending { id: game.id.clone(), at: Instant::now(), pid, trackable });
-    launched(&mut app.state::<AppState>().running.lock().unwrap(), &game.id, now());
-    Ok(())
+/// The launch got its game started: the process Mantel started, if it knows it, is the one to
+/// wait for, and the wait counts from now. A launch the tracker already saw running, or one a
+/// newer launch replaced, stays as it is.
+fn started_as(pending: &mut Option<Pending>, id: &str, pid: Option<u32>, trackable: bool) {
+    if let Some(p) = pending.as_mut().filter(|p| p.id == id) {
+        *p = Pending { id: p.id.clone(), at: Instant::now(), pid, trackable };
+    }
+}
+
+/// A launch that couldn't start its game waits for nothing, and the launch it replaced waits
+/// again.
+fn gave_up(pending: &mut Option<Pending>, id: &str, earlier: Option<Pending>) {
+    if pending.as_ref().is_some_and(|p| p.id == id) {
+        *pending = earlier;
+    }
 }
 
 /// A launch from Mantel. Only one waits for its process at a time, so an earlier launch that
@@ -977,6 +1012,40 @@ mod tests {
         launched(&mut running, "a", 100);
         detected(&mut running, "b", 150);
         assert_eq!(ids(&running), [("a", false), ("b", true)]);
+    }
+
+    fn waiting(id: &str) -> Option<Pending> {
+        Some(Pending { id: id.into(), at: Instant::now(), pid: None, trackable: true })
+    }
+
+    #[test]
+    fn a_game_seen_while_the_shell_is_still_busy_is_the_launch_from_mantel() {
+        // The launch waits before the game starts, so the tracker takes it as soon as the game
+        // shows up; once the shell returns there's nothing left to wait for.
+        let mut pending = waiting("rift");
+        let from_mantel = pending.take().is_some_and(|p| p.id == "rift");
+        started_as(&mut pending, "rift", None, true);
+        assert!(from_mantel);
+        assert!(pending.is_none());
+        // Not seen yet: the launch waits for the process it started, and for long enough.
+        let mut pending = waiting("rift");
+        started_as(&mut pending, "rift", Some(42), false);
+        assert_eq!(pending.as_ref().map(|p| (p.pid, p.trackable)), Some((Some(42), false)));
+        // A newer launch of another game isn't touched.
+        let mut pending = waiting("other");
+        started_as(&mut pending, "rift", Some(42), true);
+        assert_eq!(pending.as_ref().map(|p| (p.id.as_str(), p.pid)), Some(("other", None)));
+    }
+
+    #[test]
+    fn a_launch_that_fails_gives_the_wait_back() {
+        let mut pending = waiting("b");
+        gave_up(&mut pending, "b", waiting("a"));
+        assert_eq!(pending.as_ref().map(|p| p.id.as_str()), Some("a"));
+        // A newer launch took over meanwhile: it keeps waiting.
+        let mut pending = waiting("c");
+        gave_up(&mut pending, "b", waiting("a"));
+        assert_eq!(pending.as_ref().map(|p| p.id.as_str()), Some("c"));
     }
 
     fn app(launch: Launch) -> Game {

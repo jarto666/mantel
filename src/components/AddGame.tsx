@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useScrollFocus } from "../hooks";
 import { errorText, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { rescan, toast, useStore } from "../store";
 import type { AppChoice, Game, Listing, PickEntry, Suggestion } from "../types";
@@ -136,7 +136,7 @@ export function AddGame({ onClose }: { onClose: () => void }) {
   useHints(hints, Layer.modal);
 
   return (
-    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} {...backdrop}>
       <motion.div className="keyflow-card addgame" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
         <h2 className="keyflow-title">{t("Add a game")}</h2>
         <div className="addgame-tabs">
@@ -311,7 +311,7 @@ export function AddApp({ onClose }: { onClose: () => void }) {
   const loading = tab !== "files" && choices === null;
 
   return (
-    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} {...backdrop}>
       <motion.div className="keyflow-card addgame" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
         <h2 className="keyflow-title">{t("Add an app")}</h2>
         <div className="addgame-tabs">

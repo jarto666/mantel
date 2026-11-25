@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
 import { t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { gamePassGames, isCatalog, isStoreItem, launch, ownCopy, searchStores, setFocus, useStore } from "../store";
 import type { Game } from "../types";
 import { matches } from "../util";
@@ -126,7 +126,7 @@ export function Search() {
 
   if (!open) return null;
   return (
-    <div className="search">
+    <div className="search" {...backdrop}>
       <div className="search-field">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <circle cx="11" cy="11" r="7" />
@@ -141,11 +141,11 @@ export function Search() {
         />
         <span className="search-count">{query ? `${results.length}` : ""}</span>
       </div>
-      <div className={`search-results ${zone === "results" ? "is-active" : ""}`}>
+      <div className={`search-results ${zone === "results" ? "is-active" : ""}`} {...backdrop}>
         {results.length === 0 ? (
-          <div className="search-empty">{searching ? t("Searching the stores…") : query ? t("No matches") : t("Start typing a title — initials work too, like “rdr”")}</div>
+          <div className="search-empty" {...backdrop}>{searching ? t("Searching the stores…") : query ? t("No matches") : t("Start typing a title — initials work too, like “rdr”")}</div>
         ) : (
-          <div className="search-rail" ref={rail}>
+          <div className="search-rail" ref={rail} {...backdrop}>
             {results.map((g, n) => (
               <Cover
                 key={g.id}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { errorText, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { toast } from "../store";
 import type { Edition, Editions } from "../types";
 import { money } from "../util";
@@ -45,7 +45,7 @@ export function EditionPicker({ found, owned, onInstall, onClose }: { found: Edi
   useHints([["a", "Select"], ["b", "Back"]], Layer.modal);
 
   return (
-    <div className="prompt">
+    <div className="prompt" {...backdrop}>
       <div className="prompt-card">
         <div className="eyebrow">{found.title}</div>
         <h2 className="pkg-title">{t("Choose an edition")}</h2>

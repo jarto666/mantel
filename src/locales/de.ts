@@ -182,6 +182,7 @@ export const de: Catalog = {
   "Volume": "Lautstärke",
   "Brightness": "Helligkeit",
   "Press A again": "Erneut A drücken",
+  "Tap again": "Erneut tippen",
 
   // components/Search.tsx
   "Search games": "Spiele suchen",
@@ -190,6 +191,7 @@ export const de: Catalog = {
 
   // components/TopBar.tsx
   "Games": "Spiele",
+  "Home": "Startseite",
   "Library": "Bibliothek",
   "Scanning": "Suche läuft",
 
@@ -200,7 +202,6 @@ export const de: Catalog = {
   "Folder": "Ordner",
   "Rename": "Umbenennen",
   "Remove": "Entfernen",
-  "Removed {name} from Mantel": "{name} aus Mantel entfernt",
   "Hide": "Ausblenden",
   "h": "h",
   "min": "min",
@@ -370,6 +371,8 @@ export const de: Catalog = {
   "{name} was uninstalled": "{name} wurde deinstalliert",
   "Couldn't uninstall {name}: {error}": "{name} konnte nicht deinstalliert werden: {error}",
   "Opening {store} to uninstall {name}": "{store} wird geöffnet, um {name} zu deinstallieren",
+  "Its own uninstaller removes “{program}” from this device.": "Sein eigenes Deinstallationsprogramm entfernt „{program}“ von diesem Gerät.",
+  "Opening the uninstaller for {name}": "Deinstallationsprogramm für {name} wird geöffnet",
   "Install anyway": "Trotzdem installieren",
   "This game isn't on your Microsoft account. Without an active Game Pass or a purchase it won't start after downloading.": "Dieses Spiel ist nicht in Ihrem Microsoft-Konto. Ohne aktiven Game Pass oder Kauf startet es nach dem Download nicht.",
   "That screen couldn't open": "Dieser Bildschirm ließ sich nicht öffnen",
@@ -399,6 +402,13 @@ export const de: Catalog = {
   "Cloud saves": "Cloud-Speicherstände",
   "Play Anywhere": "Play Anywhere",
   "Cancel download?": "Download abbrechen?",
+  "Uninstall game?": "Spiel deinstallieren?",
+  "It will be removed from this device, freeing {size}.": "Es wird von diesem Gerät entfernt und gibt {size} frei.",
+  "It will be removed from this device.": "Es wird von diesem Gerät entfernt.",
+  "Restart?": "Neu starten?",
+  "Power off?": "Ausschalten?",
+  "Quit Mantel?": "Mantel beenden?",
+  "Games still running will close, and unsaved progress will be lost.": "Laufende Spiele werden geschlossen, nicht gespeicherter Fortschritt geht verloren.",
   "About {size} of downloaded data will be discarded.": "Etwa {size} heruntergeladene Daten gehen verloren.",
   "Cancel download": "Download abbrechen",
   "Keep downloading": "Weiter herunterladen",

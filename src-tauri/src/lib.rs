@@ -55,11 +55,16 @@ fn allow_assets(app: &AppHandle, dirs: &[std::path::PathBuf]) {
 
 fn rescan(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let (settings, custom, steam_signed_in, mut exclude) = {
+    // Games and apps added by hand as the scan finds them: whatever changes while it runs is
+    // settled at the end.
+    let by_hand = |user: &store::UserData| -> std::collections::HashSet<String> {
+        user.custom.iter().map(|c| format!("custom:{}", c.id)).chain(user.apps.iter().map(|a| format!("app:{}", a.id()))).collect()
+    };
+    let (settings, custom, steam_signed_in, mut exclude, before) = {
         let user = state.user.lock().unwrap();
         let mut exclude = apps::Exclude { taken: user.apps.iter().map(|a| a.target.clone()).collect(), ..Default::default() };
         exclude.taken.extend(user.dismissed_apps.iter().cloned());
-        (user.settings.clone(), user.custom.clone(), user.accounts.steam_signed_in, exclude)
+        (user.settings.clone(), user.custom.clone(), user.accounts.steam_signed_in, exclude, by_hand(&user))
     };
     // The Start menu is read while the stores scan: known apps join the Apps tab by themselves,
     // and Store apps on it follow their folder across updates.
@@ -150,6 +155,16 @@ fn rescan(app: &AppHandle) {
         state.save_user(&user);
     }
     let mut cache = state.cache.lock().unwrap();
+    {
+        let user = state.user.lock().unwrap();
+        library::settle(&mut scan.games, &before, &by_hand(&user), &cache.library);
+        // A game renamed meanwhile takes its new name.
+        for g in scan.games.iter_mut().filter(|g| g.source == "custom") {
+            if let Some(c) = user.custom.iter().find(|c| format!("custom:{}", c.id) == g.id) {
+                g.name = c.name.clone();
+            }
+        }
+    }
     cache.library = scan.games;
     cache.asset_dirs = scan.asset_dirs;
     state.save_cache(&cache);
@@ -586,13 +601,29 @@ fn save_settings(state: State<'_, AppState>, settings: Settings) {
     state.save_user(&user);
 }
 
+/// A game added by hand once more: one the player hid comes back as it was, playtime and all; one
+/// in the library already is an error. None for a game Mantel doesn't have.
+fn add_again(state: &AppState, path: &str, target: Option<&str>) -> Option<Result<Vec<Game>, String>> {
+    let mut user = state.user.lock().unwrap();
+    let id = user.custom.iter().find(|c| c.is(path, target)).map(|c| format!("custom:{}", c.id))?;
+    let meta = user.meta.entry(id).or_default();
+    if !meta.hidden {
+        return Some(Err("That one is already in your library".into()));
+    }
+    meta.hidden = false;
+    state.save_user(&user);
+    drop(user);
+    log::info(&format!("custom game shown again: {path}"));
+    Some(Ok(snapshot(state)))
+}
+
 /// Adds an exe, shortcut, .url or batch file. Shortcuts are launched as-is (keeping their
 /// arguments) but tracked through the exe they point at; exes get their product name.
 #[tauri::command]
 async fn add_custom_game(app: AppHandle, path: String, name: Option<String>, target: Option<String>) -> Result<Vec<Game>, String> {
     let state = app.state::<AppState>();
-    if state.user.lock().unwrap().custom.iter().any(|c| c.path.eq_ignore_ascii_case(&path)) {
-        return Err("That one is already in your library".into());
+    if let Some(again) = add_again(&state, &path, target.as_deref()) {
+        return again;
     }
     let file = std::path::Path::new(&path);
     let stem = file.file_stem().map(|s| s.to_string_lossy().to_string()).ok_or("bad path")?;
@@ -607,17 +638,27 @@ async fn add_custom_game(app: AppHandle, path: String, name: Option<String>, tar
         .await
         .map_err(|e| e.to_string())?
     };
-    let custom = CustomGame { id: format!("{:x}", now()), name, path: path.clone(), args: Vec::new(), target };
-    let game = library::custom_game(&custom);
-    if let Some(dir) = game.install_dir.clone() {
-        allow_assets(&app, &[dir.into()]);
+    // Now that the shortcut's program is known: the same game under another file.
+    if let Some(again) = add_again(&state, &path, target.as_deref()) {
+        return again;
     }
-    log::info(&format!("custom game added: {} ({})", custom.name, custom.path));
-    {
+    // The id and the check for the same file again happen under the lock: a few games can be on
+    // their way in at once.
+    let game = {
         let mut user = state.user.lock().unwrap();
+        if user.custom.iter().any(|c| c.is(&path, target.as_deref())) {
+            return Err("That one is already in your library".into());
+        }
+        let custom = CustomGame { id: CustomGame::free_id(now(), &user.custom), name, path: path.clone(), args: Vec::new(), target };
+        let game = library::custom_game(&custom);
+        log::info(&format!("custom game added: {} ({})", custom.name, custom.path));
         user.meta.entry(game.id.clone()).or_default().added_at = Some(now());
         user.custom.push(custom);
         state.save_user(&user);
+        game
+    };
+    if let Some(dir) = game.install_dir.clone() {
+        allow_assets(&app, &[dir.into()]);
     }
     {
         let mut cache = state.cache.lock().unwrap();
@@ -724,14 +765,17 @@ fn copy_art(dir: &std::path::Path, id: &str, kind: &str, file: &str) -> Result<S
 /// Shortcuts on the desktop and in the Start menu that aren't in the library yet.
 #[tauri::command]
 async fn app_suggestions(state: State<'_, AppState>) -> Result<Vec<pick::Suggestion>, String> {
+    // A game added by hand and hidden since is offered again: adding it brings it back.
     let known: Vec<String> = {
         let cache = state.cache.lock().unwrap();
         let user = state.user.lock().unwrap();
+        let hidden = |id: &str| id.starts_with("custom:") && user.meta.get(id).is_some_and(|m| m.hidden);
         cache
             .library
             .iter()
+            .filter(|g| !hidden(&g.id))
             .filter_map(|g| g.install_dir.clone())
-            .chain(user.custom.iter().map(|c| c.path.clone()))
+            .chain(user.custom.iter().filter(|c| !hidden(&format!("custom:{}", c.id))).map(|c| c.path.clone()))
             .collect()
     };
     tauri::async_runtime::spawn_blocking(move || pick::suggestions(&known)).await.map_err(|e| e.to_string())
@@ -892,19 +936,11 @@ fn remove_app(state: State<'_, AppState>, id: String) -> Vec<Game> {
     snapshot(&state)
 }
 
+/// The name Windows lists a game added by hand under, when its uninstaller can remove it.
 #[tauri::command]
-fn remove_custom_game(state: State<'_, AppState>, id: String) -> Vec<Game> {
-    {
-        let mut user = state.user.lock().unwrap();
-        user.custom.retain(|c| format!("custom:{}", c.id) != id);
-        state.save_user(&user);
-    }
-    {
-        let mut cache = state.cache.lock().unwrap();
-        cache.library.retain(|g| g.id != id);
-        state.save_cache(&cache);
-    }
-    snapshot(&state)
+async fn custom_uninstaller(state: State<'_, AppState>, id: String) -> Result<Option<String>, String> {
+    let Some(game) = state.cache.lock().unwrap().library.iter().find(|g| g.id == id && g.source == "custom").cloned() else { return Ok(None) };
+    tauri::async_runtime::spawn_blocking(move || uninstall::program_for(&game).map(|p| p.name)).await.map_err(|e| e.to_string())
 }
 
 #[derive(serde::Serialize)]
@@ -1152,7 +1188,7 @@ pub fn run() {
             install_access,
             uninstall_game,
             app_suggestions,
-            remove_custom_game,
+            custom_uninstaller,
             launch_game,
             close_game,
             switch_to_game,

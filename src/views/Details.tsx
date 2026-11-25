@@ -14,11 +14,11 @@ import { useScrollFocus } from "../hooks";
 import { errorText, locale, t } from "../i18n";
 import { Layer, useInput } from "../input";
 import { ease, spring } from "../motion";
-import { askCancel, checkAccess, closeRunning, gameById, installEdition, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
+import { askCancel, askFirst, checkAccess, closeRunning, gameById, installEdition, isCatalog, isStoreItem, launch, rescan, setHidden, sourceLabel, startInstall, toast, toggleFavorite, uninstall, useStore } from "../store";
 import { TextPrompt } from "../components/TextPrompt";
 import { watchTrailer } from "../trailer";
 import type { Achievement, BundleItem, Details as Info, Editions, Game, InstallProgress, Video } from "../types";
-import { hours, installLabel, lastPlayed, placeholderHue, size } from "../util";
+import { hours, installLabel, lastPlayed, placeholderHue, pressAgain, size } from "../util";
 
 interface Action {
   id: string;
@@ -199,27 +199,18 @@ function actionsFor(game: Game, running: boolean, install: InstallProgress | und
       icon: <path d="M4 20h4l10-10-4-4L4 16zM13.5 6.5l4 4" />,
       run: () => useStore.setState({ renaming: game.id }),
     });
-    list.push({
-      id: "remove",
-      label: t("Remove"),
-      icon: TRASH,
-      run: async () => {
-        close();
-        useStore.setState({ games: await api.removeCustomGame(game.id) });
-        toast(t("Removed {name} from Mantel", { name: game.name }));
-      },
-    });
-  } else {
-    list.push({
-      id: "hide",
-      label: t("Hide"),
-      icon: <><path d="M3 3l18 18" /><path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.4 8 2.8 10.2 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3" /></>,
-      run: () => {
-        close();
-        setHidden(game, true);
-      },
-    });
   }
+  // Hidden, never forgotten: a game added by hand keeps its playtime too, and Settings brings it
+  // back. Only an uninstall takes a game away.
+  list.push({
+    id: "hide",
+    label: t("Hide"),
+    icon: <><path d="M3 3l18 18" /><path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.4 8 2.8 10.2 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3" /></>,
+    run: () => {
+      close();
+      setHidden(game, true);
+    },
+  });
   return list;
 }
 
@@ -245,6 +236,8 @@ export function Details() {
   const [paused, setPaused] = useState(false);
   const [choosing, setChoosing] = useState<{ items: BundleItem[]; anyway: boolean } | null>(null);
   const uninstalling = useStore((s) => s.uninstalling !== null && s.uninstalling === detailsId);
+  // For a game added by hand: the program Windows can uninstall it as, if any.
+  const [uninstaller, setUninstaller] = useState<string | null>(null);
   const offAccount = useStore((s) => detailsId !== null && s.access[detailsId] === false);
   const [pickingEdition, setPickingEdition] = useState(false);
   const storeGame = useStoreGame(game && game.source === "xbox" && !game.installed && !isCatalog(game) && !game.tags?.includes("external") ? game.id : null);
@@ -272,8 +265,11 @@ export function Details() {
     setPaused(false);
     setChoosing(null);
     setPickingEdition(false);
+    setUninstaller(null);
     if (!detailsId) return;
     let live = true;
+    const own = gameById(detailsId);
+    if (own?.source === "custom" && own.installed) api.customUninstaller(detailsId).then((p) => live && setUninstaller(p), () => {});
     api
       .getDetails(detailsId)
       .then((d) => {
@@ -331,7 +327,7 @@ export function Details() {
   if (game?.installed && running.some((r) => r.id === game.id)) {
     actions.splice(1, 0, {
       id: "quit",
-      label: closing ? t("Closing…") : armed ? t("Press A again") : t("Close game"),
+      label: closing ? t("Closing…") : armed ? pressAgain() : t("Close game"),
       icon: <path d="M6 6l12 12M18 6 6 18" />,
       armed: armed && !closing,
       busy: closing,
@@ -343,18 +339,27 @@ export function Details() {
       },
     });
   }
-  if (game?.installed && (game.source === "xbox" || game.source === "steam") && !running.some((r) => r.id === game.id)) {
+  if (game?.installed && (game.source === "xbox" || game.source === "steam" || (game.source === "custom" && uninstaller)) && !running.some((r) => r.id === game.id)) {
     actions.push({
       id: "uninstall",
-      label: uninstalling ? t("Uninstalling…") : armed ? t("Press A again") : t("Uninstall"),
+      label: uninstalling ? t("Uninstalling…") : t("Uninstall"),
       icon: TRASH,
-      armed,
       run: () => {
         if (uninstalling) return;
-        // Steam's dialog asks for itself; everything else takes a second press.
-        if (game.source !== "steam" && !armed) return setArmed(true);
-        setArmed(false);
-        uninstall(game);
+        // Rare, and only a new download undoes it: it asks first, though Steam's dialog and a
+        // game's own uninstaller ask again.
+        askFirst({
+          eyebrow: game.name,
+          title: t("Uninstall game?"),
+          text: uninstaller
+            ? t("Its own uninstaller removes “{program}” from this device.", { program: uninstaller })
+            : game.sizeBytes
+              ? t("It will be removed from this device, freeing {size}.", { size: size(game.sizeBytes) })
+              : t("It will be removed from this device."),
+          yes: t("Uninstall"),
+          danger: true,
+          run: () => uninstall(game),
+        });
       },
     });
   }
@@ -477,7 +482,7 @@ export function Details() {
               onClick={() => {
                 setZone("actions");
                 setAi(n);
-                if (act.id !== "uninstall" && act.id !== "quit") setArmed(false);
+                if (act.id !== "quit") setArmed(false);
                 act.run();
               }}
             >

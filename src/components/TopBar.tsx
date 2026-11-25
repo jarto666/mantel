@@ -7,7 +7,7 @@ import type { Power } from "../types";
 import { Glyph } from "./Glyph";
 
 const TABS: [View, string][] = [
-  ["home", "Games"],
+  ["home", "Home"],
   ["apps", "Apps"],
   ["library", "Library"],
   ["gamepass", "Xbox"],

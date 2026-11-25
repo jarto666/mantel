@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { errorText, locale, t } from "../i18n";
-import { Layer, useInput } from "../input";
-import { closeRunning, gameById, isGame, rescan, toast, useStore } from "../store";
-import { installLabel } from "../util";
+import { backdrop, Layer, useInput } from "../input";
+import { askFirst, closeRunning, gameById, gamesRunning, isGame, rescan, toast, useStore } from "../store";
+import { installLabel, pressAgain } from "../util";
 import { DOWNLOAD } from "./Glyph";
 import type { Power, Quick } from "../types";
 import { useHints } from "./Hints";
@@ -13,7 +13,10 @@ interface Item {
   id: string;
   label: string;
   danger?: boolean;
+  /** Takes a second press on the item itself. */
   confirm?: boolean;
+  /** Asks first, in a question of its own: for what's rare and can't be taken back. */
+  ask?: string;
   run: () => void;
 }
 
@@ -202,15 +205,31 @@ export function QuickMenu() {
     { id: "settings", label: t("Settings"), run: () => useStore.setState({ view: "settings", detailsId: null }) },
     ...(canEnterFullScreen ? [{ id: "fullscreen", label: t("Full screen mode"), run: () => api.powerAction("fullscreen") }] : []),
     { id: "desktop", label: t("Desktop"), run: () => api.powerAction("desktop") },
-    { id: "restart", label: t("Restart"), confirm: true, run: () => api.powerAction("restart") },
-    { id: "shutdown", label: t("Power off"), confirm: true, danger: true, run: () => api.powerAction("shutdown") },
-    { id: "quit", label: t("Quit Mantel"), confirm: true, run: () => api.powerAction("quit") },
+    { id: "restart", label: t("Restart"), ask: t("Restart?"), run: () => api.powerAction("restart") },
+    { id: "shutdown", label: t("Power off"), ask: t("Power off?"), danger: true, run: () => api.powerAction("shutdown") },
+    { id: "quit", label: t("Quit Mantel"), ask: t("Quit Mantel?"), run: () => api.powerAction("quit") },
   ];
   const i = Math.min(index, items.length - 1);
   // The zone can outlive its slider, e.g. when the output device goes away.
   const at = zone === "actions" || sliders.includes(zone) ? zone : "actions";
 
   const activate = (item: Item) => {
+    // The menu stays under the question, for Cancel to come back to.
+    if (item.ask) {
+      setArmed(null);
+      const losing = item.id !== "quit" && gamesRunning(useStore.getState()).length > 0;
+      return askFirst({
+        eyebrow: t("Control Center"),
+        title: item.ask,
+        text: losing ? t("Games still running will close, and unsaved progress will be lost.") : undefined,
+        yes: item.label,
+        danger: item.danger,
+        run: () => {
+          close();
+          item.run();
+        },
+      });
+    }
     if (item.confirm && armed !== item.id) {
       setArmed(item.id);
       return;
@@ -277,7 +296,7 @@ export function QuickMenu() {
   const minutes = run ? Math.max(0, Math.floor((now.getTime() / 1000 - run.startedAt) / 60)) : 0;
 
   return (
-    <div className={`cc-wrap ${open ? "is-open" : ""}`} onClick={(e) => e.target === e.currentTarget && close()}>
+    <div className={`cc-wrap ${open ? "is-open" : ""}`} {...backdrop}>
       <div className="cc">
         <div className="cc-top">
           <div className="cc-now">
@@ -333,7 +352,7 @@ export function QuickMenu() {
               }}
             >
               <span className="cc-icon"><Icon id={item.id} /></span>
-              <span className="cc-label">{armed === item.id ? t("Press A again") : item.label}</span>
+              <span className="cc-label">{armed === item.id ? pressAgain() : item.label}</span>
             </button>
           ))}
         </div>

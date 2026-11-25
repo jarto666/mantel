@@ -52,7 +52,8 @@ export interface Api {
   addAppFile(path: string): Promise<Game[]>;
   removeApp(id: string): Promise<Game[]>;
   switchToGame(id: string): Promise<boolean>;
-  removeCustomGame(id: string): Promise<Game[]>;
+  /** The name Windows lists a game added by hand under, when its own uninstaller can remove it. */
+  customUninstaller(id: string): Promise<string | null>;
   launchGame(id: string): Promise<void>;
   closeGame(id: string): Promise<void>;
   runningGames(): Promise<Running[]>;
@@ -161,7 +162,7 @@ const tauriApi: Api = {
   addAppFile: (path) => call("add_app_file", { path }),
   removeApp: (id) => call("remove_app", { id }),
   switchToGame: (id) => call("switch_to_game", { id }),
-  removeCustomGame: (id) => call("remove_custom_game", { id }),
+  customUninstaller: (id) => call("custom_uninstaller", { id }),
   launchGame: (id) => call("launch_game", { id }),
   closeGame: (id) => call("close_game", { id }),
   runningGames: () => call("running_games"),
