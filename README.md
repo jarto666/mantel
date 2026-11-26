@@ -33,6 +33,7 @@ TV PC.
   install right in Mantel through Windows' own installer, with a list of editions showing
   what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the
   home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
+  A game you added yourself uninstalls with its own uninstaller, when Windows lists one.
 - **In your language.** English, French, German, Spanish and Russian.
 - **Achievements.** With an account connected, every Steam and Xbox game shows its
   progress, and its page lists each achievement with rarity and gamerscore.
@@ -111,7 +112,7 @@ user (DPAPI); `cache.json` can be deleted at any time. Settings → Accounts sig
 | B | Back |
 | Y | Game details |
 | X | Favorite |
-| LB / RB | Games ↔ Library ↔ Xbox ↔ Steam ↔ Settings |
+| LB / RB | Home ↔ Apps ↔ Library ↔ Xbox ↔ Steam ↔ Settings |
 | LT / RT | Filters |
 | View (⧉) | Search |
 | Menu (≡) | Control center: volume, brightness, close game, restart, power off, desktop |

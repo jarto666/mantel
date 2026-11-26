@@ -4,6 +4,7 @@ pub mod steam;
 mod windows_stores;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::model::{Game, Launch};
@@ -99,6 +100,19 @@ pub fn custom_game(c: &CustomGame) -> Game {
         game.exe_names.extend(crate::model::exe_name(exe));
     }
     game
+}
+
+/// Squares a scan with what the player added or took away by hand while it ran: the scan began
+/// with the lists as they were then. `before` and `now` hold the ids of games and apps added by
+/// hand at the start and at the end; one added meanwhile keeps the card it got from `cached`.
+pub fn settle(games: &mut Vec<Game>, before: &HashSet<String>, now: &HashSet<String>, cached: &[Game]) {
+    games.retain(|g| !before.contains(&g.id) || now.contains(&g.id));
+    for id in now.difference(before) {
+        if !games.iter().any(|g| &g.id == id) {
+            games.extend(cached.iter().find(|g| &g.id == id).cloned());
+        }
+    }
+    games.sort_by_key(|g| sort_key(&g.name));
 }
 
 /// Resolves junctions and symlinks to the path Windows reports for running processes.
@@ -198,6 +212,26 @@ pub fn apply_meta(games: &mut [Game], user: &UserData, art: &HashMap<String, Res
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn card(id: &str) -> Game {
+        let (source, source_id) = id.split_once(':').unwrap();
+        Game::new(source, source_id, id, Launch::Uri { uri: id.into() })
+    }
+
+    #[test]
+    fn a_scan_keeps_what_was_added_by_hand_while_it_ran() {
+        let ids = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<HashSet<String>>();
+        // The scan began with one game added by hand. Meanwhile a second was added and an app
+        // removed; the second game's card is in the cache already.
+        let mut games = vec![card("steam:1"), card("custom:a"), card("app:x")];
+        let before = ids(&["custom:a", "app:x"]);
+        let now = ids(&["custom:a", "custom:b"]);
+        let cached = vec![card("custom:a"), card("custom:b"), card("app:x")];
+        settle(&mut games, &before, &now, &cached);
+        let mut got: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        got.sort();
+        assert_eq!(got, ["custom:a", "custom:b", "steam:1"]);
+    }
 
     #[test]
     fn finds_game_roots() {

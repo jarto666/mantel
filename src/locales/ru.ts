@@ -202,6 +202,7 @@ export const ru: Catalog = {
   "Volume": "Громкость",
   "Brightness": "Яркость",
   "Press A again": "Нажмите A ещё раз",
+  "Tap again": "Нажмите ещё раз",
 
   // components/Search.tsx
   "Search games": "Поиск игр",
@@ -210,6 +211,7 @@ export const ru: Catalog = {
 
   // components/TopBar.tsx
   "Games": "Игры",
+  "Home": "Главная",
   "Library": "Библиотека",
   "Scanning": "Сканирование",
 
@@ -220,7 +222,6 @@ export const ru: Catalog = {
   "Folder": "Папка",
   "Rename": "Переименовать",
   "Remove": "Удалить",
-  "Removed {name} from Mantel": "Удалено из Mantel: {name}",
   "Hide": "Скрыть",
   "h": "ч",
   "min": "мин",
@@ -405,6 +406,8 @@ export const ru: Catalog = {
   "{name} was uninstalled": "Игра «{name}» удалена",
   "Couldn't uninstall {name}: {error}": "Не удалось удалить «{name}»: {error}",
   "Opening {store} to uninstall {name}": "Открывается {store} для удаления {name}",
+  "Its own uninstaller removes “{program}” from this device.": "Собственный деинсталлятор удалит «{program}» с устройства.",
+  "Opening the uninstaller for {name}": "Открывается деинсталлятор {name}",
   "Install anyway": "Всё равно установить",
   "This game isn't on your Microsoft account. Without an active Game Pass or a purchase it won't start after downloading.": "Этой игры нет на вашем аккаунте Microsoft. Без активного Game Pass или покупки она не запустится после загрузки.",
   "That screen couldn't open": "Не удалось открыть этот экран",
@@ -434,6 +437,13 @@ export const ru: Catalog = {
   "Cloud saves": "Облачные сохранения",
   "Play Anywhere": "Play Anywhere",
   "Cancel download?": "Отменить загрузку?",
+  "Uninstall game?": "Удалить игру?",
+  "It will be removed from this device, freeing {size}.": "Игра будет удалена с устройства, освободится {size}.",
+  "It will be removed from this device.": "Игра будет удалена с устройства.",
+  "Restart?": "Перезагрузить?",
+  "Power off?": "Выключить?",
+  "Quit Mantel?": "Выйти из Mantel?",
+  "Games still running will close, and unsaved progress will be lost.": "Запущенные игры закроются, несохранённый прогресс пропадёт.",
   "About {size} of downloaded data will be discarded.": "Будет потеряно примерно {size} загруженных данных.",
   "Cancel download": "Отменить загрузку",
   "Keep downloading": "Продолжить загрузку",

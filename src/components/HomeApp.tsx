@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api, type FullScreenMode } from "../api";
 import { errorText, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { toast } from "../store";
 import { useHints } from "./Hints";
@@ -97,7 +97,7 @@ export function HomeAppFlow({ onClose }: { onClose: () => void }) {
 
   return (
     // A click beside the card closes it, as B does.
-    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} {...backdrop}>
       <motion.div className="keyflow-card" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
         <div className="eyebrow">{t("Xbox mode")}</div>
         <h2 className="keyflow-title">{t("Start in Mantel")}</h2>

@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { Background } from "./components/Background";
 import { Boundary } from "./components/Boundary";
 import { CancelPrompt } from "./components/CancelPrompt";
+import { AskFirst } from "./components/Question";
 import { HintBar } from "./components/Hints";
 import { LaunchOverlay } from "./components/LaunchOverlay";
 import { QuickMenu } from "./components/QuickMenu";
@@ -185,6 +186,7 @@ export function App() {
       <SearchOverlay />
       <LaunchOverlay />
       <CancelPrompt />
+      <AskFirst />
       <Setup />
       <UpdateOffer />
       <UpdateScreen />

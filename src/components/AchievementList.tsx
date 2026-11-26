@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useScrollFocus } from "../hooks";
 import { locale, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import type { Achievement, Game } from "../types";
 import { useHints } from "./Hints";
 
@@ -61,7 +61,7 @@ export function AchievementList({ game, list, error, onClose }: { game: Game; li
   const gamerscore = list?.some((a) => a.gamerscore) ? `${score(unlocked)} / ${score(list)} G` : null;
 
   return (
-    <motion.div className="ach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div className="ach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} {...backdrop}>
       <div className="ach-head">
         <div className="eyebrow">{t("Achievements")}</div>
         <h2 className="ach-title">{game.name}</h2>

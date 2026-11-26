@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { useHints } from "./Hints";
 import { useKeyboard } from "./Keyboard";
 
@@ -33,7 +33,7 @@ export function TextPrompt({
   }, priority);
   useHints([["a", "Type"], ["x", "Delete"], ["menu", "Save"], ["b", "Cancel"]], priority);
   return (
-    <div className="prompt">
+    <div className="prompt" {...backdrop}>
       <div className="prompt-card">
         <div className="eyebrow">{title}</div>
         <input ref={input} className="prompt-input" value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />

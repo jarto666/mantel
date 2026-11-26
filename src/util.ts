@@ -1,5 +1,6 @@
 import { toSrc } from "./api";
 import { locale, t } from "./i18n";
+import { lastPressWasTap } from "./input";
 import type { Game, InstallProgress, Source } from "./types";
 
 export const SOURCE_NAME: Record<Source, string> = {
@@ -234,3 +235,6 @@ export async function logoViewBox(src: string): Promise<string | null> {
   trimCache.set(src, box);
   return box;
 }
+
+/** What a button that asks twice says after the first press, in the way the player pressed it. */
+export const pressAgain = () => (lastPressWasTap() ? t("Tap again") : t("Press A again"));

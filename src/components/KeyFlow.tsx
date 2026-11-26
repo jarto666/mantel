@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { api } from "../api";
 import { errorText, t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import { ease } from "../motion";
 import { toast } from "../store";
 import { useHints } from "./Hints";
@@ -105,7 +105,7 @@ export function KeyFlow({
   useHints([["a", "Select"], ["b", "Close"]], Layer.modal, !typing);
 
   return (
-    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="keyflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} {...backdrop}>
       <motion.div className="keyflow-card" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease }}>
         <div className="eyebrow">{service}</div>
         <h2 className="keyflow-title">{title}</h2>

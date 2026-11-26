@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { t } from "../i18n";
-import { Layer, useInput } from "../input";
+import { backdrop, Layer, useInput } from "../input";
 import type { BundleItem, Game } from "../types";
 import { size } from "../util";
 import { useHints } from "./Hints";
@@ -48,7 +48,7 @@ export function PackagePicker({ game, items, onInstall, onClose }: { game: Game;
   useHints([["a", "Select"], ["b", "Back"]], Layer.modal);
 
   return (
-    <div className="prompt">
+    <div className="prompt" {...backdrop}>
       <div className="prompt-card">
         <div className="eyebrow">{game.name}</div>
         <h2 className="pkg-title">{t("Choose what to install")}</h2>

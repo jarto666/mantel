@@ -305,6 +305,8 @@ export const mockApi: Api = {
     settings = structuredClone(s);
   },
   async addCustomGame(path, name) {
+    // Reading a shortcut or an exe's product name takes a moment on the device.
+    await wait(1200);
     const stem = path.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, "");
     games = [...games, { ...games[24], id: `custom:${Date.now()}`, sourceId: String(Date.now()), name: name ?? stem, installDir: path, favorite: false }];
     return structuredClone(games);
@@ -442,9 +444,9 @@ export const mockApi: Api = {
   async switchToGame(id) {
     return running.some((r) => r.id === id && r.detected);
   },
-  async removeCustomGame(id) {
-    games = games.filter((g) => g.id !== id);
-    return structuredClone(games);
+  async customUninstaller(id) {
+    // As if Windows listed one for every game added by hand.
+    return games.find((g) => g.id === id && g.source === "custom")?.name ?? null;
   },
   async launchGame(id) {
     if (id.startsWith("gamepass:")) return;
@@ -452,6 +454,15 @@ export const mockApi: Api = {
     running = running.filter((r) => r.detected && r.id !== id);
     const launch = { id, startedAt: Math.floor(Date.now() / 1000), detected: false };
     running.push(launch);
+    // A game added by hand may ask for administrator rights every time: Windows' prompt holds
+    // the launch call while the game is already running, as on a device.
+    if (id.startsWith("custom:")) {
+      await wait(1200);
+      launch.detected = true;
+      emit("game-started", id);
+      await wait(1500);
+      return;
+    }
     setTimeout(() => {
       if (!running.includes(launch)) return;
       launch.detected = true;

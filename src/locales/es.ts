@@ -182,6 +182,7 @@ export const es: Catalog = {
   "Volume": "Volumen",
   "Brightness": "Brillo",
   "Press A again": "Pulsa A de nuevo",
+  "Tap again": "Pulsa de nuevo",
 
   // components/Search.tsx
   "Search games": "Buscar juegos",
@@ -190,6 +191,7 @@ export const es: Catalog = {
 
   // components/TopBar.tsx
   "Games": "Juegos",
+  "Home": "Inicio",
   "Library": "Biblioteca",
   "Scanning": "Analizando",
 
@@ -200,7 +202,6 @@ export const es: Catalog = {
   "Folder": "Carpeta",
   "Rename": "Renombrar",
   "Remove": "Quitar",
-  "Removed {name} from Mantel": "{name} ya no está en Mantel",
   "Hide": "Ocultar",
   "h": "h",
   "min": "min",
@@ -370,6 +371,8 @@ export const es: Catalog = {
   "{name} was uninstalled": "{name} se ha desinstalado",
   "Couldn't uninstall {name}: {error}": "No se pudo desinstalar {name}: {error}",
   "Opening {store} to uninstall {name}": "Abriendo {store} para desinstalar {name}",
+  "Its own uninstaller removes “{program}” from this device.": "Su propio desinstalador quitará «{program}» de este dispositivo.",
+  "Opening the uninstaller for {name}": "Abriendo el desinstalador de {name}",
   "Install anyway": "Instalar de todos modos",
   "This game isn't on your Microsoft account. Without an active Game Pass or a purchase it won't start after downloading.": "Este juego no está en tu cuenta de Microsoft. Sin Game Pass activo ni compra, no se iniciará tras la descarga.",
   "That screen couldn't open": "No se pudo abrir esta pantalla",
@@ -399,6 +402,13 @@ export const es: Catalog = {
   "Cloud saves": "Guardado en la nube",
   "Play Anywhere": "Play Anywhere",
   "Cancel download?": "¿Cancelar la descarga?",
+  "Uninstall game?": "¿Desinstalar el juego?",
+  "It will be removed from this device, freeing {size}.": "Se eliminará de este dispositivo y se liberarán {size}.",
+  "It will be removed from this device.": "Se eliminará de este dispositivo.",
+  "Restart?": "¿Reiniciar?",
+  "Power off?": "¿Apagar?",
+  "Quit Mantel?": "¿Salir de Mantel?",
+  "Games still running will close, and unsaved progress will be lost.": "Los juegos abiertos se cerrarán y se perderá el progreso no guardado.",
   "About {size} of downloaded data will be discarded.": "Se perderán unos {size} de datos descargados.",
   "Cancel download": "Cancelar la descarga",
   "Keep downloading": "Seguir descargando",

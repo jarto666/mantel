@@ -1,5 +1,5 @@
 // Gamepad + keyboard input, routed to a priority stack of handlers.
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore, type MouseEvent, type PointerEvent } from "react";
 import { keepSoundAwake, sound } from "./sound";
 
 export type Action =
@@ -90,6 +90,43 @@ export function dispatch(action: Action, repeat = false) {
   }
 }
 
+// ---- Touch and mouse ------------------------------------------------------
+
+let tapped = false;
+
+/**
+ * What the player points with: "mouse", "touch" or "pen", or "none" once a button is pressed.
+ * What's under the pointer lights up only while it's a mouse (see the CSS). Set on change only,
+ * since every change restyles the page.
+ */
+function pointing(type: string) {
+  const root = document.documentElement;
+  if (root.dataset.pointer !== type) root.dataset.pointer = type;
+}
+
+/** Whether the last press was a tap or a click rather than a button, so a prompt can say "Tap again". */
+export const lastPressWasTap = () => tapped;
+
+/** Where the last press went down and came up. */
+let press: { down: EventTarget | null; up: EventTarget | null } = { down: null, up: null };
+
+/**
+ * Props for a popup's backdrop, and for empty space that counts as one. With a finger or a mouse,
+ * a click there does what B does in the popup, as the Back hint would. Only a press that starts
+ * and ends there counts: dragging a slider out of the card doesn't close it.
+ */
+export const backdrop = {
+  onPointerDown: (e: PointerEvent) => {
+    press = { down: e.target, up: null };
+  },
+  onPointerUp: (e: PointerEvent) => {
+    press.up = e.target;
+  },
+  onClick: (e: MouseEvent) => {
+    if (e.target === e.currentTarget && press.down === e.target && press.up === e.target) dispatch("b");
+  },
+};
+
 // ---- Which device -------------------------------------------------------
 
 /** What the player last pressed: button hints show that device's buttons. A pad until a key. */
@@ -164,6 +201,8 @@ function poll(t: number) {
     const h = held.get(action);
     if (!h) {
       held.set(action, { since: t, last: t });
+      tapped = false;
+      pointing("none");
       setDevice("pad");
       dispatch(action, false);
     } else if (REPEATS.has(action) && t - h.since > FIRST_REPEAT) {
@@ -201,6 +240,8 @@ function onKey(e: KeyboardEvent) {
   const action = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (!action) return;
   e.preventDefault();
+  tapped = false;
+  pointing("none");
   setDevice("keys");
   if (e.repeat && !REPEATS.has(action)) return;
   dispatch(action, e.repeat);
@@ -215,6 +256,10 @@ export function startInput() {
   // without this, a tap woke the screensaver and the next idle check put it straight back.
   for (const type of ["pointerdown", "pointermove", "wheel"] as const) {
     window.addEventListener(type, markActivity, { passive: true, capture: true });
+  }
+  window.addEventListener("pointerdown", () => (tapped = true), { passive: true, capture: true });
+  for (const type of ["pointerdown", "pointermove"] as const) {
+    window.addEventListener(type, (e) => pointing(e.pointerType), { passive: true, capture: true });
   }
   requestAnimationFrame(poll);
 }

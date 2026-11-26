@@ -24,7 +24,7 @@ Every release is built by GitHub Actions from the public source code.
 - **Controller first.** Every screen works with the gamepad, the touchscreen or a keyboard. The control center (≡) sets volume and brightness, shows Wi-Fi and battery, closes games, restarts or powers off the device. Several games and programs can run at once; each one closes from its own card.
 - **Playtime that adds up.** Mantel times every session itself and, with your accounts connected, brings in playtime from Steam and Xbox across all your devices.
 - **One library, two stores.** The Library holds everything you have from every store, installed or not, with a filter for each store. Sign in to see all your Steam games and the Xbox games you've played. The Xbox tab is the PC Game Pass catalog and the Microsoft Store, the Steam tab the Steam store, each with lists by genre and shelves that open into full grids. Search reaches both stores too. Buying happens in the store itself.
-- **Install from the couch.** Game Pass games and anything else on your Microsoft account install right in Mantel through Windows' own installer, with a list of editions showing what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the home screen, downloads carry on with Mantel closed, and uninstalling works the same way.
+- **Install from the couch.** Game Pass games and anything else on your Microsoft account install right in Mantel through Windows' own installer, with a list of editions showing what's yours and what the others cost. Steam games go through Steam's dialog. Progress, speed and time left show on the home screen, downloads carry on with Mantel closed, and uninstalling works the same way. A game you added yourself uninstalls with its own uninstaller, when Windows lists one; uninstalling always asks first.
 - **In your language.** English, French, German, Spanish and Russian.
 - **Achievements.** With an account connected, every Steam and Xbox game shows its progress, and its page lists each achievement with rarity and gamerscore.
 - **Trailers.** Rest on a game for a moment and its trailer plays, muted, behind it. Settings → Interface turns that off.
@@ -42,7 +42,7 @@ The same on every screen:
 | B | Back |
 | Y | Details |
 | X | Favorite |
-| LB / RB | Games ↔ Library ↔ Settings |
+| LB / RB | Home ↔ Apps ↔ Library ↔ Xbox ↔ Steam ↔ Settings |
 | LT / RT | Library filters |
 | View | Search |
 | Menu | Control center: volume, brightness, close game, restart, power off, desktop |

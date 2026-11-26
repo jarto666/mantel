@@ -79,6 +79,26 @@ pub struct CustomGame {
     pub target: Option<String>,
 }
 
+impl CustomGame {
+    /// Whether this is the game at `path` (with `target`, the program a shortcut runs): the same
+    /// file, or a shortcut and the program it runs.
+    pub fn is(&self, path: &str, target: Option<&str>) -> bool {
+        let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+        let mine = self.target.as_deref();
+        same(&self.path, path) || mine.is_some_and(|m| same(m, path)) || target.is_some_and(|t| same(&self.path, t) || mine.is_some_and(|m| same(m, t)))
+    }
+
+    /// An id for a new game added by hand: the time in seconds, moved on past any id taken, since
+    /// a few games can be added within one second.
+    pub fn free_id(start: i64, taken: &[CustomGame]) -> String {
+        let mut n = start;
+        while taken.iter().any(|c| c.id == format!("{n:x}")) {
+            n += 1;
+        }
+        format!("{n:x}")
+    }
+}
+
 /// Store sign-ins. Kept out of `Settings` so tokens never travel to the UI, and encrypted on
 /// disk (see [`secret`]).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -157,6 +177,19 @@ const USER_FILE: &str = "user.json";
 const CACHE_FILE: &str = "cache.json";
 
 impl AppState {
+    /// Drops a game added by hand: its entry and its card. Its playtime stays under its id, which
+    /// adding the game again doesn't get back.
+    pub fn forget_custom(&self, id: &str) {
+        {
+            let mut user = self.user.lock().unwrap();
+            user.custom.retain(|c| format!("custom:{}", c.id) != id);
+            self.save_user(&user);
+        }
+        let mut cache = self.cache.lock().unwrap();
+        cache.library.retain(|g| g.id != id);
+        self.save_cache(&cache);
+    }
+
     pub fn load(dir: PathBuf) -> Self {
         let state = AppState {
             user: Mutex::new(read_json(&dir.join(USER_FILE))),
@@ -294,6 +327,25 @@ fn read_json<T: DeserializeOwned + Default>(path: &Path) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_shortcut_and_its_program_are_the_same_game() {
+        let lnk = CustomGame { id: "1".into(), name: "R".into(), path: r"C:\Users\Public\Desktop\R.lnk".into(), args: Vec::new(), target: Some(r"C:\Games\R\R.exe".into()) };
+        let exe = CustomGame { target: None, path: r"C:\Games\R\R.exe".into(), ..lnk.clone() };
+        assert!(lnk.is(r"c:\users\public\desktop\r.lnk", None));
+        assert!(lnk.is(r"C:\Games\R\R.exe", None));
+        assert!(exe.is(r"D:\Other\R.lnk", Some(r"C:\Games\R\R.exe")));
+        assert!(lnk.is(r"D:\Other\R.lnk", Some(r"C:\Games\R\R.exe")));
+        assert!(!lnk.is(r"C:\Games\S\S.exe", None));
+    }
+
+    #[test]
+    fn games_added_within_one_second_get_ids_of_their_own() {
+        let game = |id: &str| CustomGame { id: id.into(), name: "x".into(), path: format!("C:\\{id}.exe"), args: Vec::new(), target: None };
+        assert_eq!(CustomGame::free_id(0x6b07, &[]), "6b07");
+        assert_eq!(CustomGame::free_id(0x6b07, &[game("6b07"), game("6b08")]), "6b09");
+        assert_eq!(CustomGame::free_id(0x6b07, &[game("6b08")]), "6b07");
+    }
 
     #[test]
     fn keeps_tokens_secret() {
