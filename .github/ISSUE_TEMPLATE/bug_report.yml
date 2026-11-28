@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in Mantel doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Ideas and feature requests go to [Ideas](https://github.com/jarto666/mantel/discussions/categories/ideas) instead, where others can upvote them.
+  - type: input
+    id: version
+    attributes:
+      label: Mantel version
+      description: Shown at the bottom of Settings → System.
+      placeholder: "0.5.5"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Windows version
+      placeholder: "ROG Xbox Ally X, Windows 11 25H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How Mantel runs
+      options:
+        - As the home app of the Xbox full screen experience
+        - In a window on the desktop
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: store
+    attributes:
+      label: Which games are involved
+      multiple: true
+      options:
+        - Xbox, Game Pass or Microsoft Store
+        - Steam
+        - Epic, GOG or Ubisoft Connect
+        - A game added by hand
+        - None, it's Mantel itself
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: tools
+    attributes:
+      label: Other tools that change Windows (optional)
+      description: Mods or apps that change how Windows looks or handles input can affect Mantel.
+      placeholder: "Windhawk, Handheld Companion, Playnite…"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Drag `%APPDATA%\com.playmantel.launcher\mantel.log` here, or paste its end. Look it over first for anything you'd rather not share.

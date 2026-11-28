@@ -1,8 +1,20 @@
 # Contributing to Mantel
 
-Thanks for helping. Bug reports with your handheld model, the store involved and the
-log (`%APPDATA%\com.playmantel.launcher\mantel.log`) are the most useful thing you can
-send.
+Thanks for helping.
+
+## Bugs and ideas
+
+- **Bugs** go to [Issues](https://github.com/jarto666/mantel/issues/new/choose). The form
+  asks for what helps most: the Mantel version, your handheld, how Mantel runs and the log
+  (`%APPDATA%\com.playmantel.launcher\mantel.log`).
+- **Ideas** go to [Discussions → Ideas](https://github.com/jarto666/mantel/discussions/categories/ideas),
+  one idea per post. Upvote the ones you want. Ideas are looked at before each release, most
+  wanted first, and the ones picked become issues.
+- **Questions** go to [Discussions → Q&A](https://github.com/jarto666/mantel/discussions/categories/q-a).
+
+Mantel aims to be a good console-style home on a handheld out of the box: good defaults
+rather than an option for everything. Ideas that make playing with a controller better come
+first. Ones that add settings for the look are weighed against keeping Mantel simple.
 
 ## Pull requests
 

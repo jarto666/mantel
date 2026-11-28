@@ -170,7 +170,7 @@ URI `https://login.live.com/oauth20_desktop.srf`; put its client ID in
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Bugs go to [Issues](https://github.com/jarto666/mantel/issues/new/choose), ideas to [Discussions](https://github.com/jarto666/mantel/discussions/categories/ideas), where everyone can upvote them. Pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Code signing policy
 
