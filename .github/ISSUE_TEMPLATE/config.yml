@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Suggest an idea
+    url: https://github.com/jarto666/mantel/discussions/categories/ideas
+    about: New features and changes go to Ideas, where everyone can upvote them. The most wanted ones become issues.
+  - name: Ask a question
+    url: https://github.com/jarto666/mantel/discussions/categories/q-a
+    about: Help with setup, and how things work.
